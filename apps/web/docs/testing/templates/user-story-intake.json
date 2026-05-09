@@ -1,0 +1,31 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2026-04-10T00:00:00Z",
+  "stories": [
+    {
+      "id": "US-BILLING-001",
+      "title": "Owner attaches payment method securely",
+      "persona": "company_owner",
+      "module": "billing",
+      "routes": [
+        "/billing"
+      ],
+      "business_criticality": 5,
+      "change_frequency": 3,
+      "user_impact": 5,
+      "security_impact": 4,
+      "compliance_impact": 4,
+      "defect_history": 2,
+      "acceptance_criteria": [
+        "Owner can create a setup intent",
+        "Owner can attach a card through Stripe Elements",
+        "Errors are shown for failed attachment"
+      ],
+      "tags": [
+        "billing",
+        "critical",
+        "payments"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI E2E Scenario Matrix",
+  "type": "object",
+  "required": [
+    "version",
+    "generated_at",
+    "coverage_target",
+    "runtime_target_minutes",
+    "scenarios"
+  ],
+  "properties": {
+    "version": { "type": "string" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "coverage_target": { "type": "number", "minimum": 0, "maximum": 1 },
+    "runtime_target_minutes": { "type": "number", "minimum": 1 },
+    "scenarios": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "story_id",
+          "title",
+          "module",
+          "route",
+          "priority",
+          "risk_score",
+          "critical_flow",
+          "steps",
+          "expected_outcome"
+        ],
+        "properties": {
+          "id": { "type": "string" },
+          "story_id": { "type": "string" },
+          "title": { "type": "string" },
+          "module": { "type": "string" },
+          "route": { "type": "string" },
+          "priority": { "type": "string", "enum": ["P0", "P1", "P2"] },
+          "risk_score": { "type": "number", "minimum": 0, "maximum": 100 },
+          "critical_flow": { "type": "boolean" },
+          "browser_matrix": {
+            "type": "array",
+            "items": { "type": "string", "enum": ["chromium", "firefox", "webkit"] }
+          },
+          "steps": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1
+          },
+          "expected_outcome": { "type": "string" },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

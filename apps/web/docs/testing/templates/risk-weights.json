@@ -1,0 +1,23 @@
+{
+  "version": "1.0.0",
+  "weights": {
+    "business_criticality": 0.24,
+    "change_frequency": 0.12,
+    "user_impact": 0.2,
+    "security_impact": 0.2,
+    "compliance_impact": 0.14,
+    "defect_history": 0.1
+  },
+  "thresholds": {
+    "p0_min": 80,
+    "p1_min": 60
+  },
+  "tag_overrides": {
+    "critical_tags": [
+      "auth",
+      "billing",
+      "campaign-execution",
+      "webhook"
+    ]
+  }
+}

@@ -1,0 +1,175 @@
+/*
+ * Layer order declaration — must come first.
+ * sneat-base < theme < utilities < unlayered
+ * Tailwind utility classes can override sneat-base heading/body rules.
+ */
+@layer sneat-base, theme, utilities;
+
+/* Tailwind CSS — theme variables and utility classes (no preflight) */
+@import "tailwindcss/theme" layer(theme);
+@import "tailwindcss/utilities" layer(utilities);
+
+/* ── Sneat dashboard base styles ───────────────────────────────────────────
+   Placed in sneat-base layer so Tailwind utilities can override them on
+   the landing page. The dashboard uses MUI which re-applies its own styles
+   on top via emotion (prepend: true), so this layer order is safe.
+   ───────────────────────────────────────────────────────────────────────── */
+@layer sneat-base {
+  /* Headings — dashboard Sneat theme */
+  h1, h2, h3, h4, h5, h6 {
+    color: #566a7f;
+    font-weight: 500;
+    line-height: 1.1;
+  }
+}
+
+/* ── Unlayered globals (apply everywhere, highest CSS priority) ──────────── */
+
+:root {
+  --mui-mainColorChannels-light: 67 89 113;
+  --mui-mainColorChannels-dark: 231 227 252;
+  --mui-mainColorChannels-lightShadow: 67 89 113;
+  --mui-mainColorChannels-darkShadow: 19 17 32;
+  --backdrop-color: rgb(67 89 113 / 0.5);
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: "Public Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans",
+    "Helvetica Neue", sans-serif;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  line-height: 1.53;
+  color: #697a8d;
+  background-color: #f5f5f9;
+  -webkit-text-size-adjust: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* Smooth transitions */
+button,
+input,
+select,
+textarea,
+a {
+  transition: all 160ms ease;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--mui-palette-primary-main, #696cff);
+  outline-offset: 2px;
+}
+
+/* Scrollbar styling (Sneat style) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(67, 89, 113, 0.2);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(67, 89, 113, 0.35);
+}
+
+/* Global loading gate to prevent broken first paint during hydration */
+.app-loading-gate {
+  position: relative;
+  min-height: 100vh;
+}
+
+.app-loading-content {
+  transition: opacity 240ms ease;
+}
+
+.app-loading-content--hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-loading-content--visible {
+  opacity: 1;
+}
+
+.app-loading-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: #f5f5f9;
+  opacity: 1;
+  transition: opacity 240ms ease;
+  z-index: 2000;
+}
+
+.app-loading-overlay--fade {
+  opacity: 0;
+}
+
+.app-loading-indicator {
+  display: grid;
+  justify-items: center;
+  gap: 0.875rem;
+  text-align: center;
+  padding: 1rem;
+}
+
+.app-loading-spinner-wrap {
+  width: clamp(56px, 12vw, 84px);
+  aspect-ratio: 1 / 1;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: rgba(105, 108, 255, 0.1);
+}
+
+.app-loading-spinner {
+  width: 56%;
+  aspect-ratio: 1 / 1;
+  border-radius: 999px;
+  border: 3px solid rgba(105, 108, 255, 0.2);
+  border-top-color: #696cff;
+  animation: app-loading-spin 0.9s linear infinite;
+}
+
+.app-loading-label {
+  margin: 0;
+  color: #697a8d;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+@keyframes app-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-loading-content,
+  .app-loading-overlay {
+    transition: none;
+  }
+
+  .app-loading-spinner {
+    animation-duration: 1.4s;
+  }
+}
