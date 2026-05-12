@@ -565,8 +565,8 @@ export default function LeadsPage() {
         {loading ? (
           <SkeletonLines rows={8} />
         ) : (
-          <Paper variant="outlined" sx={{ overflowX: "hidden" }}>
-            <Table size="medium" sx={{ width: "100%", tableLayout: "fixed" }}>
+          <Paper variant="outlined" sx={{ overflowX: "auto" }}>
+            <Table size="medium" sx={{ width: "100%", minWidth: 980, tableLayout: "fixed" }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: "action.hover" }}>
                   <TableCell sx={{ width: "16%" }}>Name</TableCell>

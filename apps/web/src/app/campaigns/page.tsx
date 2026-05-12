@@ -405,7 +405,16 @@ export default function CampaignsPage() {
         </Box>
 
         <Box sx={{ mb: 2, display: "flex", flexWrap: "wrap", gap: 2, alignItems: "center", justifyContent: "space-between" }}>
-          <Stack direction="row" spacing={2}>
+          <Stack
+            direction="row"
+            spacing={2}
+            sx={{
+              flexWrap: { xs: "nowrap", sm: "wrap" },
+              overflowX: { xs: "auto", sm: "visible" },
+              maxWidth: "100%",
+              pb: { xs: 0.5, sm: 0 },
+            }}
+          >
             {(["all", "active", "paused", "draft"] as CampaignTab[]).map((value) => (
               <Box
                 key={value}
@@ -480,7 +489,12 @@ export default function CampaignsPage() {
                       <TableCell>{campaignTypeLabel(campaign.type)}</TableCell>
                       <TableCell>{campaign.lead_list_name || "-"}</TableCell>
                       <TableCell align="right">
-                        <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <Stack
+                          direction={{ xs: "column", sm: "row" }}
+                          spacing={1}
+                          justifyContent="flex-end"
+                          alignItems={{ xs: "stretch", sm: "center" }}
+                        >
                           <MuiButton
                             size="medium"
                             variant="outlined"
@@ -567,7 +581,7 @@ export default function CampaignsPage() {
                 <MenuItem value="whatsapp">WhatsApp Message</MenuItem>
                 <MenuItem value="outreach">Outreach</MenuItem>
               </TextField>
-              <Stack direction="row" spacing={1}>
+              <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
                 <Box sx={{ flex: 1, display: "grid", gap: 0.5 }}>
                   <Typography variant="caption" color="text.secondary">Retry Limit</Typography>
                   <TextField

@@ -49,6 +49,7 @@ export function Navbar({
             minHeight: "64px !important",
             px: { xs: 3, sm: 4 },
             gap: 2,
+            flexWrap: { xs: "wrap", sm: "nowrap" },
             bgcolor: "background.paper",
             borderRadius: { xs: 0, md: "0.375rem" },
             boxShadow:
@@ -56,7 +57,16 @@ export function Navbar({
           }}
         >
           {/* Left section: Menu toggle + Search */}
-          <Box sx={{ display: "flex", alignItems: "center", gap: 2, flex: 1 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+              flex: 1,
+              minWidth: 0,
+              flexBasis: { xs: "100%", sm: "auto" },
+            }}
+          >
             <IconButton
               edge="start"
               onClick={onMenuClick}
@@ -85,7 +95,7 @@ export function Navbar({
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
               sx={{
-                width: { xs: "100%", sm: 280 },
+                width: { xs: "100%", sm: 280, md: 320 },
                 height: 38,
                 borderRadius: "0.375rem",
                 fontSize: "0.9375rem",
@@ -112,6 +122,8 @@ export function Navbar({
               display: "flex",
               alignItems: "center",
               gap: 1,
+              flexBasis: { xs: "100%", sm: "auto" },
+              justifyContent: { xs: "flex-end", sm: "flex-start" },
             }}
           >
             {/* Dark Mode Toggle */}
