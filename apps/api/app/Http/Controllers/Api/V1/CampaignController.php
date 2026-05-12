@@ -6,13 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Jobs\RunCampaignTickJob;
 use App\Models\AgentSession;
 use App\Models\Campaign;
+use App\Models\CampaignAgentAssignment;
 use App\Models\CampaignRun;
 use App\Models\DialQueueItem;
 use App\Models\Lead;
 use App\Models\LeadList;
+use App\Models\LeadTimelineItem;
 use App\Models\Message;
+use App\Models\MessageThread;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -217,7 +221,7 @@ class CampaignController extends Controller
                 || array_key_exists('type', $validated));
 
         if ($isMessageUpdate) {
-            $settings = (array) ($campaign->settings ?? []);
+            $settings = (array) (($validated['settings'] ?? null) ?: ($campaign->settings ?? []));
             $channel = $resolvedType === 'sms'
                 ? 'sms'
                 : ($resolvedType === 'whatsapp'
@@ -314,6 +318,34 @@ class CampaignController extends Controller
         $campaign->status = 'running';
         $campaign->save();
 
+        $assignedAgentIds = CampaignAgentAssignment::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('campaign_id', $campaign->id)
+            ->pluck('agent_id')
+            ->map(fn ($id) => (string) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        foreach ($assignedAgentIds as $agentId) {
+            AgentSession::query()->updateOrCreate(
+                [
+                    'tenant_id' => $tenant->id,
+                    'agent_id' => $agentId,
+                ],
+                [
+                    'status' => 'available',
+                    'capacity' => 1,
+                    'available_since' => now(),
+                    'last_heartbeat_at' => now(),
+                ]
+            );
+        }
+
+        if ($isMessageCampaign && $run) {
+            $this->recoverMessageCampaignIfStuck($campaign, $run, $channel);
+        }
+
         if (! $isMessageCampaign) {
             RunCampaignTickJob::dispatch($run->id);
         }
@@ -406,6 +438,17 @@ class CampaignController extends Controller
 
         $isMessageCampaign = in_array($campaign->type, ['sms', 'whatsapp', 'outreach'], true);
         if ($isMessageCampaign) {
+            $settings = (array) ($campaign->settings ?? []);
+            $channel = (string) ($settings['channel'] ?? '');
+            if (! in_array($channel, self::MESSAGE_CHANNELS, true)) {
+                $channel = $campaign->type === 'sms' ? 'sms' : 'whatsapp';
+            }
+
+            if ($run) {
+                $this->recoverMessageCampaignIfStuck($campaign, $run, $channel);
+                $run->refresh();
+            }
+
             if ($campaign->type === 'whatsapp') {
                 $this->syncTwilioWhatsAppStatuses(
                     tenantId: (string) $tenant->id,
@@ -414,20 +457,12 @@ class CampaignController extends Controller
                 );
             }
 
-            $runId = $run?->id;
-            $query = Message::query()->where('tenant_id', $tenant->id);
-            if ($runId) {
-                $query->where('metadata->campaign_run_id', $runId);
-            } else {
-                $query->where('metadata->campaign_id', $campaign->id);
-            }
-            $counts = $query
-                ->selectRaw("SUM(CASE WHEN status IN ('queued','accepted') THEN 1 ELSE 0 END) as pending")
-                ->selectRaw("SUM(CASE WHEN status IN ('sending','sent') THEN 1 ELSE 0 END) as in_progress")
-                ->selectRaw("SUM(CASE WHEN status IN ('delivered','read') THEN 1 ELSE 0 END) as completed")
-                ->selectRaw("SUM(CASE WHEN status IN ('failed','undelivered') THEN 1 ELSE 0 END) as failed")
-                ->first();
-            $queueCounts = $counts;
+            $queueCounts = (object) [
+                'pending' => (int) ($run?->queued_items ?? 0),
+                'in_progress' => 0,
+                'completed' => (int) ($run?->completed_items ?? 0),
+                'failed' => (int) ($run?->failed_items ?? 0),
+            ];
         } else {
             $queueCounts = DialQueueItem::query()
                 ->where('tenant_id', $tenant->id)
@@ -566,14 +601,36 @@ class CampaignController extends Controller
             ->where('id', $id)
             ->firstOrFail();
 
-        $totals = DialQueueItem::query()
-            ->where('tenant_id', $tenant->id)
-            ->where('campaign_id', $campaign->id)
-            ->selectRaw("SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending")
-            ->selectRaw("SUM(CASE WHEN status IN ('processing','dialed') THEN 1 ELSE 0 END) as in_progress")
-            ->selectRaw("SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed")
-            ->selectRaw("SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed")
-            ->first();
+        $isMessageCampaign = in_array($campaign->type, ['sms', 'whatsapp', 'outreach'], true);
+        if ($isMessageCampaign) {
+            $run = CampaignRun::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('campaign_id', $campaign->id)
+                ->latest('created_at')
+                ->first();
+            $totals = (object) [
+                'pending' => (int) ($run?->queued_items ?? 0),
+                'in_progress' => 0,
+                'completed' => (int) ($run?->completed_items ?? 0),
+                'failed' => (int) ($run?->failed_items ?? 0),
+            ];
+        } else {
+            $run = CampaignRun::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('campaign_id', $campaign->id)
+                ->latest('created_at')
+                ->first();
+
+            $totals = DialQueueItem::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('campaign_id', $campaign->id)
+                ->when($run, fn($q) => $q->where('campaign_run_id', $run->id))
+                ->selectRaw("SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending")
+                ->selectRaw("SUM(CASE WHEN status IN ('processing','dialed') THEN 1 ELSE 0 END) as in_progress")
+                ->selectRaw("SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed")
+                ->selectRaw("SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed")
+                ->first();
+        }
 
         return response()->json([
             'data' => [
@@ -631,6 +688,145 @@ class CampaignController extends Controller
                     'current_page' => $queueItems->currentPage(),
                     'last_page' => $queueItems->lastPage(),
                 ],
+            ],
+        ]);
+    }
+
+    public function messageReport(Request $request, string $id): JsonResponse
+    {
+        $tenant = $request->attributes->get('tenant');
+        $campaign = Campaign::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $runId = $request->filled('run_id') ? (string) $request->query('run_id') : null;
+        $run = CampaignRun::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('campaign_id', $campaign->id)
+            ->when($runId, fn ($q) => $q->where('id', $runId))
+            ->latest('created_at')
+            ->first();
+
+        if (! $run) {
+            return response()->json([
+                'data' => [
+                    'campaign_id' => $campaign->id,
+                    'campaign_run_id' => null,
+                    'channel' => null,
+                    'entries' => [],
+                ],
+            ]);
+        }
+
+        $settings = (array) ($campaign->settings ?? []);
+        $channel = (string) (($run->metadata['channel'] ?? null) ?: (($settings['channel'] ?? null) ?: ''));
+        $channelFilter = in_array($channel, ['sms', 'whatsapp'], true) ? $channel : null;
+
+        $leadIds = $this->resolveCampaignLeadIds($campaign);
+        $leads = $leadIds === []
+            ? collect()
+            : Lead::query()
+                ->where('tenant_id', $tenant->id)
+                ->whereIn('id', $leadIds)
+                ->get(['id', 'full_name', 'phone'])
+                ->values();
+
+        $numbers = $leads
+            ->map(fn (Lead $lead) => (string) $lead->phone)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $threadsByNumber = $numbers->isEmpty()
+            ? collect()
+            : MessageThread::query()
+                ->where('tenant_id', $tenant->id)
+                ->whereIn('counterparty_number', $numbers->all())
+                ->when($channelFilter, fn ($q) => $q->where('channel', $channelFilter))
+                ->orderByDesc('updated_at')
+                ->get(['id', 'channel', 'counterparty_number'])
+                ->keyBy('counterparty_number');
+
+        $threadIds = $threadsByNumber->values()->pluck('id')->filter()->unique()->values();
+
+        $outbound = Message::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('direction', 'outbound')
+            ->where('metadata->campaign_run_id', (string) $run->id)
+            ->orderBy('sent_at')
+            ->get(['id', 'thread_id', 'body', 'status', 'sent_at', 'delivered_at', 'provider_message_id']);
+
+        $outboundByThread = $outbound->groupBy('thread_id');
+        $startedAt = $run->started_at ?: $outbound->min('sent_at');
+
+        $inboundByThread = $threadIds->isEmpty()
+            ? collect()
+            : Message::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('direction', 'inbound')
+                ->whereIn('thread_id', $threadIds->all())
+                ->when($startedAt, fn ($q) => $q->where('sent_at', '>=', $startedAt))
+                ->orderBy('sent_at')
+                ->get(['id', 'thread_id', 'body', 'status', 'sent_at'])
+                ->groupBy('thread_id');
+
+        $entries = $leads->map(function (Lead $lead) use ($threadsByNumber, $outboundByThread, $inboundByThread): array {
+            $phone = (string) $lead->phone;
+            $thread = $phone !== '' ? $threadsByNumber->get($phone) : null;
+            $threadId = $thread?->id ? (string) $thread->id : null;
+
+            $outboundMessages = $threadId
+                ? ($outboundByThread->get($threadId) ?? collect())
+                    ->map(fn (Message $message) => [
+                        'id' => $message->id,
+                        'status' => $message->status,
+                        'body' => $message->body,
+                        'sent_at' => $message->sent_at?->toISOString(),
+                        'delivered_at' => $message->delivered_at?->toISOString(),
+                        'read_at' => $message->read_at?->toISOString(),
+                        'provider_message_id' => $message->provider_message_id,
+                    ])
+                    ->values()
+                    ->all()
+                : [];
+
+            $inboundMessages = $threadId
+                ? ($inboundByThread->get($threadId) ?? collect())
+                    ->map(fn (Message $message) => [
+                        'id' => $message->id,
+                        'status' => $message->status,
+                        'body' => $message->body,
+                        'sent_at' => $message->sent_at?->toISOString(),
+                    ])
+                    ->values()
+                    ->all()
+                : [];
+
+            return [
+                'thread_id' => $threadId,
+                'channel' => (string) ($thread?->channel ?? ''),
+                'counterparty_number' => $phone,
+                'lead' => [
+                    'id' => $lead->id,
+                    'full_name' => $lead->full_name,
+                    'phone' => $lead->phone,
+                ],
+                'outbound' => $outboundMessages,
+                'inbound' => $inboundMessages,
+                'counts' => [
+                    'outbound' => count($outboundMessages),
+                    'inbound' => count($inboundMessages),
+                ],
+            ];
+        })->values();
+
+        return response()->json([
+            'data' => [
+                'campaign_id' => $campaign->id,
+                'campaign_run_id' => $run->id,
+                'channel' => $channelFilter ?: $channel,
+                'entries' => $entries,
             ],
         ]);
     }
@@ -768,6 +964,120 @@ class CampaignController extends Controller
         }
     }
 
+    private function recoverMessageCampaignIfStuck(Campaign $campaign, CampaignRun $run, string $channel): void
+    {
+        if ($run->status !== 'running') {
+            return;
+        }
+        if ((int) ($run->queued_items ?? 0) <= 0) {
+            return;
+        }
+
+        $runId = (string) $run->id;
+
+        $pendingJobs = (int) DB::table('jobs')
+            ->where('payload', 'like', '%DispatchOutboundMessageJob%')
+            ->where('payload', 'like', '%'.$runId.'%')
+            ->count();
+        if ($pendingJobs > 0) {
+            return;
+        }
+
+        $processedLeadIds = LeadTimelineItem::query()
+            ->where('tenant_id', $campaign->tenant_id)
+            ->where('related_type', 'message')
+            ->where('metadata->bulk_batch_id', $runId)
+            ->where('metadata->direction', 'outbound')
+            ->pluck('lead_id')
+            ->map(fn ($id) => (string) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $leadIds = collect($this->resolveCampaignLeadIds($campaign))
+            ->map(fn ($id) => (string) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $missingLeadIds = $leadIds
+            ->reject(fn (string $leadId) => $processedLeadIds->contains($leadId))
+            ->values();
+
+        if ($missingLeadIds->isEmpty()) {
+            if ((int) $run->queued_items !== 0) {
+                $run->queued_items = 0;
+                $run->last_tick_at = now();
+                $run->save();
+            }
+            return;
+        }
+
+        $settings = (array) ($campaign->settings ?? []);
+        $content = (string) ($settings['message_content'] ?? '');
+        $templateKey = (string) ($settings['message_template_key'] ?? '');
+        $variables = (array) ($settings['message_variables'] ?? []);
+        $providerAccountId = (string) ($settings['provider_account_id'] ?? $campaign->preferred_provider_account_id ?? '');
+
+        $baseVariables = [
+            'campaign_name' => (string) $campaign->name,
+            'campaign' => [
+                'id' => (string) $campaign->id,
+                'name' => (string) $campaign->name,
+            ],
+        ];
+        if ($run->started_by) {
+            $user = \App\Models\User::query()->where('id', $run->started_by)->first();
+            $baseVariables['agent_name'] = (string) ($user?->name ?? '');
+            $baseVariables['agent'] = [
+                'id' => (string) $run->started_by,
+                'name' => (string) ($user?->name ?? ''),
+            ];
+        }
+        $variables = array_merge($baseVariables, $variables);
+
+        DB::transaction(function () use ($campaign, $run, $leadIds, $missingLeadIds): void {
+            $run->total_items = (int) $leadIds->count();
+            $run->queued_items = (int) $missingLeadIds->count();
+            $run->last_tick_at = now();
+            $run->save();
+        });
+
+        try {
+            Log::info('Message campaign recovery dispatched missing jobs.', [
+                'tenant_id' => (string) $campaign->tenant_id,
+                'campaign_id' => (string) $campaign->id,
+                'campaign_run_id' => (string) $run->id,
+                'channel' => $channel,
+                'missing' => (int) $missingLeadIds->count(),
+                'processed' => (int) $processedLeadIds->count(),
+                'pending_jobs' => $pendingJobs,
+            ]);
+        } catch (\Throwable) {
+        }
+
+        $perMinute = max(1, (int) ($campaign->calls_per_minute ?? 60));
+        $spacingSeconds = 60 / $perMinute;
+        $now = now();
+
+        foreach ($missingLeadIds->values() as $index => $leadId) {
+            $delaySeconds = (int) floor($index * $spacingSeconds);
+            \App\Jobs\DispatchOutboundMessageJob::dispatch(
+                tenantId: $campaign->tenant_id,
+                leadId: (string) $leadId,
+                channel: $channel,
+                content: $content,
+                templateKey: $templateKey,
+                variables: $variables,
+                sentByUserId: $run->started_by,
+                bulkBatchId: $run->id,
+                providerAccountId: $providerAccountId !== '' ? $providerAccountId : null,
+                campaignId: $campaign->id,
+                campaignRunId: $run->id,
+            )->delay($now->copy()->addSeconds($delaySeconds));
+        }
+    }
+
     private function resolveCampaignLeadIds(Campaign $campaign): array
     {
         $leadQuery = Lead::query()
@@ -785,10 +1095,14 @@ class CampaignController extends Controller
             });
         }
 
+        $limit = in_array($campaign->type, ['sms', 'whatsapp', 'outreach'], true)
+            ? 10000
+            : max(1, (int) $campaign->queue_size);
+
         return $leadQuery
             ->select('leads.id')
             ->distinct()
-            ->limit(max(1, (int) $campaign->queue_size))
+            ->limit($limit)
             ->pluck('leads.id')
             ->map(fn ($id) => (string) $id)
             ->values()

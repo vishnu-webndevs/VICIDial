@@ -18,6 +18,13 @@ class IntegrationMode
             return $configured;
         }
 
+        if (app()->runningInConsole()) {
+            $command = (string) ($_SERVER['argv'][1] ?? '');
+            if ($command === 'serve') {
+                return self::SANDBOX;
+            }
+        }
+
         return strtolower((string) config('app.env')) === self::PRODUCTION
             ? self::PRODUCTION
             : self::SANDBOX;

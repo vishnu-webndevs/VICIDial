@@ -180,6 +180,8 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:call.view|call.initiate');
         Route::get('/campaigns/{id}/queue', [CampaignController::class, 'queue'])
             ->middleware('permission:call.view|call.initiate');
+        Route::get('/campaigns/{id}/message-report', [CampaignController::class, 'messageReport'])
+            ->middleware('permission:call.view|call.initiate');
 
         Route::post('/agents/session', [AgentSessionController::class, 'upsert'])
             ->middleware('permission:call.initiate');

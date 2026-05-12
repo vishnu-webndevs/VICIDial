@@ -237,6 +237,35 @@ export type CampaignAnalytics = {
   avg_duration_seconds: number;
 };
 
+export type CampaignMessageReportEntry = {
+  thread_id: string;
+  channel: string;
+  counterparty_number: string;
+  lead: { id: string; full_name: string; phone: string } | null;
+  outbound: Array<{
+    id: string;
+    status: string;
+    body: string;
+    sent_at?: string | null;
+    delivered_at?: string | null;
+    provider_message_id?: string | null;
+  }>;
+  inbound: Array<{
+    id: string;
+    status: string;
+    body: string;
+    sent_at?: string | null;
+  }>;
+  counts: { outbound: number; inbound: number };
+};
+
+export type CampaignMessageReport = {
+  campaign_id: string;
+  campaign_run_id: string;
+  channel: string;
+  entries: CampaignMessageReportEntry[];
+};
+
 export type AgentAnalytics = {
   agent_id: string;
   agent_name?: string;

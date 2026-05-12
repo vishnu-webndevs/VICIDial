@@ -52,7 +52,7 @@ class WhatsAppService
             return [
                 'ok' => true,
                 'provider_message_id' => $messageId !== '' ? $messageId : 'wa_meta_'.Str::lower(Str::random(20)),
-                'status' => 'queued',
+                'status' => 'sent',
             ];
         }
 

@@ -9,11 +9,11 @@ const meta = {
 export default meta;
 
 export const SidebarDesktop = {
-  render: () => <Sidebar open={false} onClose={() => {}} />,
+  render: () => <Sidebar open={false} role="admin" onClose={() => {}} />,
 };
 
 export const SidebarMobileDrawer = {
-  render: () => <Sidebar open onClose={() => {}} />,
+  render: () => <Sidebar open role="admin" onClose={() => {}} />,
 };
 
 export const NavbarDefault = {

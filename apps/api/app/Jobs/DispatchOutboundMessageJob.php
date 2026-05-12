@@ -10,18 +10,22 @@ use App\Models\MessageTemplate;
 use App\Models\MessagingOptOut;
 use App\Models\ProviderAccount;
 use App\Models\CampaignRun;
+use App\Models\Campaign;
 use App\Services\Messaging\MessageTemplateRenderer;
 use App\Services\Messaging\SmsService;
 use App\Services\Messaging\WhatsAppService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class DispatchOutboundMessageJob implements ShouldQueue
 {
     use Queueable;
+    use InteractsWithQueue;
 
-    public int $tries = 1;
+    public int $tries = 50;
 
     public int $timeout = 30;
 
@@ -51,17 +55,60 @@ class DispatchOutboundMessageJob implements ShouldQueue
             ->where('id', $this->leadId)
             ->first();
         if (! $lead) {
+            Log::info('Outbound message dispatch skipped.', [
+                'tenant_id' => $tenantId,
+                'lead_id' => $this->leadId,
+                'channel' => $this->channel,
+                'bulk_batch_id' => $this->bulkBatchId,
+                'campaign_id' => $this->campaignId,
+                'campaign_run_id' => $this->campaignRunId,
+                'reason' => 'lead_not_found',
+            ]);
+
             return;
         }
 
         $channel = $this->channel;
         if (! in_array($channel, ['sms', 'whatsapp'], true)) {
+            Log::info('Outbound message dispatch skipped.', [
+                'tenant_id' => $tenantId,
+                'lead_id' => $lead->id,
+                'channel' => $channel,
+                'bulk_batch_id' => $this->bulkBatchId,
+                'campaign_id' => $this->campaignId,
+                'campaign_run_id' => $this->campaignRunId,
+                'reason' => 'invalid_channel',
+            ]);
+
             return;
         }
 
         if ($channel === 'sms' && $this->isOptedOut($tenantId, (string) $lead->phone, 'sms')) {
+            Log::info('Outbound message dispatch skipped.', [
+                'tenant_id' => $tenantId,
+                'lead_id' => $lead->id,
+                'channel' => $channel,
+                'to' => $this->maskPhone((string) $lead->phone),
+                'bulk_batch_id' => $this->bulkBatchId,
+                'campaign_id' => $this->campaignId,
+                'campaign_run_id' => $this->campaignRunId,
+                'reason' => 'opted_out',
+            ]);
+
             return;
         }
+
+        $this->logEvent('info', 'Outbound message dispatch hit.', [
+            'tenant_id' => $tenantId,
+            'lead_id' => $lead->id,
+            'channel' => $channel,
+            'to' => $this->maskPhone((string) $lead->phone),
+            'template_key' => $this->templateKey !== '' ? $this->templateKey : null,
+            'bulk_batch_id' => $this->bulkBatchId,
+            'provider_account_id' => $this->providerAccountId,
+            'campaign_id' => $this->campaignId,
+            'campaign_run_id' => $this->campaignRunId,
+        ]);
 
         $content = trim($this->content);
         $templateKey = trim($this->templateKey);
@@ -73,6 +120,18 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 ->where('is_active', true)
                 ->first();
             if (! $template) {
+                Log::info('Outbound message dispatch skipped.', [
+                    'tenant_id' => $tenantId,
+                    'lead_id' => $lead->id,
+                    'channel' => $channel,
+                    'to' => $this->maskPhone((string) $lead->phone),
+                    'template_key' => $templateKey,
+                    'bulk_batch_id' => $this->bulkBatchId,
+                    'campaign_id' => $this->campaignId,
+                    'campaign_run_id' => $this->campaignRunId,
+                    'reason' => 'template_not_found_or_inactive',
+                ]);
+
                 return;
             }
 
@@ -105,6 +164,18 @@ class DispatchOutboundMessageJob implements ShouldQueue
 
             $content = trim($templateRenderer->render((string) $template->body, $variables));
             if ($content === '') {
+                Log::info('Outbound message dispatch skipped.', [
+                    'tenant_id' => $tenantId,
+                    'lead_id' => $lead->id,
+                    'channel' => $channel,
+                    'to' => $this->maskPhone((string) $lead->phone),
+                    'template_key' => $templateKey,
+                    'bulk_batch_id' => $this->bulkBatchId,
+                    'campaign_id' => $this->campaignId,
+                    'campaign_run_id' => $this->campaignRunId,
+                    'reason' => 'rendered_content_empty',
+                ]);
+
                 return;
             }
         }
@@ -115,6 +186,35 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 ->where('id', $this->campaignRunId)
                 ->first();
             if ($run && $run->status !== 'running') {
+                if (in_array($run->status, ['paused', 'queued'], true)) {
+                    Log::info('Outbound message dispatch delayed (campaign run not running).', [
+                        'tenant_id' => $tenantId,
+                        'lead_id' => $lead->id,
+                        'channel' => $channel,
+                        'to' => $this->maskPhone((string) $lead->phone),
+                        'bulk_batch_id' => $this->bulkBatchId,
+                        'campaign_id' => $this->campaignId,
+                        'campaign_run_id' => $this->campaignRunId,
+                        'reason' => 'campaign_run_not_running',
+                        'run_status' => $run->status,
+                    ]);
+
+                    $this->release(60);
+                    return;
+                }
+
+                Log::info('Outbound message dispatch skipped.', [
+                    'tenant_id' => $tenantId,
+                    'lead_id' => $lead->id,
+                    'channel' => $channel,
+                    'to' => $this->maskPhone((string) $lead->phone),
+                    'bulk_batch_id' => $this->bulkBatchId,
+                    'campaign_id' => $this->campaignId,
+                    'campaign_run_id' => $this->campaignRunId,
+                    'reason' => 'campaign_run_not_running',
+                    'run_status' => $run->status,
+                ]);
+
                 return;
             }
         }
@@ -202,16 +302,21 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 'occurred_at' => now(),
             ]);
 
-            Log::warning('Outbound message dispatch failed.', [
+            $this->logEvent('warning', 'Outbound message dispatch failed.', [
                 'tenant_id' => $tenantId,
                 'lead_id' => $lead->id,
                 'channel' => $channel,
+                'to' => $this->maskPhone((string) $lead->phone),
                 'provider_account_id' => $this->providerAccountId,
                 'campaign_id' => $this->campaignId,
                 'campaign_run_id' => $this->campaignRunId,
+                'bulk_batch_id' => $this->bulkBatchId,
+                'provider_message_id' => (string) ($result['provider_message_id'] ?? ''),
                 'error' => $errorMessage,
                 'status_code' => $result['status_code'] ?? null,
             ]);
+
+            $this->markCampaignRunItemResult($tenantId, $this->campaignRunId, $this->campaignId, false);
 
             return;
         }
@@ -271,6 +376,65 @@ class DispatchOutboundMessageJob implements ShouldQueue
             ],
             'occurred_at' => now(),
         ]);
+
+        $this->logEvent('info', 'Outbound message dispatched.', [
+            'tenant_id' => $tenantId,
+            'message_id' => $message->id,
+            'lead_id' => $lead->id,
+            'channel' => $channel,
+            'to' => $this->maskPhone((string) $lead->phone),
+            'status' => $message->status,
+            'provider_account_id' => $this->providerAccountId,
+            'provider_message_id' => $message->provider_message_id,
+            'bulk_batch_id' => $this->bulkBatchId,
+            'campaign_id' => $this->campaignId,
+            'campaign_run_id' => $this->campaignRunId,
+        ]);
+
+        $this->markCampaignRunItemResult($tenantId, $this->campaignRunId, $this->campaignId, true);
+    }
+
+    private function markCampaignRunItemResult(string $tenantId, ?string $campaignRunId, ?string $campaignId, bool $success): void
+    {
+        if (! $campaignRunId) {
+            return;
+        }
+
+        DB::transaction(function () use ($tenantId, $campaignRunId, $campaignId, $success): void {
+            $run = CampaignRun::query()
+                ->where('tenant_id', $tenantId)
+                ->where('id', $campaignRunId)
+                ->lockForUpdate()
+                ->first();
+            if (! $run) {
+                return;
+            }
+
+            $run->queued_items = max(0, (int) ($run->queued_items ?? 0) - 1);
+            if ($success) {
+                $run->completed_items = max(0, (int) ($run->completed_items ?? 0)) + 1;
+            } else {
+                $run->failed_items = max(0, (int) ($run->failed_items ?? 0)) + 1;
+            }
+            $run->last_tick_at = now();
+
+            if ($run->queued_items === 0 && $run->status === 'running') {
+                $run->status = 'completed';
+                $run->stopped_at = now();
+            }
+
+            $run->save();
+
+            if ($run->status === 'completed') {
+                $id = $campaignId ?: (string) $run->campaign_id;
+                if ($id !== '') {
+                    Campaign::query()
+                        ->where('tenant_id', $tenantId)
+                        ->where('id', $id)
+                        ->update(['status' => 'completed']);
+                }
+            }
+        });
     }
 
     private function isOptedOut(string $tenantId, string $phone, string $channel): bool
@@ -285,5 +449,40 @@ class DispatchOutboundMessageJob implements ShouldQueue
             ->where('channel', $channel)
             ->where('opted_out', true)
             ->exists();
+    }
+
+    private function maskPhone(string $phone): string
+    {
+        $trimmed = trim($phone);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $digits = preg_replace('/\D+/', '', $trimmed) ?? '';
+        if (strlen($digits) <= 4) {
+            return str_repeat('*', max(0, strlen($digits)));
+        }
+
+        return '+'.str_repeat('*', max(0, strlen($digits) - 4)).substr($digits, -4);
+    }
+
+    private function logEvent(string $level, string $message, array $context): void
+    {
+        try {
+            Log::log($level, $message, $context);
+        } catch (\Throwable) {
+        }
+
+        try {
+            $line = sprintf(
+                "[%s] %s: %s %s\n",
+                now()->format('Y-m-d H:i:s'),
+                strtoupper($level),
+                $message,
+                json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+            );
+            @file_put_contents(storage_path('logs/laravel.log'), $line, FILE_APPEND);
+        } catch (\Throwable) {
+        }
     }
 }

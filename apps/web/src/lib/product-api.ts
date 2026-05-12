@@ -10,6 +10,7 @@ import type {
   CallRecord,
   Campaign,
   CampaignAnalytics,
+  CampaignMessageReport,
   CampaignRunStatus,
   CampaignStatusPayload,
   DialQueueItem,
@@ -502,6 +503,17 @@ export async function loadCampaignCommandCenter(
   };
 }
 
+export async function loadCampaignMessageReport(campaignId: string, params: { run_id?: string } = {}): Promise<CampaignMessageReport> {
+  const { token, tenantId } = getTenantContext();
+  const search = new URLSearchParams();
+  if (params.run_id) {
+    search.set("run_id", params.run_id);
+  }
+  const path = `/campaigns/${campaignId}/message-report${search.toString() ? `?${search.toString()}` : ""}`;
+  const response = await apiRequest<{ data: CampaignMessageReport }>(path, { token, tenantId });
+  return response.data;
+}
+
 export async function loadCampaignStatus(campaignId: string): Promise<{
   queue_depth: number;
   active_calls: number;
@@ -547,6 +559,21 @@ export async function updateAgentSession(
   const { token, tenantId } = getTenantContext();
   const response = await apiRequest<ApiDataResponse<AgentActivity>>(`/agents/sessions/${sessionId}`, {
     method: "PATCH",
+    token,
+    tenantId,
+    body: payload,
+  });
+  return response.data;
+}
+
+export async function upsertAgentSession(payload: {
+  agent_id: string;
+  status: "offline" | "available" | "busy" | "on_break";
+  capacity?: number;
+}): Promise<AgentActivity> {
+  const { token, tenantId } = getTenantContext();
+  const response = await apiRequest<ApiDataResponse<AgentActivity>>("/agents/session", {
+    method: "POST",
     token,
     tenantId,
     body: payload,

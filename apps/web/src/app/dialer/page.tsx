@@ -9,16 +9,18 @@ import {
   dispatchCallNow,
   endCall,
   listAgents,
+  upsertAgentSession,
   reportDialerLoopIncident,
   retryCall,
   setCallMuted,
   setCallOnHold,
 } from "@/lib/product-api";
 import { useLiveCalls } from "@/hooks/use-live-calls";
-import type { AgentEntity, CallRecord } from "@/types/product";
+import type { AgentEntity } from "@/types/product";
 
 type AgentCallState = {
   callId: string | null;
+  relatedCallIds: string[];
   status: string;
   muted: boolean;
   onHold: boolean;
@@ -44,8 +46,9 @@ export default function DialerPage() {
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "error">("neutral");
   const [submitting, setSubmitting] = useState(false);
+  const [ending, setEnding] = useState(false);
   const [activeCall, setActiveCall] = useState<AgentCallState>({
-    callId: null, status: "idle", muted: false, onHold: false,
+    callId: null, relatedCallIds: [], status: "idle", muted: false, onHold: false,
   });
   const [callStartedAt, setCallStartedAt] = useState<number | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -95,20 +98,69 @@ export default function DialerPage() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!selectedAgentId) return;
+
+    let cancelled = false;
+    const sendHeartbeat = async (status: "offline" | "available") => {
+      try {
+        await upsertAgentSession({ agent_id: selectedAgentId, status, capacity: 1 });
+      } catch {
+      }
+    };
+
+    void sendHeartbeat("available");
+    const interval = window.setInterval(() => {
+      if (cancelled) return;
+      void sendHeartbeat("available");
+    }, 30_000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [selectedAgentId]);
+
   const { liveCalls, calls, loading, error, refresh } = useLiveCalls();
   const selectedAgent = useMemo(
     () => agents.find((agent) => agent.id === selectedAgentId) ?? null,
     [agents, selectedAgentId]
   );
 
-  const latestLiveCall = useMemo(
-    () => liveCalls[0] ?? calls.find((call) => ["queued", "ringing", "in_progress"].includes(call.status)),
-    [liveCalls, calls]
-  );
+  const relatedIds = useMemo(() => {
+    if (activeCall.relatedCallIds.length > 0) return activeCall.relatedCallIds;
+    if (activeCall.callId) return [activeCall.callId];
+    return [];
+  }, [activeCall.callId, activeCall.relatedCallIds]);
+
+  const viewedCall = useMemo(() => {
+    if (relatedIds.length === 0) return undefined;
+    const related = calls.filter((item) => relatedIds.includes(item.id));
+    const liveRelated = related.find((item) => ["queued", "ringing", "in_progress"].includes(item.status));
+    if (liveRelated) return liveRelated;
+    const lastKnown = related.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
+    return lastKnown;
+  }, [calls, relatedIds]);
+
+  const hasActiveDialerCall =
+    relatedIds.length > 0 &&
+    (Boolean(viewedCall && ["queued", "ringing", "in_progress"].includes(viewedCall.status)) ||
+      ["queued", "ringing", "in_progress"].includes(activeCall.status));
 
   async function submitCall(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     recordAction("call.submit_requested");
+
+    if (ending) {
+      setMessage("Ending the current call. Please wait a moment.");
+      setMessageTone("error");
+      return;
+    }
+    if (hasActiveDialerCall) {
+      setMessage("A call is already active. End the current call before starting a new one.");
+      setMessageTone("error");
+      return;
+    }
 
     const to = normalizePhone(toNumber);
     if (!E164_REGEX.test(to)) {
@@ -171,6 +223,7 @@ export default function DialerPage() {
 
       setActiveCall({
         callId: customerDispatched.id,
+        relatedCallIds: [customerDispatched.id, agentCall.id],
         status: customerDispatched.status,
         muted: customerDispatched.controls?.muted ?? false,
         onHold: customerDispatched.controls?.on_hold ?? false,
@@ -195,36 +248,39 @@ export default function DialerPage() {
     }
   }
 
-  function withCurrentCall(call: CallRecord | undefined): CallRecord | undefined {
-    if (!call) return calls.find((item) => item.id === activeCall.callId);
-    return call;
-  }
-
-  const viewedCall = withCurrentCall(latestLiveCall);
-  const hasLiveCall = Boolean(viewedCall);
-  const canRetry = Boolean(viewedCall && RETRYABLE_STATUSES.has(viewedCall.status));
-  const canEndCall = Boolean(viewedCall && ENDABLE_STATUSES.has(viewedCall.status));
-
   async function handleRetry() {
     if (!viewedCall || !RETRYABLE_STATUSES.has(viewedCall.status)) {
       setMessage("Call cannot be retried in its current state.");
       setMessageTone("error");
       return;
     }
+    if (ending) return;
     try {
       recordAction("call.retry_requested", { call_id: viewedCall.id });
       if (viewedCall.status === "queued") {
         const updated = await dispatchCallNow(viewedCall.id);
         setMessage(`Call dispatched for ${updated.to_number}.`);
         setMessageTone("success");
-        setActiveCall({ callId: updated.id, status: updated.status, muted: updated.controls?.muted ?? false, onHold: updated.controls?.on_hold ?? false });
+        setActiveCall((prev) => ({
+          ...prev,
+          callId: updated.id,
+          status: updated.status,
+          muted: updated.controls?.muted ?? prev.muted,
+          onHold: updated.controls?.on_hold ?? prev.onHold,
+        }));
         setCallStartedAt(Date.now());
         setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: `Dispatched call to ${updated.to_number}` }, ...prev].slice(0, 20));
       } else {
         const retried = await retryCall(viewedCall.id);
         setMessage(`Retry queued for ${retried.to_number}.`);
         setMessageTone("success");
-        setActiveCall({ callId: retried.id, status: retried.status, muted: retried.controls?.muted ?? false, onHold: retried.controls?.on_hold ?? false });
+        setActiveCall((prev) => ({
+          ...prev,
+          callId: retried.id,
+          status: retried.status,
+          muted: retried.controls?.muted ?? prev.muted,
+          onHold: retried.controls?.on_hold ?? prev.onHold,
+        }));
         setCallStartedAt(Date.now());
         setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: `Retry queued for ${retried.to_number}` }, ...prev].slice(0, 20));
       }
@@ -238,6 +294,7 @@ export default function DialerPage() {
 
   async function handleMuteToggle() {
     if (!viewedCall) return;
+    if (ending) return;
     try {
       const next = await setCallMuted(viewedCall.id, !activeCall.muted);
       setActiveCall((prev) => ({ ...prev, callId: next.id, status: next.status, muted: next.controls?.muted ?? !prev.muted }));
@@ -248,6 +305,7 @@ export default function DialerPage() {
 
   async function handleHoldToggle() {
     if (!viewedCall) return;
+    if (ending) return;
     try {
       const next = await setCallOnHold(viewedCall.id, !activeCall.onHold);
       setActiveCall((prev) => ({ ...prev, callId: next.id, status: next.status, onHold: next.controls?.on_hold ?? !prev.onHold }));
@@ -257,15 +315,39 @@ export default function DialerPage() {
   }
 
   async function handleEndCall() {
+    if (ending) return;
     if (!viewedCall || !ENDABLE_STATUSES.has(viewedCall.status)) {
       setMessage("Call must be active before it can be ended.");
       setMessageTone("error");
       return;
     }
     try {
+      setEnding(true);
       recordAction("call.end_requested", { call_id: viewedCall.id });
-      const ended = await endCall(viewedCall.id);
-      setActiveCall({ callId: ended.id, status: ended.status, muted: ended.controls?.muted ?? false, onHold: ended.controls?.on_hold ?? false });
+      const relatedIds = activeCall.relatedCallIds.length > 0 ? activeCall.relatedCallIds : (activeCall.callId ? [activeCall.callId] : []);
+      const endableIds = calls
+        .filter((item) => relatedIds.includes(item.id) && ENDABLE_STATUSES.has(item.status))
+        .map((item) => item.id);
+
+      if (endableIds.length === 0) {
+        const ended = await endCall(viewedCall.id);
+        setActiveCall({
+          callId: ended.id,
+          relatedCallIds: relatedIds,
+          status: ended.status,
+          muted: ended.controls?.muted ?? false,
+          onHold: ended.controls?.on_hold ?? false,
+        });
+      } else {
+        for (const callId of endableIds) {
+          try {
+            await endCall(callId);
+          } catch (err) {
+            captureErrorStack(err);
+          }
+        }
+        setActiveCall({ callId: null, relatedCallIds: [], status: "idle", muted: false, onHold: false });
+      }
       setMessage("Call ended.");
       setMessageTone("success");
       setCallStartedAt(null);
@@ -276,6 +358,8 @@ export default function DialerPage() {
       captureErrorStack(err);
       setMessage(err instanceof Error ? err.message : "Unable to end call.");
       setMessageTone("error");
+    } finally {
+      setEnding(false);
     }
   }
 
@@ -330,7 +414,7 @@ export default function DialerPage() {
 
   return (
     <AppShell requiredPermissions={["call.initiate"]}>
-      <Box sx={{ display: "grid", gap: 2, pb: hasLiveCall ? 14 : 0, gridTemplateColumns: { xs: "1fr", xl: "1.1fr 1fr" } }}>
+      <Box sx={{ display: "grid", gap: 2, pb: hasActiveDialerCall ? 14 : 0, gridTemplateColumns: { xs: "1fr", xl: "1.1fr 1fr" } }}>
         <SectionCard title="Agent Calling Interface" subtitle="Select an agent and dial manually.">
           <Box component="form" sx={{ display: "grid", gap: 1.5 }} onSubmit={submitCall}>
             <TextField
@@ -373,10 +457,10 @@ export default function DialerPage() {
               <UiButton
                 type="submit"
                 variant="primary"
-                disabled={submitting || !selectedAgentId || !selectedAgent?.default_number?.phone_number || !selectedAgent?.destination_number}
+                disabled={submitting || ending || hasActiveDialerCall || !selectedAgentId || !selectedAgent?.default_number?.phone_number || !selectedAgent?.destination_number}
                 className="w-full"
               >
-                {submitting ? "Sending Missed Calls..." : "Send Missed Calls"}
+                {submitting ? "Sending Missed Calls..." : hasActiveDialerCall ? "Call Active" : ending ? "Ending..." : "Send Missed Calls"}
               </UiButton>
             </Box>
           </Box>
@@ -425,10 +509,10 @@ export default function DialerPage() {
           )}
 
           <Box sx={{ mt: 2, display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" } }}>
-            <UiButton type="button" disabled={!viewedCall} onClick={handleMuteToggle}>{activeCall.muted ? "Unmute" : "Mute"}</UiButton>
-            <UiButton type="button" disabled={!viewedCall} onClick={handleHoldToggle}>{activeCall.onHold ? "Resume" : "Hold"}</UiButton>
-            <UiButton type="button" variant="danger" disabled={!viewedCall} onClick={handleEndCall}>End Call</UiButton>
-            <UiButton type="button" disabled={!viewedCall} onClick={handleRetry}>{viewedCall?.status === "queued" ? "Start Queued Call" : "Retry"}</UiButton>
+            <UiButton type="button" disabled={!viewedCall || ending} onClick={handleMuteToggle}>{activeCall.muted ? "Unmute" : "Mute"}</UiButton>
+            <UiButton type="button" disabled={!viewedCall || ending} onClick={handleHoldToggle}>{activeCall.onHold ? "Resume" : "Hold"}</UiButton>
+            <UiButton type="button" variant="danger" disabled={!viewedCall || ending} onClick={handleEndCall}>{ending ? "Ending..." : "End Call"}</UiButton>
+            <UiButton type="button" disabled={!viewedCall || ending} onClick={handleRetry}>{viewedCall?.status === "queued" ? "Start Queued Call" : "Retry"}</UiButton>
           </Box>
 
           <Paper variant="outlined" sx={{ mt: 2.5, p: 1.5 }}>
@@ -452,7 +536,7 @@ export default function DialerPage() {
         </SectionCard>
       </Box>
 
-      {hasLiveCall ? (
+      {hasActiveDialerCall ? (
         <Box sx={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 30, borderTop: 1, borderColor: "divider", bgcolor: "background.paper", px: 2, py: 1.5, backdropFilter: "blur(4px)" }}>
           <Box sx={{ mx: "auto", width: "100%", maxWidth: 1400, display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 1.5 }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
@@ -463,10 +547,10 @@ export default function DialerPage() {
               </Typography>
             </Box>
             <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
-              <UiButton type="button" disabled={!viewedCall} onClick={handleMuteToggle}>{activeCall.muted ? "Unmute" : "Mute"}</UiButton>
-              <UiButton type="button" disabled={!viewedCall} onClick={handleHoldToggle}>{activeCall.onHold ? "Resume" : "Hold"}</UiButton>
-              <UiButton type="button" disabled={!viewedCall} onClick={handleRetry}>{viewedCall?.status === "queued" ? "Start Queued Call" : "Retry"}</UiButton>
-              <UiButton type="button" variant="danger" disabled={!viewedCall} onClick={handleEndCall}>End Call</UiButton>
+              <UiButton type="button" disabled={!viewedCall || ending} onClick={handleMuteToggle}>{activeCall.muted ? "Unmute" : "Mute"}</UiButton>
+              <UiButton type="button" disabled={!viewedCall || ending} onClick={handleHoldToggle}>{activeCall.onHold ? "Resume" : "Hold"}</UiButton>
+              <UiButton type="button" disabled={!viewedCall || ending} onClick={handleRetry}>{viewedCall?.status === "queued" ? "Start Queued Call" : "Retry"}</UiButton>
+              <UiButton type="button" variant="danger" disabled={!viewedCall || ending} onClick={handleEndCall}>{ending ? "Ending..." : "End Call"}</UiButton>
             </Box>
           </Box>
         </Box>

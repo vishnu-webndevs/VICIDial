@@ -68,21 +68,23 @@ export default function LoginPage() {
   return (
     <Box
       sx={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         display: "flex",
-        alignItems: "center",
+        alignItems: { xs: "flex-start", sm: "center" },
         justifyContent: "center",
         bgcolor: "#f5f5f9",
-        py: 5,
+        py: { xs: 2, sm: 5 },
+        px: { xs: 2, sm: 0 },
+        overflowY: "auto",
       }}
     >
-      <Box sx={{ width: "100%", maxWidth: 460 }}>
+      <Box sx={{ width: "100%", maxWidth: 460, my: { xs: 2, sm: 0 } }}>
         <Box
           sx={{
             bgcolor: "#fff",
             borderRadius: "0.375rem",
             boxShadow: "0 2px 6px rgba(67, 89, 113, 0.12)",
-            p: { xs: 4, sm: 5 },
+            p: { xs: 3, sm: 5 },
           }}
         >
           {/* Logo */}
@@ -174,6 +176,8 @@ export default function LoginPage() {
                   display: "flex",
                   justifyContent: "space-between",
                   mb: 0.5,
+                  flexWrap: "wrap",
+                  rowGap: 0.5,
                 }}
               >
                 <Typography

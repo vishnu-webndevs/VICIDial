@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Accordion, AccordionDetails, AccordionSummary } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, IconButton, InputAdornment } from "@mui/material";
 import { Box, Checkbox, FormControlLabel, MuiButton, Paper, Stack, TextField, Typography } from "@/ui";
 import { AppShell, EmptyState, LoadingState, SectionCard, StatusBadge } from "@/components/app-shell";
 import { ToastMessage } from "@/components/ui-primitives";
@@ -35,6 +35,7 @@ export default function WhatsAppIntegrationSettingsPage() {
   const [testing, setTesting] = useState(false);
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [reveal, setReveal] = useState({ token: false, phoneNumberId: false, verifyToken: false });
 
   const [providerStatus, setProviderStatus] = useState<{ status: string; last_tested_at?: string | null; last_error_message?: string | null } | null>(null);
   const [form, setForm] = useState<FormState>(defaultForm);
@@ -192,29 +193,57 @@ export default function WhatsAppIntegrationSettingsPage() {
               <TextField
                 size="medium"
                 label="Phone Number ID"
+                type={reveal.phoneNumberId ? "text" : "password"}
                 value={form.phone_number_id}
                 onChange={(e) => setForm((p) => ({ ...p, phone_number_id: e.target.value }))}
                 error={form.enabled && !form.phone_number_id.trim()}
                 helperText="Required"
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setReveal((p) => ({ ...p, phoneNumberId: !p.phoneNumberId }))} edge="end">
+                        {reveal.phoneNumberId ? "Hide" : "Show"}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
               <TextField
                 size="medium"
                 label="Webhook Verify Token"
+                type={reveal.verifyToken ? "text" : "password"}
                 value={form.webhook_verify_token}
                 onChange={(e) => setForm((p) => ({ ...p, webhook_verify_token: e.target.value }))}
                 error={form.enabled && !form.webhook_verify_token.trim()}
                 helperText="Required"
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" onClick={() => setReveal((p) => ({ ...p, verifyToken: !p.verifyToken }))} edge="end">
+                        {reveal.verifyToken ? "Hide" : "Show"}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
             </Box>
             <TextField
               size="medium"
               label="Meta Access Token"
+              type={reveal.token ? "text" : "password"}
               value={form.meta_access_token}
               onChange={(e) => setForm((p) => ({ ...p, meta_access_token: e.target.value }))}
-              multiline
-              minRows={3}
               error={form.enabled && !form.meta_access_token.trim()}
               helperText="Required"
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={() => setReveal((p) => ({ ...p, token: !p.token }))} edge="end">
+                      {reveal.token ? "Hide" : "Show"}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
 
             <Paper variant="outlined" sx={{ p: 2 }}>

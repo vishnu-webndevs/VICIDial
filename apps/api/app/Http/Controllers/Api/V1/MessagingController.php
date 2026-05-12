@@ -20,7 +20,9 @@ use App\Services\Messaging\WhatsAppService;
 use App\Jobs\DispatchOutboundMessageJob;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Log;
 
 class MessagingController extends Controller
 {
@@ -92,6 +94,14 @@ class MessagingController extends Controller
             return response()->json(['received' => true], 202);
         }
 
+        $this->writeMessageLog('info', 'Message status webhook hit.', [
+            'provider' => 'twilio',
+            'tenant_id' => $provider->tenant_id,
+            'provider_account_id' => $provider->id,
+            'provider_message_id' => $messageSid,
+            'status' => $messageStatus,
+        ]);
+
         $message = Message::query()
             ->where('tenant_id', $provider->tenant_id)
             ->where('provider_message_id', $messageSid)
@@ -106,6 +116,24 @@ class MessagingController extends Controller
                 'status_callback' => $payload,
             ]);
             $message->save();
+
+            $this->writeMessageLog('info', 'Message status updated.', [
+                'provider' => 'twilio',
+                'tenant_id' => $provider->tenant_id,
+                'provider_account_id' => $provider->id,
+                'message_id' => $message->id,
+                'provider_message_id' => $messageSid,
+                'channel' => (string) (($message->metadata['channel'] ?? '') ?: ''),
+                'status' => $messageStatus,
+            ]);
+        } else {
+            $this->writeMessageLog('warning', 'Message status callback message not found.', [
+                'provider' => 'twilio',
+                'tenant_id' => $provider->tenant_id,
+                'provider_account_id' => $provider->id,
+                'provider_message_id' => $messageSid,
+                'status' => $messageStatus,
+            ]);
         }
 
         return response()->json(['received' => true], 200);
@@ -121,112 +149,348 @@ class MessagingController extends Controller
             if ($mode === 'subscribe' && $token !== '' && $challenge !== '') {
                 $provider = $this->resolveMetaWhatsappProviderByVerifyToken($token);
                 if ($provider) {
+                    $this->storeMetaWhatsappWebhookEvent(
+                        tenantId: (string) $provider->tenant_id,
+                        providerAccountId: (string) $provider->id,
+                        status: 'processed',
+                        eventType: 'meta_whatsapp.verify',
+                        headers: $request->headers->all(),
+                        payload: ['query' => $request->query()],
+                    );
                     return response($challenge, 200);
                 }
             }
 
+            $this->storeMetaWhatsappWebhookEvent(
+                tenantId: null,
+                providerAccountId: null,
+                status: 'rejected',
+                eventType: 'meta_whatsapp.verify',
+                headers: $request->headers->all(),
+                payload: ['query' => $request->query()],
+            );
             return response('forbidden', 403);
         }
 
         $payload = (array) $request->all();
-        $phoneNumberId = (string) data_get($payload, 'entry.0.changes.0.value.metadata.phone_number_id', '');
-        $provider = $phoneNumberId !== '' ? $this->resolveMetaWhatsappProviderByPhoneNumberId($phoneNumberId) : null;
-        if (! $provider) {
-            return response()->json(['received' => true], 202);
+        $webhookEventId = (string) Str::uuid();
+        $storedWebhookEvent = false;
+        try {
+            DB::table('meta_whatsapp_webhook_events')->insert([
+                'id' => $webhookEventId,
+                'tenant_id' => null,
+                'provider_account_id' => null,
+                'status' => 'pending',
+                'event_type' => 'meta_whatsapp.webhook',
+                'headers' => json_encode($request->headers->all(), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'payload' => json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'processed_status_count' => 0,
+                'processed_message_count' => 0,
+                'processed_at' => null,
+                'error_message' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $storedWebhookEvent = true;
+        } catch (\Throwable) {
         }
 
-        $tenantId = (string) $provider->tenant_id;
+        $processedStatusCount = 0;
+        $processedMessageCount = 0;
+        $lastTenantId = null;
+        $lastProviderAccountId = null;
 
-        $statuses = (array) data_get($payload, 'entry.0.changes.0.value.statuses', []);
-        foreach ($statuses as $row) {
-            $messageId = (string) data_get($row, 'id', '');
-            $status = strtolower((string) data_get($row, 'status', ''));
-            if ($messageId === '' || $status === '') {
-                continue;
+        try {
+            $entries = (array) data_get($payload, 'entry', []);
+            foreach ($entries as $entry) {
+                $changes = (array) data_get($entry, 'changes', []);
+                foreach ($changes as $change) {
+                    $value = (array) data_get($change, 'value', []);
+                    $phoneNumberId = (string) data_get($value, 'metadata.phone_number_id', '');
+                    $provider = $phoneNumberId !== '' ? $this->resolveMetaWhatsappProviderByPhoneNumberId($phoneNumberId) : null;
+                    if (! $provider) {
+                        continue;
+                    }
+
+                    $tenantId = (string) $provider->tenant_id;
+                    $lastTenantId = $tenantId;
+                    $lastProviderAccountId = (string) $provider->id;
+
+                    $statuses = (array) data_get($value, 'statuses', []);
+                    foreach ($statuses as $row) {
+                        if ($this->applyMetaWhatsappStatusUpdate($tenantId, (string) $provider->id, $row, $payload)) {
+                            $processedStatusCount++;
+                        }
+                    }
+
+                    $messages = (array) data_get($value, 'messages', []);
+                    foreach ($messages as $row) {
+                        if ($this->ingestMetaWhatsappInbound($tenantId, $provider, $row, $payload, $webhookEventId)) {
+                            $processedMessageCount++;
+                        }
+                    }
+                }
             }
 
-            $message = Message::query()
-                ->where('tenant_id', $tenantId)
-                ->where('provider_message_id', $messageId)
-                ->first();
-            if (! $message) {
-                continue;
+            if ($storedWebhookEvent) {
+                DB::table('meta_whatsapp_webhook_events')
+                    ->where('id', $webhookEventId)
+                    ->update([
+                        'tenant_id' => $lastTenantId,
+                        'provider_account_id' => $lastProviderAccountId,
+                        'status' => 'processed',
+                        'processed_status_count' => $processedStatusCount,
+                        'processed_message_count' => $processedMessageCount,
+                        'processed_at' => now(),
+                        'updated_at' => now(),
+                    ]);
             }
-
-            $message->status = $status;
-            if (in_array($status, ['delivered', 'read'], true)) {
-                $message->delivered_at = $message->delivered_at ?: now();
+        } catch (\Throwable $e) {
+            if ($storedWebhookEvent) {
+                DB::table('meta_whatsapp_webhook_events')
+                    ->where('id', $webhookEventId)
+                    ->update([
+                        'tenant_id' => $lastTenantId,
+                        'provider_account_id' => $lastProviderAccountId,
+                        'status' => 'failed',
+                        'processed_status_count' => $processedStatusCount,
+                        'processed_message_count' => $processedMessageCount,
+                        'processed_at' => now(),
+                        'error_message' => $e->getMessage(),
+                        'updated_at' => now(),
+                    ]);
             }
-            $message->metadata = array_merge((array) ($message->metadata ?? []), [
-                'status_callback' => $payload,
-                'provider_account_id' => $provider->id,
-            ]);
-            $message->save();
-        }
-
-        $messages = (array) data_get($payload, 'entry.0.changes.0.value.messages', []);
-        foreach ($messages as $row) {
-            $from = (string) data_get($row, 'from', '');
-            $body = (string) data_get($row, 'text.body', '');
-            $providerMessageId = (string) data_get($row, 'id', '');
-            if ($from === '' || $providerMessageId === '' || $body === '') {
-                continue;
-            }
-
-            $normalizedFrom = Str::startsWith($from, '+') ? $from : '+'.$from;
-            $thread = MessageThread::query()->firstOrCreate(
-                [
-                    'tenant_id' => $tenantId,
-                    'channel' => 'whatsapp',
-                    'counterparty_number' => $normalizedFrom,
-                ],
-                [
-                    'contact_id' => null,
-                    'project_id' => null,
-                    'assigned_user_id' => null,
-                    'status' => 'open',
-                    'priority' => 'normal',
-                ]
-            );
-            $thread->last_message_at = now();
-            if (! $thread->first_inbound_at) {
-                $thread->first_inbound_at = now();
-            }
-            $thread->save();
-
-            $message = Message::query()->create([
-                'tenant_id' => $tenantId,
-                'thread_id' => $thread->id,
-                'direction' => 'inbound',
-                'status' => 'received',
-                'body' => $body,
-                'sent_by_user_id' => null,
-                'provider_message_id' => $providerMessageId,
-                'metadata' => [
-                    'channel' => 'whatsapp',
-                    'provider_account_id' => $provider->id,
-                    'meta' => $payload,
-                ],
-                'sent_at' => now(),
-            ]);
-
-            $lead = Lead::query()
-                ->where('tenant_id', $tenantId)
-                ->where('phone', $normalizedFrom)
-                ->first();
-            if ($lead) {
-                $this->appendTimelineMessage(
-                    tenantId: $tenantId,
-                    lead: $lead,
-                    message: $message,
-                    channel: 'whatsapp',
-                    direction: 'inbound',
-                    actorId: null
-                );
-            }
+            return response()->json(['received' => true], 500);
         }
 
         return response()->json(['received' => true], 200);
+    }
+
+    private function applyMetaWhatsappStatusUpdate(string $tenantId, string $providerAccountId, array $row, array $payload): bool
+    {
+        $messageId = (string) data_get($row, 'id', '');
+        $status = strtolower((string) data_get($row, 'status', ''));
+        if ($messageId === '' || $status === '') {
+            return false;
+        }
+
+        $timestamp = $this->parseProviderTimestamp((string) data_get($row, 'timestamp', ''));
+
+        $this->writeMessageLog('info', 'Message status webhook hit.', [
+            'provider' => 'meta_whatsapp',
+            'tenant_id' => $tenantId,
+            'provider_account_id' => $providerAccountId,
+            'provider_message_id' => $messageId,
+            'status' => $status,
+        ]);
+
+        $message = Message::query()
+            ->where('tenant_id', $tenantId)
+            ->where('provider_message_id', $messageId)
+            ->first();
+        if (! $message) {
+            $this->writeMessageLog('warning', 'Message status callback message not found.', [
+                'provider' => 'meta_whatsapp',
+                'tenant_id' => $tenantId,
+                'provider_account_id' => $providerAccountId,
+                'provider_message_id' => $messageId,
+                'status' => $status,
+            ]);
+            return false;
+        }
+
+        $currentStatus = strtolower((string) ($message->status ?? ''));
+        if (! $this->shouldUpdateProviderStatus($currentStatus, $status)) {
+            return false;
+        }
+
+        $message->status = $status;
+        if ($status === 'delivered') {
+            $message->delivered_at = $message->delivered_at ?: ($timestamp ?: now());
+        }
+        if ($status === 'read') {
+            $message->read_at = $message->read_at ?: ($timestamp ?: now());
+            $message->delivered_at = $message->delivered_at ?: ($timestamp ?: now());
+        }
+
+        $message->metadata = array_merge((array) ($message->metadata ?? []), [
+            'status_callback' => $payload,
+            'provider_account_id' => $providerAccountId,
+        ]);
+        $message->save();
+
+        $this->writeMessageLog('info', 'Message status updated.', [
+            'provider' => 'meta_whatsapp',
+            'tenant_id' => $tenantId,
+            'provider_account_id' => $providerAccountId,
+            'message_id' => $message->id,
+            'provider_message_id' => $messageId,
+            'channel' => (string) (($message->metadata['channel'] ?? '') ?: ''),
+            'status' => $status,
+        ]);
+
+        return true;
+    }
+
+    private function ingestMetaWhatsappInbound(
+        string $tenantId,
+        ProviderAccount $provider,
+        array $row,
+        array $payload,
+        string $webhookEventId
+    ): bool {
+        $from = (string) data_get($row, 'from', '');
+        $body = (string) data_get($row, 'text.body', '');
+        $providerMessageId = (string) data_get($row, 'id', '');
+        if ($from === '' || $providerMessageId === '' || $body === '') {
+            return false;
+        }
+
+        $exists = Message::query()
+            ->where('tenant_id', $tenantId)
+            ->where('provider_message_id', $providerMessageId)
+            ->exists();
+        if ($exists) {
+            return false;
+        }
+
+        $normalizedFrom = Str::startsWith($from, '+') ? $from : '+'.$from;
+        $sentAt = $this->parseProviderTimestamp((string) data_get($row, 'timestamp', '')) ?: now();
+        $inReplyTo = (string) data_get($row, 'context.id', '');
+
+        $thread = MessageThread::query()->firstOrCreate(
+            [
+                'tenant_id' => $tenantId,
+                'channel' => 'whatsapp',
+                'counterparty_number' => $normalizedFrom,
+            ],
+            [
+                'contact_id' => null,
+                'project_id' => null,
+                'assigned_user_id' => null,
+                'status' => 'open',
+                'priority' => 'normal',
+            ]
+        );
+        $thread->last_message_at = $sentAt;
+        if (! $thread->first_inbound_at) {
+            $thread->first_inbound_at = $sentAt;
+        }
+        $thread->save();
+
+        $message = Message::query()->create([
+            'tenant_id' => $tenantId,
+            'thread_id' => $thread->id,
+            'direction' => 'inbound',
+            'status' => 'received',
+            'body' => $body,
+            'sent_by_user_id' => null,
+            'provider_message_id' => $providerMessageId,
+            'metadata' => [
+                'channel' => 'whatsapp',
+                'provider_account_id' => $provider->id,
+                'webhook_event_id' => $webhookEventId,
+                'in_reply_to' => $inReplyTo !== '' ? $inReplyTo : null,
+                'meta' => $payload,
+            ],
+            'sent_at' => $sentAt,
+        ]);
+
+        $this->writeMessageLog('info', 'Inbound message received.', [
+            'provider' => 'meta_whatsapp',
+            'tenant_id' => $tenantId,
+            'provider_account_id' => $provider->id,
+            'message_id' => $message->id,
+            'provider_message_id' => $providerMessageId,
+            'channel' => 'whatsapp',
+            'from' => $this->maskPhone($normalizedFrom),
+        ]);
+
+        $lead = Lead::query()
+            ->where('tenant_id', $tenantId)
+            ->where('phone', $normalizedFrom)
+            ->first();
+        if ($lead) {
+            $this->appendTimelineMessage(
+                tenantId: $tenantId,
+                lead: $lead,
+                message: $message,
+                channel: 'whatsapp',
+                direction: 'inbound',
+                actorId: null
+            );
+        }
+
+        return true;
+    }
+
+    private function shouldUpdateProviderStatus(string $current, string $next): bool
+    {
+        $rank = [
+            'queued' => 10,
+            'accepted' => 20,
+            'sending' => 30,
+            'sent' => 40,
+            'delivered' => 50,
+            'read' => 60,
+            'received' => 70,
+            'failed' => 80,
+            'undelivered' => 80,
+        ];
+
+        $currentRank = $rank[$current] ?? 0;
+        $nextRank = $rank[$next] ?? 0;
+        if ($nextRank === 0) {
+            return false;
+        }
+
+        if ($currentRank === 80) {
+            return false;
+        }
+
+        return $nextRank >= $currentRank;
+    }
+
+    private function parseProviderTimestamp(string $unixSeconds): ?\Illuminate\Support\Carbon
+    {
+        $trimmed = trim($unixSeconds);
+        if ($trimmed === '' || ! ctype_digit($trimmed)) {
+            return null;
+        }
+
+        try {
+            return now()->setTimestamp((int) $trimmed);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    private function storeMetaWhatsappWebhookEvent(
+        ?string $tenantId,
+        ?string $providerAccountId,
+        string $status,
+        string $eventType,
+        array $headers,
+        array $payload
+    ): void {
+        try {
+            DB::table('meta_whatsapp_webhook_events')->insert([
+                'id' => (string) Str::uuid(),
+                'tenant_id' => $tenantId,
+                'provider_account_id' => $providerAccountId,
+                'status' => $status,
+                'event_type' => $eventType,
+                'headers' => json_encode($headers, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'payload' => json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                'processed_status_count' => 0,
+                'processed_message_count' => 0,
+                'processed_at' => now(),
+                'error_message' => null,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } catch (\Throwable) {
+        }
     }
 
     private function sendOutbound(Request $request, string $leadId, string $channel): JsonResponse
@@ -446,6 +710,17 @@ class MessagingController extends Controller
             return response()->json(['received' => true], 202);
         }
 
+        $this->writeMessageLog('info', 'Inbound message webhook hit.', [
+            'provider' => 'twilio',
+            'tenant_id' => $provider->tenant_id,
+            'provider_account_id' => $provider->id,
+            'channel' => $channel,
+            'from' => $this->maskPhone($from),
+            'to' => $this->maskPhone($to),
+            'provider_message_id' => (string) ($payload['MessageSid'] ?? ''),
+            'body_length' => strlen($body),
+        ]);
+
         if ($channel === 'sms' && $from !== '') {
             $normalizedBody = strtoupper(trim($body));
             if ($this->matchesKeyword($normalizedBody, self::SMS_OPT_OUT_KEYWORDS)) {
@@ -512,6 +787,17 @@ class MessagingController extends Controller
             ],
             'sent_at' => now(),
             'delivered_at' => now(),
+        ]);
+
+        $this->writeMessageLog('info', 'Inbound message received.', [
+            'provider' => 'twilio',
+            'tenant_id' => $provider->tenant_id,
+            'provider_account_id' => $provider->id,
+            'message_id' => $message->id,
+            'provider_message_id' => $message->provider_message_id,
+            'channel' => $channel,
+            'from' => $this->maskPhone($from),
+            'to' => $this->maskPhone($to),
         ]);
 
         $attachments = $this->mediaAttachmentService->ingestTwilioInboundMedia($provider, $message, $payload);
@@ -635,6 +921,41 @@ class MessagingController extends Controller
         return Str::startsWith($phone, 'whatsapp:')
             ? substr($phone, 9)
             : $phone;
+    }
+
+    private function maskPhone(string $phone): string
+    {
+        $trimmed = trim($phone);
+        if ($trimmed === '') {
+            return '';
+        }
+
+        $digits = preg_replace('/\D+/', '', $trimmed) ?? '';
+        if (strlen($digits) <= 4) {
+            return str_repeat('*', max(0, strlen($digits)));
+        }
+
+        return '+'.str_repeat('*', max(0, strlen($digits) - 4)).substr($digits, -4);
+    }
+
+    private function writeMessageLog(string $level, string $message, array $context): void
+    {
+        try {
+            Log::log($level, $message, $context);
+        } catch (\Throwable) {
+        }
+
+        try {
+            $line = sprintf(
+                "[%s] %s: %s %s\n",
+                now()->format('Y-m-d H:i:s'),
+                strtoupper($level),
+                $message,
+                json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+            );
+            @file_put_contents(storage_path('logs/laravel.log'), $line, FILE_APPEND);
+        } catch (\Throwable) {
+        }
     }
 
     private function isOptedOut(string $tenantId, string $phone, string $channel): bool

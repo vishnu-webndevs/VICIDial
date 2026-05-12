@@ -3,23 +3,30 @@
 namespace App\Services\Campaigns;
 
 use App\Models\AgentAssignment;
+use App\Models\Agent;
+use App\Models\AgentPhoneAssignment;
 use App\Models\AgentSession;
 use App\Models\CallSession;
 use App\Models\Campaign;
+use App\Models\CampaignAgentAssignment;
 use App\Models\CampaignRun;
 use App\Models\DialQueueItem;
 use App\Models\Lead;
 use App\Models\Membership;
 use App\Models\Notification;
+use App\Models\ProviderAccount;
+use App\Models\ProviderPhoneNumber;
 use App\Models\TenantSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class CampaignRunnerService
 {
     private const RETRYABLE_STATUSES = ['failed', 'busy', 'no_answer', 'timeout', 'rejected', 'canceled'];
+    private const STALE_LIVE_CALL_SECONDS = 600;
 
     public function __construct(
         private readonly OutboundDialerService $dialerService
@@ -31,24 +38,57 @@ class CampaignRunnerService
         $run->loadMissing('campaign');
         $campaign = $run->campaign;
         if (! $campaign || $run->status !== 'running' || $campaign->status !== 'running') {
+            $this->writeCallCampaignLog('info', 'Call campaign tick skipped (not running).', [
+                'campaign_run_id' => $run->id,
+                'run_status' => $run->status,
+                'campaign_id' => (string) ($campaign?->id ?? ''),
+                'campaign_status' => (string) ($campaign?->status ?? ''),
+            ]);
             return;
         }
+
+        $this->writeCallCampaignLog('info', 'Call campaign tick hit.', [
+            'tenant_id' => $campaign->tenant_id,
+            'campaign_id' => $campaign->id,
+            'campaign_run_id' => $run->id,
+            'calls_per_minute' => (int) ($campaign->calls_per_minute ?? 0),
+            'queue_size' => (int) ($campaign->queue_size ?? 0),
+        ]);
 
         $this->refreshDialedQueueItems($run, $campaign);
         $run->refresh();
         $campaign->refresh();
         if ($run->status !== 'running' || $campaign->status !== 'running') {
+            $this->writeCallCampaignLog('info', 'Call campaign tick stopped after refresh.', [
+                'tenant_id' => $campaign->tenant_id,
+                'campaign_id' => $campaign->id,
+                'campaign_run_id' => $run->id,
+                'run_status' => $run->status,
+                'campaign_status' => $campaign->status,
+            ]);
             return;
         }
 
         if (! $this->isWithinAllowedCallingWindow($campaign)) {
             $this->pauseCampaignRun($run, $campaign, 'outside_allowed_calling_window');
+            $this->writeCallCampaignLog('info', 'Call campaign paused (outside calling window).', [
+                'tenant_id' => $campaign->tenant_id,
+                'campaign_id' => $campaign->id,
+                'campaign_run_id' => $run->id,
+            ]);
 
             return;
         }
 
         $dispatchable = $this->availableDispatchSlots($run, $campaign);
         if ($dispatchable <= 0) {
+            $this->writeCallCampaignLog('info', 'Call campaign tick no dispatch slots.', [
+                'tenant_id' => $campaign->tenant_id,
+                'campaign_id' => $campaign->id,
+                'campaign_run_id' => $run->id,
+                'calls_dispatched_in_window' => (int) $run->calls_dispatched_in_window,
+                'pacing_window_started_at' => $run->pacing_window_started_at?->toISOString(),
+            ]);
             $run->last_tick_at = now();
             $run->save();
 
@@ -57,7 +97,37 @@ class CampaignRunnerService
 
         $agents = $this->availableAgentSessions($campaign->tenant_id);
         if ($agents->isEmpty()) {
-            if ($campaign->auto_pause_when_no_agents) {
+            $this->ensureCampaignAgentSessions($campaign);
+            $agents = $this->availableAgentSessions($campaign->tenant_id);
+        }
+        if ($agents->isEmpty()) {
+            $debug = $this->buildNoAvailableAgentsDebug($campaign);
+            $this->writeCallCampaignLog('info', 'Call campaign tick no available agents.', [
+                'tenant_id' => $campaign->tenant_id,
+                'campaign_id' => $campaign->id,
+                'campaign_run_id' => $run->id,
+                'auto_pause_when_no_agents' => (bool) $campaign->auto_pause_when_no_agents,
+                'mapped_agents_total' => (int) ($debug['mapped_agents_total'] ?? 0),
+                'eligible_agents' => (int) ($debug['eligible_agents'] ?? 0),
+                'online_agents' => (int) ($debug['online_agents'] ?? 0),
+                'offline_agents' => (int) ($debug['offline_agents'] ?? 0),
+                'mapping_last_updated_at' => $debug['mapping_last_updated_at'] ?? null,
+                'agents' => $debug['agents'] ?? [],
+            ]);
+
+            if (
+                $campaign->auto_pause_when_no_agents
+                && (int) ($debug['mapped_agents_total'] ?? 0) === 0
+            ) {
+                $this->pauseCampaignRun($run, $campaign, 'no_agents_mapped');
+                return;
+            }
+
+            if (
+                $campaign->auto_pause_when_no_agents
+                && (int) ($debug['mapped_agents_total'] ?? 0) > 0
+                && (int) ($debug['online_agents'] ?? 0) === 0
+            ) {
                 $this->pauseCampaignRun($run, $campaign, 'no_available_agents');
             } else {
                 $run->last_tick_at = now();
@@ -82,6 +152,11 @@ class CampaignRunnerService
             ->get();
 
         if ($queueItems->isEmpty()) {
+            $this->writeCallCampaignLog('info', 'Call campaign tick no pending queue items.', [
+                'tenant_id' => $campaign->tenant_id,
+                'campaign_id' => $campaign->id,
+                'campaign_run_id' => $run->id,
+            ]);
             $run->last_tick_at = now();
             $run->save();
 
@@ -117,7 +192,7 @@ class CampaignRunnerService
 
                 $dialResult = $this->dialerService->dialQueueItem($campaign, $item, $lead, $agent->agent_id);
                 if (($dialResult['ok'] ?? false) !== true || ! isset($dialResult['call'])) {
-                    if ($item->attempt_count <= $item->max_attempts) {
+                    if ($item->attempt_count < $item->max_attempts) {
                         $item->status = 'pending';
                         $item->available_at = now()->addSeconds(30 * $item->attempt_count);
                     } else {
@@ -170,6 +245,8 @@ class CampaignRunnerService
             ->where('status', 'dialed')
             ->get();
 
+        $staleCutoff = now()->subSeconds(self::STALE_LIVE_CALL_SECONDS);
+
         foreach ($dialedItems as $item) {
             if (! $item->last_call_session_id) {
                 continue;
@@ -181,14 +258,41 @@ class CampaignRunnerService
             if (! $call) {
                 continue;
             }
+
+            if (
+                in_array($call->status, ['queued', 'ringing', 'in_progress', 'connected'], true)
+                && $call->updated_at
+                && $call->updated_at->lt($staleCutoff)
+            ) {
+                $this->releaseAgentAssignment($item);
+
+                if ($item->attempt_count < $item->max_attempts) {
+                    $item->status = 'pending';
+                    $item->available_at = now()->addSeconds(30 * max(1, $item->attempt_count));
+                    $item->failure_reason = 'stale_call_session_'.$call->status;
+                    $item->save();
+                    $run->retried_items = $run->retried_items + 1;
+                } else {
+                    $item->status = 'failed';
+                    $item->failure_reason = 'stale_call_session_'.$call->status;
+                    $item->processed_at = now();
+                    $item->save();
+                    $run->calls_failed = $run->calls_failed + 1;
+                }
+
+                continue;
+            }
+
             if ($call->status === 'completed') {
                 $item->status = 'completed';
                 $item->processed_at = now();
                 $item->failure_reason = null;
                 $item->save();
+                $this->releaseAgentAssignment($item);
                 $run->calls_connected = $run->calls_connected + 1;
             } elseif (in_array($call->status, self::RETRYABLE_STATUSES, true)) {
-                if ($item->attempt_count <= $item->max_attempts) {
+                $this->releaseAgentAssignment($item);
+                if ($item->attempt_count < $item->max_attempts) {
                     $item->status = 'pending';
                     $item->available_at = now()->addSeconds(30 * max(1, $item->attempt_count));
                     $item->failure_reason = $call->failure_reason ?: $call->status;
@@ -206,6 +310,343 @@ class CampaignRunnerService
 
         $run->save();
         $this->refreshRunStats($run);
+    }
+
+    private function ensureCampaignAgentSessions(Campaign $campaign): void
+    {
+        $agentIds = CampaignAgentAssignment::query()
+            ->where('tenant_id', $campaign->tenant_id)
+            ->where('campaign_id', $campaign->id)
+            ->pluck('agent_id')
+            ->map(fn ($id) => (string) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($agentIds->isEmpty()) {
+            return;
+        }
+
+        foreach ($agentIds as $agentId) {
+            $session = AgentSession::query()->updateOrCreate(
+                [
+                    'tenant_id' => $campaign->tenant_id,
+                    'agent_id' => $agentId,
+                ],
+                [
+                    'status' => 'available',
+                    'capacity' => 1,
+                    'available_since' => now(),
+                    'last_heartbeat_at' => now(),
+                ]
+            );
+
+            $session->active_assignments = $this->syncAgentSessionActiveAssignments($campaign->tenant_id, (string) $session->id);
+            if ($session->active_assignments < $session->capacity) {
+                $session->status = 'available';
+                $session->available_since = $session->available_since ?: now();
+            }
+            $session->last_heartbeat_at = now();
+            $session->save();
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function buildNoAvailableAgentsDebug(Campaign $campaign): array
+    {
+        $mappedAssignments = CampaignAgentAssignment::query()
+            ->where('tenant_id', $campaign->tenant_id)
+            ->where('campaign_id', $campaign->id)
+            ->orderByDesc('updated_at')
+            ->get(['agent_id', 'provider_phone_number_id', 'updated_at']);
+
+        $mappedAgentIds = $mappedAssignments
+            ->pluck('agent_id')
+            ->map(fn ($id) => (string) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $mappingLastUpdatedAt = $mappedAssignments->first()?->updated_at?->toISOString();
+
+        if ($mappedAgentIds->isEmpty()) {
+            return [
+                'mapped_agents_total' => 0,
+                'eligible_agents' => 0,
+                'online_agents' => 0,
+                'offline_agents' => 0,
+                'mapping_last_updated_at' => $mappingLastUpdatedAt,
+                'agents' => [],
+            ];
+        }
+
+        $maxAgents = 15;
+        $sampleAgentIds = $mappedAgentIds->take($maxAgents)->values();
+
+        $agents = Agent::query()
+            ->where('tenant_id', $campaign->tenant_id)
+            ->whereIn('id', $sampleAgentIds->all())
+            ->get(['id', 'status', 'metadata'])
+            ->keyBy(fn (Agent $agent) => (string) $agent->id);
+
+        $sessions = AgentSession::query()
+            ->where('tenant_id', $campaign->tenant_id)
+            ->whereIn('agent_id', $sampleAgentIds->all())
+            ->get(['id', 'agent_id', 'status', 'capacity', 'active_assignments', 'last_heartbeat_at'])
+            ->keyBy(fn (AgentSession $session) => (string) $session->agent_id);
+
+        $campaignNumberIds = $mappedAssignments
+            ->whereNotNull('provider_phone_number_id')
+            ->pluck('provider_phone_number_id')
+            ->map(fn ($id) => (string) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $agentNumberIds = AgentPhoneAssignment::query()
+            ->where('tenant_id', $campaign->tenant_id)
+            ->whereIn('agent_id', $sampleAgentIds->all())
+            ->where('status', 'active')
+            ->pluck('provider_phone_number_id')
+            ->map(fn ($id) => (string) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $allNumberIds = $campaignNumberIds->concat($agentNumberIds)->unique()->values();
+
+        $numbers = $allNumberIds->isEmpty()
+            ? collect()
+            : ProviderPhoneNumber::query()
+                ->where('tenant_id', $campaign->tenant_id)
+                ->whereIn('id', $allNumberIds->all())
+                ->get(['id', 'provider_account_id', 'status', 'is_validated', 'phone_number'])
+                ->keyBy(fn (ProviderPhoneNumber $number) => (string) $number->id);
+
+        $providerIds = $numbers->values()
+            ->pluck('provider_account_id')
+            ->map(fn ($id) => (string) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        $providers = $providerIds->isEmpty()
+            ? collect()
+            : ProviderAccount::query()
+                ->where('tenant_id', $campaign->tenant_id)
+                ->whereIn('id', $providerIds->all())
+                ->get(['id', 'status'])
+                ->keyBy(fn (ProviderAccount $provider) => (string) $provider->id);
+
+        $eligible = 0;
+        $online = 0;
+        $offline = 0;
+        $rows = [];
+
+        foreach ($sampleAgentIds as $agentId) {
+            $agent = $agents->get($agentId);
+            $session = $sessions->get($agentId);
+
+            $agentStatus = (string) ($agent?->status ?? '');
+            $sessionStatus = (string) ($session?->status ?? '');
+            $sessionCapacity = (int) ($session?->capacity ?? 0);
+            $sessionActiveAssignments = (int) ($session?->active_assignments ?? 0);
+            $isOnline = in_array($sessionStatus, ['available', 'busy', 'on_break'], true);
+            $isAvailable = $sessionStatus === 'available' && $sessionCapacity > 0 && $sessionActiveAssignments < $sessionCapacity;
+
+            if ($isOnline) {
+                $online++;
+            } else {
+                $offline++;
+            }
+
+            $destinationNumber = (string) (($agent?->metadata['destination_number'] ?? null) ?: '');
+
+            $mappedNumberId = (string) ($mappedAssignments->firstWhere('agent_id', $agentId)?->provider_phone_number_id ?? '');
+            $mappedNumber = $mappedNumberId !== '' ? $numbers->get($mappedNumberId) : null;
+            $mappedProviderId = $mappedNumber?->provider_account_id ? (string) $mappedNumber->provider_account_id : '';
+            $mappedProviderStatus = $mappedProviderId !== '' ? (string) ($providers->get($mappedProviderId)?->status ?? '') : '';
+            $hasMappedDefaultNumber = (bool) (
+                $mappedNumber
+                && $mappedNumber->status === 'active'
+                && (bool) $mappedNumber->is_validated
+                && $mappedProviderStatus === 'active'
+            );
+
+            $fallbackNumberId = (string) (AgentPhoneAssignment::query()
+                ->where('tenant_id', $campaign->tenant_id)
+                ->where('agent_id', $agentId)
+                ->where('status', 'active')
+                ->value('provider_phone_number_id') ?? '');
+            $fallbackNumber = $fallbackNumberId !== '' ? $numbers->get($fallbackNumberId) : null;
+            $fallbackProviderId = $fallbackNumber?->provider_account_id ? (string) $fallbackNumber->provider_account_id : '';
+            $fallbackProviderStatus = $fallbackProviderId !== '' ? (string) ($providers->get($fallbackProviderId)?->status ?? '') : '';
+            $hasFallbackDefaultNumber = (bool) (
+                $fallbackNumber
+                && $fallbackNumber->status === 'active'
+                && (bool) $fallbackNumber->is_validated
+                && $fallbackProviderStatus === 'active'
+            );
+
+            $hasDefaultNumber = $hasMappedDefaultNumber || $hasFallbackDefaultNumber;
+
+            $liveStatuses = ['queued', 'ringing', 'in_progress', 'connected'];
+            $liveCalls = CallSession::query()
+                ->where('tenant_id', $campaign->tenant_id)
+                ->whereIn('status', $liveStatuses)
+                ->where('metadata->agent_id', $agentId)
+                ->orderByDesc('created_at')
+                ->limit(3)
+                ->get(['id', 'status', 'created_at']);
+            $liveCallCount = $liveCalls->count();
+
+            $isEligible = $agentStatus === 'active' && $isAvailable && $hasDefaultNumber;
+            if ($isEligible) {
+                $eligible++;
+            }
+
+            $rows[] = [
+                'agent_id' => $agentId,
+                'agent_active' => $agentStatus === 'active',
+                'session_status' => $sessionStatus !== '' ? $sessionStatus : null,
+                'online' => $isOnline,
+                'available' => $isAvailable,
+                'capacity' => $sessionCapacity,
+                'active_assignments' => $sessionActiveAssignments,
+                'last_heartbeat_at' => $session?->last_heartbeat_at?->toISOString(),
+                'destination_number' => $destinationNumber !== '' ? $destinationNumber : null,
+                'default_number' => [
+                    'has_any' => $hasDefaultNumber,
+                    'campaign_mapped' => $hasMappedDefaultNumber,
+                    'fallback_assigned' => $hasFallbackDefaultNumber,
+                ],
+                'live_calls' => [
+                    'count' => $liveCallCount,
+                    'items' => $liveCalls
+                        ->map(fn (CallSession $call) => [
+                            'id' => (string) $call->id,
+                            'status' => (string) $call->status,
+                            'created_at' => $call->created_at?->toISOString(),
+                        ])
+                        ->values()
+                        ->all(),
+                ],
+            ];
+        }
+
+        return [
+            'mapped_agents_total' => $mappedAgentIds->count(),
+            'eligible_agents' => $eligible,
+            'online_agents' => $online,
+            'offline_agents' => $offline,
+            'mapping_last_updated_at' => $mappingLastUpdatedAt,
+            'agents' => $rows,
+        ];
+    }
+
+    private function releaseAgentAssignment(DialQueueItem $item): void
+    {
+        $assignment = AgentAssignment::query()
+            ->where('tenant_id', $item->tenant_id)
+            ->where('dial_queue_item_id', $item->id)
+            ->whereNull('released_at')
+            ->where('status', 'assigned')
+            ->latest('assigned_at')
+            ->first();
+
+        if (! $assignment) {
+            return;
+        }
+
+        $assignment->status = 'released';
+        $assignment->released_at = now();
+        $assignment->save();
+
+        if (! $assignment->agent_session_id) {
+            return;
+        }
+
+        $session = AgentSession::query()
+            ->where('tenant_id', $item->tenant_id)
+            ->where('id', $assignment->agent_session_id)
+            ->first();
+
+        if (! $session) {
+            return;
+        }
+
+        $session->active_assignments = $this->syncAgentSessionActiveAssignments($item->tenant_id, (string) $session->id);
+        if ($session->active_assignments < $session->capacity) {
+            $session->status = 'available';
+            $session->available_since = $session->available_since ?: now();
+        }
+        $session->last_heartbeat_at = now();
+        $session->save();
+    }
+
+    private function syncAgentSessionActiveAssignments(string $tenantId, string $agentSessionId): int
+    {
+        $liveStatuses = ['queued', 'ringing', 'in_progress', 'connected'];
+        $staleCutoff = now()->subSeconds(120);
+
+        $staleAssignments = AgentAssignment::query()
+            ->leftJoin('dial_queue_items', 'dial_queue_items.id', '=', 'agent_assignments.dial_queue_item_id')
+            ->leftJoin('call_sessions', 'call_sessions.id', '=', 'dial_queue_items.last_call_session_id')
+            ->where('agent_assignments.tenant_id', $tenantId)
+            ->where('agent_assignments.agent_session_id', $agentSessionId)
+            ->whereNull('agent_assignments.released_at')
+            ->where('agent_assignments.status', 'assigned')
+            ->where(function ($query) use ($liveStatuses) {
+                $query->whereNull('call_sessions.id')
+                    ->orWhereNotIn('call_sessions.status', $liveStatuses);
+            })
+            ->select(['agent_assignments.id'])
+            ->limit(200)
+            ->pluck('agent_assignments.id')
+            ->map(fn ($id) => (string) $id)
+            ->filter()
+            ->values();
+
+        $staleLiveAssignments = AgentAssignment::query()
+            ->leftJoin('dial_queue_items', 'dial_queue_items.id', '=', 'agent_assignments.dial_queue_item_id')
+            ->leftJoin('call_sessions', 'call_sessions.id', '=', 'dial_queue_items.last_call_session_id')
+            ->where('agent_assignments.tenant_id', $tenantId)
+            ->where('agent_assignments.agent_session_id', $agentSessionId)
+            ->whereNull('agent_assignments.released_at')
+            ->where('agent_assignments.status', 'assigned')
+            ->whereIn('call_sessions.status', $liveStatuses)
+            ->where('call_sessions.updated_at', '<', $staleCutoff)
+            ->select(['agent_assignments.id'])
+            ->limit(200)
+            ->pluck('agent_assignments.id')
+            ->map(fn ($id) => (string) $id)
+            ->filter()
+            ->values();
+
+        $releaseIds = $staleAssignments->concat($staleLiveAssignments)->unique()->values();
+
+        if ($releaseIds->isNotEmpty()) {
+            AgentAssignment::query()
+                ->where('tenant_id', $tenantId)
+                ->whereIn('id', $releaseIds->all())
+                ->update([
+                    'status' => 'released',
+                    'released_at' => now(),
+                ]);
+        }
+
+        return (int) AgentAssignment::query()
+            ->leftJoin('dial_queue_items', 'dial_queue_items.id', '=', 'agent_assignments.dial_queue_item_id')
+            ->leftJoin('call_sessions', 'call_sessions.id', '=', 'dial_queue_items.last_call_session_id')
+            ->where('agent_assignments.tenant_id', $tenantId)
+            ->where('agent_assignments.agent_session_id', $agentSessionId)
+            ->whereNull('agent_assignments.released_at')
+            ->where('agent_assignments.status', 'assigned')
+            ->whereIn('call_sessions.status', $liveStatuses)
+            ->where('call_sessions.updated_at', '>=', $staleCutoff)
+            ->count('agent_assignments.id');
     }
 
     private function refreshRunStats(CampaignRun $run): void
@@ -367,13 +808,29 @@ class CampaignRunnerService
             ->whereNotNull('agent_id')
             ->where('tenant_id', $tenantId)
             ->where('status', 'available')
-            ->where(function ($query) {
-                $query->whereNull('last_heartbeat_at')
-                    ->orWhere('last_heartbeat_at', '>=', now()->subMinutes(2));
-            })
             ->orderBy('available_since')
             ->get()
             ->filter(fn (AgentSession $session) => $session->active_assignments < $session->capacity)
             ->values();
+    }
+
+    private function writeCallCampaignLog(string $level, string $message, array $context): void
+    {
+        try {
+            Log::log($level, $message, $context);
+        } catch (\Throwable) {
+        }
+
+        try {
+            $line = sprintf(
+                "[%s] %s: %s %s\n",
+                now()->format('Y-m-d H:i:s'),
+                strtoupper($level),
+                $message,
+                json_encode($context, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+            );
+            @file_put_contents(storage_path('logs/laravel.log'), $line, FILE_APPEND);
+        } catch (\Throwable) {
+        }
     }
 }

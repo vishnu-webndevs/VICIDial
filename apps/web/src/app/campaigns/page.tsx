@@ -839,7 +839,7 @@ export default function CampaignsPage() {
           <Typography variant="body2" color="text.secondary">Loading command center...</Typography>
         ) : (
           <Box sx={{ display: "grid", gap: 1.25 }}>
-            <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
+            <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", md: "repeat(4, minmax(0, 1fr))" } }}>
               <Paper variant="outlined" sx={{ p: 1 }}>
                 <Typography variant="caption">Pending</Typography>
                 <Typography variant="h6">{commandStats?.totals?.pending ?? 0}</Typography>
@@ -852,7 +852,16 @@ export default function CampaignsPage() {
                 <Typography variant="caption">Completed</Typography>
                 <Typography variant="h6">{commandStats?.totals?.completed ?? 0}</Typography>
               </Paper>
+              <Paper variant="outlined" sx={{ p: 1 }}>
+                <Typography variant="caption">Failed</Typography>
+                <Typography variant="h6">{commandStats?.totals?.failed ?? 0}</Typography>
+              </Paper>
             </Box>
+            {(commandStats?.totals?.failed ?? 0) > 0 ? (
+              <Typography variant="caption" color="text.secondary">
+                Failed message details are saved in Conversations and lead timeline.
+              </Typography>
+            ) : null}
             <Paper variant="outlined" sx={{ p: 1.25 }}>
               <Typography variant="subtitle2" sx={{ mb: 1 }}>Agents</Typography>
               {commandAgents.length === 0 ? (

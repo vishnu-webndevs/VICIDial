@@ -59,6 +59,7 @@ const adminNavGroups: NavGroup[] = [
       { href: "/leads", label: "Leads", icon: "bx-user" },
       { href: "/lists", label: "Lists", icon: "bx-list-ul" },
       { href: "/campaigns", label: "Campaigns", icon: "bx-rocket" },
+      { href: "/message-reports", label: "Message Reports", icon: "bx-message-square-detail" },
       { href: "/templates", label: "Templates", icon: "bx-notepad" },
     ],
   },
@@ -97,6 +98,7 @@ const teamNavGroups: NavGroup[] = [
       { href: "/dashboard", label: "Dashboard", icon: "bx-home-circle" },
       { href: "/calls", label: "Calls", icon: "bx-phone" },
       { href: "/conversations", label: "Conversations", icon: "bx-message-rounded-dots" },
+      { href: "/message-reports", label: "Message Reports", icon: "bx-message-square-detail" },
     ],
   },
 ];
