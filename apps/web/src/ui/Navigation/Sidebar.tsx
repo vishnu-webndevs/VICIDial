@@ -183,7 +183,7 @@ function SidebarContent({
   return (
     <Box
       sx={{
-        width: SIDEBAR_WIDTH,
+        width: "100%",
         height: "100%",
         background: "#fff",
         display: "flex",
@@ -384,7 +384,7 @@ export function Sidebar({
         sx={{
           display: { xs: "block", lg: "none" },
           "& .MuiDrawer-paper": {
-            width: SIDEBAR_WIDTH,
+            width: { xs: "min(84vw, 320px)", sm: SIDEBAR_WIDTH },
             boxShadow: "0 0.625rem 1.25rem rgba(161, 172, 184, 0.5)",
           },
         }}
