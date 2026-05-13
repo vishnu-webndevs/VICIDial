@@ -59,6 +59,10 @@ export async function apiRequest<T>(
     ? await response.json()
     : null;
 
+  if (response.ok && response.status !== 204 && responseBody === null) {
+    throw new Error(`Invalid API response (expected JSON). status=${response.status}`);
+  }
+
   if (!response.ok) {
     const usageLimitErrorCode = typeof responseBody?.error === "string" ? responseBody.error : null;
     const message =
