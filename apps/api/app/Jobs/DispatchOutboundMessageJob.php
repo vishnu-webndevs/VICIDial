@@ -373,6 +373,8 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 'direction' => 'outbound',
                 'status' => $message->status,
                 'bulk_batch_id' => $this->bulkBatchId,
+                'campaign_id' => $this->campaignId,
+                'campaign_run_id' => $this->campaignRunId,
             ],
             'occurred_at' => now(),
         ]);

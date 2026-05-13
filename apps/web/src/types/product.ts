@@ -263,6 +263,11 @@ export type CampaignMessageReport = {
   campaign_id: string;
   campaign_run_id: string;
   channel: string;
+  summary?: {
+    leads: number;
+    unique_numbers: number;
+    duplicate_numbers: number;
+  };
   entries: CampaignMessageReportEntry[];
 };
 

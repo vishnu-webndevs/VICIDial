@@ -437,21 +437,33 @@ export default function CampaignsPage() {
               </Box>
             ))}
           </Stack>
-          <CreateGuard featureKey="max_campaigns" fallbackLabel="New Campaign">
-            <MuiButton variant="contained" onClick={openNewCampaignPopup}>
-              New Campaign
-            </MuiButton>
-          </CreateGuard>
-          {startableCampaign ? (
-            <MuiButton
-              variant="contained"
-              color="success"
-              onClick={() => void onStartCampaign(startableCampaign)}
-              disabled={Boolean(startingCampaignId) || hasRunningCampaign}
-            >
-              {startingCampaignId === startableCampaign.id ? "Starting..." : "Start Campaign"}
-            </MuiButton>
-          ) : null}
+          <Stack
+            direction="row"
+            spacing={1.5}
+            sx={{
+              ml: "auto",
+              width: { xs: "100%", sm: "auto" },
+              justifyContent: { xs: "flex-end", sm: "flex-end" },
+              alignItems: "center",
+              flexWrap: "wrap",
+            }}
+          >
+            <CreateGuard featureKey="max_campaigns" fallbackLabel="New Campaign">
+              <MuiButton variant="contained" onClick={openNewCampaignPopup}>
+                New Campaign
+              </MuiButton>
+            </CreateGuard>
+            {startableCampaign ? (
+              <MuiButton
+                variant="contained"
+                color="success"
+                onClick={() => void onStartCampaign(startableCampaign)}
+                disabled={Boolean(startingCampaignId) || hasRunningCampaign}
+              >
+                {startingCampaignId === startableCampaign.id ? "Starting..." : "Start Campaign"}
+              </MuiButton>
+            ) : null}
+          </Stack>
         </Box>
 
         {loading ? (

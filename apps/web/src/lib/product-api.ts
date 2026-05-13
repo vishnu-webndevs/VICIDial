@@ -772,10 +772,15 @@ export async function fetchPlannedFeatureStatus(): Promise<{
 
 type LeadInput = Omit<Lead, "id" | "updated_at">;
 
-export async function listLeads(): Promise<Lead[]> {
+export async function listLeads(options: { listId?: string; perPage?: number } = {}): Promise<Lead[]> {
   const { token, tenantId } = getTenantContext();
+  const search = new URLSearchParams();
+  search.set("per_page", String(options.perPage ?? 200));
+  if (options.listId) {
+    search.set("list_id", options.listId);
+  }
   try {
-    const response = await apiRequest<ApiListResponse<Lead>>("/leads?per_page=200", { token, tenantId });
+    const response = await apiRequest<ApiListResponse<Lead>>(`/leads?${search.toString()}`, { token, tenantId });
     return response.data;
   } catch (error) {
     if (!isNotFoundError(error)) {
@@ -903,6 +908,17 @@ export async function createLeadList(payload: {
 export async function attachLeadsToList(listId: string, leadIds: string[]): Promise<{ list_id: string; attached_count: number }> {
   const { token, tenantId } = getTenantContext();
   const response = await apiRequest<ApiDataResponse<{ list_id: string; attached_count: number }>>(`/lead-lists/${listId}/leads`, {
+    method: "POST",
+    token,
+    tenantId,
+    body: { lead_ids: leadIds },
+  });
+  return response.data;
+}
+
+export async function detachLeadsFromList(listId: string, leadIds: string[]): Promise<{ list_id: string; detached_count: number }> {
+  const { token, tenantId } = getTenantContext();
+  const response = await apiRequest<ApiDataResponse<{ list_id: string; detached_count: number }>>(`/lead-lists/${listId}/leads/detach`, {
     method: "POST",
     token,
     tenantId,

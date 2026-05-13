@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   MenuItem,
@@ -284,6 +284,8 @@ export default function LeadsPage() {
     [leads, search, statusFilter]
   );
   const selectedLead = filtered.find((lead) => lead.id === selectedLeadId) ?? null;
+  const leadFormRef = useRef<HTMLDivElement | null>(null);
+  const isEditing = Boolean(form.id);
 
   async function updateLeadStatusInline(lead: Lead, status: LeadStatus) {
     try {
@@ -339,10 +341,15 @@ export default function LeadsPage() {
   return (
     <AppShell requiredPermissions={["call.initiate"]}>
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", xl: "repeat(3, 1fr)" } }}>
-        <SectionCard
-          title="Lead Management"
-          subtitle="Create and update lead profile data with structured sections."
-        >
+        <Box ref={leadFormRef}>
+          <SectionCard
+            title={isEditing ? "Edit Lead" : "Create Lead"}
+            subtitle={
+              isEditing
+                ? "You are editing an existing lead. Update fields and click Update Lead."
+                : "Create a new lead profile using the form below."
+            }
+          >
           <Box component="form" sx={{ display: "grid", gap: 1.5 }} onSubmit={onSubmit}>
             <Paper variant="outlined" sx={{ p: 2 }}>
               <Typography
@@ -468,7 +475,7 @@ export default function LeadsPage() {
                 fullWidth
                 onClick={() => setForm(createDefaultLeadForm(defaultLeadCountry))}
               >
-                Reset
+                {form.id ? "Cancel Edit" : "Reset"}
               </MuiButton>
             </Stack>
           </Box>
@@ -481,7 +488,8 @@ export default function LeadsPage() {
               />
             </Box>
           ) : null}
-        </SectionCard>
+          </SectionCard>
+        </Box>
 
         <SectionCard title="Import Leads" subtitle="Upload CSV with columns: full_name,phone,email,company">
           <Box component="form" sx={{ display: "grid", gap: 1.25 }} onSubmit={handleImport}>
@@ -665,7 +673,8 @@ export default function LeadsPage() {
                         type="button"
                         size="small"
                         variant="outlined"
-                        onClick={() => {
+                        onClick={(event) => {
+                          event.stopPropagation();
                           const parsedPhone = parsePhoneForForm(lead.phone, defaultLeadCountry);
                           setForm({
                             id: lead.id,
@@ -681,6 +690,10 @@ export default function LeadsPage() {
                               : "",
                             tags: lead.tags.join(", "),
                             notes: lead.notes.join("\n"),
+                          });
+
+                          window.requestAnimationFrame(() => {
+                            leadFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                           });
                         }}
                         fullWidth

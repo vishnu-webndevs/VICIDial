@@ -119,6 +119,12 @@ export default function MessageReportsPage() {
             <Typography variant="caption" color="text.secondary">
               Campaign: {selectedCampaign.name} • Run: {report.campaign_run_id} • Channel: {report.channel}
             </Typography>
+            {report.summary ? (
+              <Typography variant="caption" color="text.secondary">
+                Leads: {report.summary.leads} • Unique Numbers: {report.summary.unique_numbers}
+                {report.summary.duplicate_numbers > 0 ? ` • Duplicate Numbers: ${report.summary.duplicate_numbers}` : ""}
+              </Typography>
+            ) : null}
             <Paper variant="outlined" sx={{ overflowX: "auto" }}>
               <Table size="medium">
                 <TableHead>
@@ -166,4 +172,3 @@ export default function MessageReportsPage() {
     </AppShell>
   );
 }
-

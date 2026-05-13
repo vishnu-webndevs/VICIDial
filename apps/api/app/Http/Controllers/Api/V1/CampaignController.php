@@ -757,8 +757,20 @@ class CampaignController extends Controller
             ->orderBy('sent_at')
             ->get(['id', 'thread_id', 'body', 'status', 'sent_at', 'delivered_at', 'provider_message_id']);
 
-        $outboundByThread = $outbound->groupBy('thread_id');
+        $outboundById = $outbound->keyBy('id');
         $startedAt = $run->started_at ?: $outbound->min('sent_at');
+
+        $outboundTimelineByLead = $leadIds === []
+            ? collect()
+            : LeadTimelineItem::query()
+                ->where('tenant_id', $tenant->id)
+                ->whereIn('lead_id', $leadIds)
+                ->where('related_type', 'message')
+                ->where('metadata->bulk_batch_id', (string) $run->id)
+                ->where('metadata->direction', 'outbound')
+                ->orderBy('occurred_at')
+                ->get(['id', 'lead_id', 'related_id', 'content', 'metadata', 'occurred_at'])
+                ->groupBy('lead_id');
 
         $inboundByThread = $threadIds->isEmpty()
             ? collect()
@@ -771,25 +783,34 @@ class CampaignController extends Controller
                 ->get(['id', 'thread_id', 'body', 'status', 'sent_at'])
                 ->groupBy('thread_id');
 
-        $entries = $leads->map(function (Lead $lead) use ($threadsByNumber, $outboundByThread, $inboundByThread): array {
+        $duplicateNumbers = $leads
+            ->groupBy(fn (Lead $lead) => (string) $lead->phone)
+            ->map(fn ($items) => $items->count())
+            ->filter(fn (int $count, string $phone) => $phone !== '' && $count > 1);
+
+        $entries = $leads->map(function (Lead $lead) use ($threadsByNumber, $outboundTimelineByLead, $outboundById, $inboundByThread): array {
             $phone = (string) $lead->phone;
             $thread = $phone !== '' ? $threadsByNumber->get($phone) : null;
             $threadId = $thread?->id ? (string) $thread->id : null;
 
-            $outboundMessages = $threadId
-                ? ($outboundByThread->get($threadId) ?? collect())
-                    ->map(fn (Message $message) => [
-                        'id' => $message->id,
-                        'status' => $message->status,
-                        'body' => $message->body,
-                        'sent_at' => $message->sent_at?->toISOString(),
-                        'delivered_at' => $message->delivered_at?->toISOString(),
-                        'read_at' => $message->read_at?->toISOString(),
-                        'provider_message_id' => $message->provider_message_id,
-                    ])
-                    ->values()
-                    ->all()
-                : [];
+            $timelineItems = $outboundTimelineByLead->get((string) $lead->id) ?? collect();
+            $outboundMessages = $timelineItems
+                ->map(function (LeadTimelineItem $item) use ($outboundById): array {
+                    $message = $item->related_id ? $outboundById->get((string) $item->related_id) : null;
+                    $metadata = (array) ($item->metadata ?? []);
+
+                    return [
+                        'id' => (string) ($message?->id ?? $item->id),
+                        'status' => (string) ($message?->status ?? ($metadata['status'] ?? 'unknown')),
+                        'body' => (string) ($message?->body ?? $item->content ?? ''),
+                        'sent_at' => ($message?->sent_at ?? $item->occurred_at)?->toISOString(),
+                        'delivered_at' => $message?->delivered_at?->toISOString(),
+                        'read_at' => $message?->read_at?->toISOString(),
+                        'provider_message_id' => (string) ($message?->provider_message_id ?? ($metadata['provider_message_id'] ?? '')),
+                    ];
+                })
+                ->values()
+                ->all();
 
             $inboundMessages = $threadId
                 ? ($inboundByThread->get($threadId) ?? collect())
@@ -826,6 +847,11 @@ class CampaignController extends Controller
                 'campaign_id' => $campaign->id,
                 'campaign_run_id' => $run->id,
                 'channel' => $channelFilter ?: $channel,
+                'summary' => [
+                    'leads' => $leads->count(),
+                    'unique_numbers' => $numbers->count(),
+                    'duplicate_numbers' => $duplicateNumbers->count(),
+                ],
                 'entries' => $entries,
             ],
         ]);
@@ -1080,9 +1106,16 @@ class CampaignController extends Controller
 
     private function resolveCampaignLeadIds(Campaign $campaign): array
     {
+        $isMessageCampaign = in_array($campaign->type, ['sms', 'whatsapp', 'outreach'], true);
         $leadQuery = Lead::query()
             ->where('leads.tenant_id', $campaign->tenant_id)
-            ->whereIn('leads.status', ['new', 'follow_up', 'contacted'])
+            ->where('leads.is_dnc', false)
+            ->whereNotNull('leads.phone')
+            ->where('leads.phone', '!=', '')
+            ->when(
+                ! $isMessageCampaign,
+                fn ($q) => $q->whereIn('leads.status', ['new', 'follow_up', 'contacted'])
+            )
             ->orderBy('leads.updated_at');
         $leadListIds = collect((array) (($campaign->settings ?? [])['lead_list_ids'] ?? []))
             ->filter()
@@ -1095,7 +1128,7 @@ class CampaignController extends Controller
             });
         }
 
-        $limit = in_array($campaign->type, ['sms', 'whatsapp', 'outreach'], true)
+        $limit = $isMessageCampaign
             ? 10000
             : max(1, (int) $campaign->queue_size);
 

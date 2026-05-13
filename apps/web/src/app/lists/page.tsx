@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Box, MenuItem, MuiButton, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@/ui";
 import { AppShell, LoadingState, SectionCard } from "@/components/app-shell";
 import { EmptyPanel, ToastMessage } from "@/components/ui-primitives";
-import { attachLeadsToList, createLeadList, getLeadImportJob, importLeadsFromFile, listLeadLists, listLeads } from "@/lib/product-api";
+import { attachLeadsToList, createLeadList, detachLeadsFromList, getLeadImportJob, importLeadsFromFile, listLeadLists, listLeads } from "@/lib/product-api";
 import type { Lead, LeadList, LeadImportStatus } from "@/types/product";
 
 export default function ListsPage() {
@@ -12,6 +12,7 @@ export default function ListsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [selectedListId, setSelectedListId] = useState("");
   const [selectedLeadIds, setSelectedLeadIds] = useState<string[]>([]);
+  const [mode, setMode] = useState<"add" | "remove">("add");
   const [listName, setListName] = useState("");
   const [listDescription, setListDescription] = useState("");
   const [loading, setLoading] = useState(true);
@@ -23,7 +24,10 @@ export default function ListsPage() {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [listData, leadData] = await Promise.all([listLeadLists(), listLeads()]);
+      const [listData, leadData] = await Promise.all([
+        listLeadLists(),
+        mode === "remove" && selectedListId ? listLeads({ listId: selectedListId }) : listLeads(),
+      ]);
       setLists(listData);
       setLeads(leadData);
       if (!selectedListId && listData.length > 0) {
@@ -35,7 +39,7 @@ export default function ListsPage() {
     } finally {
       setLoading(false);
     }
-  }, [selectedListId]);
+  }, [mode, selectedListId]);
 
   useEffect(() => {
     void loadData();
@@ -68,6 +72,21 @@ export default function ListsPage() {
       await loadData();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Failed to attach leads.");
+      setMessageTone("error");
+    }
+  }
+
+  async function onDetachLeads() {
+    if (!selectedListId || selectedLeadIds.length === 0) return;
+    setMessage("");
+    try {
+      const response = await detachLeadsFromList(selectedListId, selectedLeadIds);
+      setMessage(`${response.detached_count} leads removed from selected list.`);
+      setMessageTone("success");
+      setSelectedLeadIds([]);
+      await loadData();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to remove leads from list.");
       setMessageTone("error");
     }
   }
@@ -173,13 +192,42 @@ export default function ListsPage() {
           ) : null}
         </SectionCard>
 
-        <SectionCard title="Manage List Leads" subtitle="Attach existing leads into selected lead list.">
+        <SectionCard
+          title="Manage List Leads"
+          subtitle={mode === "remove" ? "Remove leads from selected list." : "Attach existing leads into selected lead list."}
+        >
           {loading ? (
             <LoadingState label="Loading lists and leads..." />
+          ) : !selectedListId ? (
+            <EmptyPanel title="Select a list first" description="Choose a lead list to add or remove leads." />
           ) : visibleLeads.length === 0 ? (
-            <EmptyPanel title="No leads available" description="Create or import leads first to populate list membership." />
+            <EmptyPanel
+              title={mode === "remove" ? "No leads in this list" : "No leads available"}
+              description={mode === "remove" ? "This lead list has no leads attached yet." : "Create or import leads first to populate list membership."}
+            />
           ) : (
             <>
+              <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+                <MuiButton
+                  variant={mode === "add" ? "contained" : "outlined"}
+                  onClick={() => {
+                    setSelectedLeadIds([]);
+                    setMode("add");
+                  }}
+                >
+                  Add Leads
+                </MuiButton>
+                <MuiButton
+                  variant={mode === "remove" ? "contained" : "outlined"}
+                  onClick={() => {
+                    setSelectedLeadIds([]);
+                    setMode("remove");
+                  }}
+                >
+                  Remove Leads
+                </MuiButton>
+              </Stack>
+
               <Paper variant="outlined" sx={{ overflowX: "auto" }}>
                 <Table size="medium" sx={{ minWidth: 920 }}>
                   <TableHead>
@@ -210,9 +258,24 @@ export default function ListsPage() {
                 </Table>
               </Paper>
               <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-                <MuiButton variant="contained" onClick={() => void onAttachLeads()} disabled={!selectedListId || selectedLeadIds.length === 0}>
-                  Attach {selectedLeadIds.length} Leads
-                </MuiButton>
+                {mode === "remove" ? (
+                  <MuiButton
+                    variant="contained"
+                    color="error"
+                    onClick={() => void onDetachLeads()}
+                    disabled={!selectedListId || selectedLeadIds.length === 0}
+                  >
+                    Remove {selectedLeadIds.length} Leads
+                  </MuiButton>
+                ) : (
+                  <MuiButton
+                    variant="contained"
+                    onClick={() => void onAttachLeads()}
+                    disabled={!selectedListId || selectedLeadIds.length === 0}
+                  >
+                    Attach {selectedLeadIds.length} Leads
+                  </MuiButton>
+                )}
                 <MuiButton variant="outlined" onClick={() => setSelectedLeadIds([])}>Clear</MuiButton>
               </Stack>
             </>

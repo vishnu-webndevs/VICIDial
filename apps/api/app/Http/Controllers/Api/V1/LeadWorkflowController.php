@@ -14,6 +14,7 @@ use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class LeadWorkflowController extends Controller
 {
@@ -76,6 +77,49 @@ class LeadWorkflowController extends Controller
             'data' => [
                 'list_id' => $list->id,
                 'attached_count' => count($pivot),
+            ],
+        ]);
+    }
+
+    public function listsDetachLeads(Request $request, string $listId): JsonResponse
+    {
+        $tenant = $request->attributes->get('tenant');
+        $list = LeadList::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('id', $listId)
+            ->firstOrFail();
+        $validated = $request->validate([
+            'lead_ids' => ['required', 'array', 'min:1'],
+            'lead_ids.*' => ['uuid'],
+        ]);
+
+        $leadIds = Lead::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('id', (array) $validated['lead_ids'])
+            ->pluck('id')
+            ->map(fn ($id) => (string) $id)
+            ->values()
+            ->all();
+
+        if ($leadIds === []) {
+            return response()->json([
+                'data' => [
+                    'list_id' => $list->id,
+                    'detached_count' => 0,
+                ],
+            ]);
+        }
+
+        $detachedCount = (int) DB::table('lead_list_lead')
+            ->where('tenant_id', $tenant->id)
+            ->where('lead_list_id', $list->id)
+            ->whereIn('lead_id', $leadIds)
+            ->delete();
+
+        return response()->json([
+            'data' => [
+                'list_id' => $list->id,
+                'detached_count' => $detachedCount,
             ],
         ]);
     }

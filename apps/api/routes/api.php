@@ -278,6 +278,8 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:call.initiate');
         Route::post('/lead-lists/{id}/leads', [LeadWorkflowController::class, 'listsAttachLeads'])
             ->middleware('permission:call.initiate');
+        Route::post('/lead-lists/{id}/leads/detach', [LeadWorkflowController::class, 'listsDetachLeads'])
+            ->middleware('permission:call.initiate');
 
         Route::get('/dnc', [LeadWorkflowController::class, 'dncIndex'])
             ->middleware('permission:call.view');

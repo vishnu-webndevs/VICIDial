@@ -2,6 +2,7 @@
 
 import { Box, Modal as MuiModal, Typography } from "@mui/material";
 import { ReactNode } from "react";
+import IconButton from "@mui/material/IconButton";
 
 export function Modal({
   open,
@@ -33,11 +34,25 @@ export function Modal({
           overflowY: "auto",
         }}
       >
+        <IconButton
+          aria-label="Close"
+          onClick={onClose}
+          sx={{
+            position: "absolute",
+            top: { xs: 10, sm: 14 },
+            right: { xs: 10, sm: 14 },
+            color: "#697a8d",
+          }}
+        >
+          <i className="bx bx-x" style={{ fontSize: "1.6rem" }} />
+        </IconButton>
+
         {title ? (
           <Typography
             variant="h5"
             sx={{
               mb: 3,
+              pr: 5,
               fontWeight: 500,
               color: "#566a7f",
             }}
