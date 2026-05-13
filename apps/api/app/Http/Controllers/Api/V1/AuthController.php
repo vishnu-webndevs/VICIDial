@@ -378,6 +378,109 @@ class AuthController extends Controller
         ]);
     }
 
+    public function updateMe(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json([
+                'error' => [
+                    'code' => 'UNAUTHENTICATED',
+                    'message' => 'Unauthenticated.',
+                ],
+            ], 401);
+        }
+
+        $validated = $request->validate([
+            'first_name' => ['sometimes', 'string', 'max:100'],
+            'last_name' => ['sometimes', 'string', 'max:100'],
+            'email' => ['sometimes', 'email', 'max:255'],
+            'current_password' => ['sometimes', 'nullable', 'string', 'max:128'],
+            'password' => ['sometimes', 'nullable', 'string', 'min:8', 'max:128', 'confirmed'],
+        ]);
+
+        $wantsPasswordChange = array_key_exists('password', $validated) && is_string($validated['password']) && trim($validated['password']) !== '';
+        $wantsEmailChange = array_key_exists('email', $validated)
+            && Str::lower((string) $validated['email']) !== Str::lower((string) $user->email);
+
+        if ($wantsEmailChange) {
+            $exists = User::query()
+                ->where('email', Str::lower((string) $validated['email']))
+                ->where('id', '!=', $user->id)
+                ->exists();
+            if ($exists) {
+                throw ValidationException::withMessages([
+                    'email' => ['The email has already been taken.'],
+                ]);
+            }
+        }
+
+        if ($wantsPasswordChange || $wantsEmailChange) {
+            $currentPassword = trim((string) ($validated['current_password'] ?? ''));
+            if ($currentPassword === '' || ! Hash::check($currentPassword, $user->password)) {
+                throw ValidationException::withMessages([
+                    'current_password' => ['Current password is incorrect.'],
+                ]);
+            }
+        }
+
+        $oldValues = [
+            'first_name' => $user->first_name,
+            'last_name' => $user->last_name,
+            'email' => $user->email,
+        ];
+
+        if (array_key_exists('first_name', $validated)) {
+            $user->first_name = (string) $validated['first_name'];
+        }
+        if (array_key_exists('last_name', $validated)) {
+            $user->last_name = (string) $validated['last_name'];
+        }
+        if (array_key_exists('email', $validated)) {
+            $user->email = Str::lower((string) $validated['email']);
+        }
+        if ($wantsPasswordChange) {
+            $user->password = Hash::make((string) $validated['password']);
+        }
+
+        $user->save();
+
+        $newToken = null;
+        if ($wantsPasswordChange) {
+            $user->tokens()->delete();
+            $newToken = $user->createToken('auth-token')->plainTextToken;
+        }
+
+        $this->auditLogger->log(
+            action: 'auth.profile_updated',
+            resourceType: 'user',
+            resourceId: $user->id,
+            tenantId: null,
+            actorId: $user->id,
+            newValues: array_diff_assoc(
+                [
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'email' => $user->email,
+                    'password_changed' => $wantsPasswordChange,
+                ],
+                $oldValues
+            ),
+            request: $request
+        );
+
+        return response()->json([
+            'data' => [
+                'user' => [
+                    'id' => $user->id,
+                    'email' => $user->email,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                ],
+                'token' => $newToken,
+            ],
+        ]);
+    }
+
     private function ensureCompanyOwnerRolePermissions(Role $role): void
     {
         if ($role->slug !== 'company_owner') {

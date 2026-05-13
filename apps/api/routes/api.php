@@ -49,6 +49,7 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
         Route::prefix('auth')->group(function () {
             Route::post('/logout', [AuthController::class, 'logout']);
             Route::get('/me', [AuthController::class, 'me']);
+            Route::patch('/me', [AuthController::class, 'updateMe']);
         });
 
         Route::get('/tenant', [TenantController::class, 'show'])

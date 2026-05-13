@@ -6,15 +6,24 @@ import {
   Divider,
   IconButton,
   InputAdornment,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
   Menu,
   MenuItem,
   OutlinedInput,
+  TextField,
   Toolbar,
 } from "@mui/material";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/api";
-import { clearSession, getSessionStorageState } from "@/lib/auth-session";
+import {
+  clearSession,
+  getSessionStorageState,
+  saveSession,
+} from "@/lib/auth-session";
 
 export function Navbar({
   tenantName,
@@ -31,8 +40,26 @@ export function Navbar({
   const [searchFocused, setSearchFocused] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
+  const [profile, setProfile] = useState({
+    first_name: "",
+    last_name: "",
+    email: "",
+    current_password: "",
+    password: "",
+    password_confirmation: "",
+  });
 
   const menuOpen = Boolean(menuAnchor);
+
+  const wantsSensitiveUpdate = useMemo(() => {
+    const password = profile.password.trim();
+    const email = profile.email.trim();
+    return password !== "" || email !== "";
+  }, [profile.email, profile.password]);
 
   async function logout(): Promise<void> {
     if (loggingOut) return;
@@ -48,6 +75,83 @@ export function Navbar({
       setMenuAnchor(null);
       setLoggingOut(false);
       router.replace("/login");
+    }
+  }
+
+  useEffect(() => {
+    if (!profileOpen) {
+      return;
+    }
+
+    let cancelled = false;
+    const load = async () => {
+      setProfileLoading(true);
+      setProfileMessage("");
+      try {
+        const { token, tenantId } = getSessionStorageState();
+        const response = await apiRequest<{ data: { first_name: string; last_name: string; email: string } }>(
+          "/auth/me",
+          { token, tenantId }
+        );
+        if (cancelled) return;
+        setProfile((prev) => ({
+          ...prev,
+          first_name: response.data.first_name ?? "",
+          last_name: response.data.last_name ?? "",
+          email: response.data.email ?? "",
+          current_password: "",
+          password: "",
+          password_confirmation: "",
+        }));
+      } catch (e) {
+        if (cancelled) return;
+        setProfileMessage(e instanceof Error ? e.message : "Failed to load profile.");
+      } finally {
+        if (!cancelled) setProfileLoading(false);
+      }
+    };
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [profileOpen]);
+
+  async function saveProfile(): Promise<void> {
+    if (profileSaving) return;
+    setProfileSaving(true);
+    setProfileMessage("");
+    try {
+      const { token, tenantId } = getSessionStorageState();
+      const payload: Record<string, unknown> = {
+        first_name: profile.first_name,
+        last_name: profile.last_name,
+        email: profile.email,
+      };
+
+      const password = profile.password.trim();
+      if (password !== "") {
+        payload.current_password = profile.current_password;
+        payload.password = password;
+        payload.password_confirmation = profile.password_confirmation;
+      }
+
+      const response = await apiRequest<{ data: { user: { email: string; first_name: string; last_name: string }; token?: string | null } }>(
+        "/auth/me",
+        { method: "PATCH", token, tenantId, body: payload }
+      );
+
+      const newToken = response.data.token;
+      if (newToken) {
+        saveSession(newToken, tenantId);
+      }
+
+      setProfileOpen(false);
+      setMenuAnchor(null);
+    } catch (e) {
+      setProfileMessage(e instanceof Error ? e.message : "Profile update failed.");
+    } finally {
+      setProfileSaving(false);
     }
   }
 
@@ -214,6 +318,14 @@ export function Navbar({
             >
               <MenuItem disabled>{tenantName || "Account"}</MenuItem>
               <Divider />
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  setProfileOpen(true);
+                }}
+              >
+                Edit Profile
+              </MenuItem>
               <MenuItem onClick={logout} disabled={loggingOut}>
                 {loggingOut ? "Logging out..." : "Logout"}
               </MenuItem>
@@ -221,6 +333,76 @@ export function Navbar({
           </Box>
         </Toolbar>
       </Box>
+
+      <Dialog
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Edit Profile</DialogTitle>
+        <DialogContent sx={{ pt: 1, display: "flex", flexDirection: "column", gap: 2 }}>
+          <TextField
+            label="First Name"
+            value={profile.first_name}
+            onChange={(e) => setProfile((p) => ({ ...p, first_name: e.target.value }))}
+            disabled={profileLoading || profileSaving}
+            fullWidth
+          />
+          <TextField
+            label="Last Name"
+            value={profile.last_name}
+            onChange={(e) => setProfile((p) => ({ ...p, last_name: e.target.value }))}
+            disabled={profileLoading || profileSaving}
+            fullWidth
+          />
+          <TextField
+            label="Email"
+            value={profile.email}
+            onChange={(e) => setProfile((p) => ({ ...p, email: e.target.value }))}
+            disabled={profileLoading || profileSaving}
+            fullWidth
+          />
+          <Divider />
+          <TextField
+            label="Current Password"
+            type="password"
+            value={profile.current_password}
+            onChange={(e) => setProfile((p) => ({ ...p, current_password: e.target.value }))}
+            disabled={profileLoading || profileSaving}
+            fullWidth
+            required={wantsSensitiveUpdate}
+          />
+          <TextField
+            label="New Password"
+            type="password"
+            value={profile.password}
+            onChange={(e) => setProfile((p) => ({ ...p, password: e.target.value }))}
+            disabled={profileLoading || profileSaving}
+            fullWidth
+          />
+          <TextField
+            label="Confirm New Password"
+            type="password"
+            value={profile.password_confirmation}
+            onChange={(e) => setProfile((p) => ({ ...p, password_confirmation: e.target.value }))}
+            disabled={profileLoading || profileSaving}
+            fullWidth
+          />
+          {profileMessage ? (
+            <Box sx={{ color: "error.main", fontSize: "0.875rem" }}>{profileMessage}</Box>
+          ) : null}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <IconButton onClick={() => setProfileOpen(false)} disabled={profileSaving}>
+            <i className="bx bx-x" style={{ fontSize: "1.25rem" }} />
+          </IconButton>
+          <Box sx={{ flex: 1 }} />
+          <IconButton onClick={saveProfile} disabled={profileSaving || profileLoading}>
+            <i className="bx bx-save" style={{ fontSize: "1.25rem" }} />
+          </IconButton>
+        </DialogActions>
+      </Dialog>
     </AppBar>
   );
 }
