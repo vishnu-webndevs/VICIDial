@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 return new class extends Migration
 {
@@ -24,21 +25,39 @@ return new class extends Migration
         }
 
         if (in_array($driver, ['mysql', 'mariadb'], true)) {
-            DB::unprepared('DROP TRIGGER IF EXISTS prevent_users_delete');
-            DB::unprepared("
-                CREATE TRIGGER prevent_users_delete
-                BEFORE DELETE ON users
-                FOR EACH ROW
-                BEGIN
-                    SIGNAL SQLSTATE '45000'
-                    SET MESSAGE_TEXT = 'Deleting rows from users is disabled.';
-                END
-            ");
+            try {
+                DB::unprepared('DROP TRIGGER IF EXISTS prevent_users_delete');
+            } catch (\Throwable $e) {
+                Log::warning('Skipping users delete trigger drop (insufficient privileges).', [
+                    'driver' => $driver,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            try {
+                DB::unprepared("
+                    CREATE TRIGGER prevent_users_delete
+                    BEFORE DELETE ON users
+                    FOR EACH ROW
+                    BEGIN
+                        SIGNAL SQLSTATE '45000'
+                        SET MESSAGE_TEXT = 'Deleting rows from users is disabled.';
+                    END
+                ");
+            } catch (\Throwable $e) {
+                Log::warning('Skipping users delete trigger creation (insufficient privileges).', [
+                    'driver' => $driver,
+                    'error' => $e->getMessage(),
+                ]);
+            }
         }
     }
 
     public function down(): void
     {
-        DB::unprepared('DROP TRIGGER IF EXISTS prevent_users_delete');
+        try {
+            DB::unprepared('DROP TRIGGER IF EXISTS prevent_users_delete');
+        } catch (\Throwable) {
+        }
     }
 };
