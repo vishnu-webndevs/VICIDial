@@ -35,6 +35,13 @@ if (isDevelopment) {
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: false,
+  async rewrites() {
+    const internalApiOrigin = process.env.INTERNAL_API_ORIGIN ?? "http://api:8088";
+    return [
+      { source: "/api/:path*", destination: `${internalApiOrigin}/api/:path*` },
+      { source: "/storage/:path*", destination: `${internalApiOrigin}/storage/:path*` },
+    ];
+  },
   async headers() {
     return [
       {
