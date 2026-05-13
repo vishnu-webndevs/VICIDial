@@ -14,11 +14,13 @@ use App\Models\LeadList;
 use App\Models\LeadTimelineItem;
 use App\Models\Message;
 use App\Models\MessageThread;
+use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
 class CampaignController extends Controller
@@ -255,107 +257,156 @@ class CampaignController extends Controller
 
     public function start(Request $request, string $id): JsonResponse
     {
-        $tenant = $request->attributes->get('tenant');
-        $campaign = Campaign::query()
-            ->where('tenant_id', $tenant->id)
-            ->where('id', $id)
-            ->firstOrFail();
+        try {
+            $tenant = $request->attributes->get('tenant');
+            $campaign = Campaign::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('id', $id)
+                ->firstOrFail();
 
-        $settings = (array) ($campaign->settings ?? []);
-        $channel = (string) ($settings['channel'] ?? '');
-        $isMessageCampaign = in_array($campaign->type, ['sms', 'whatsapp', 'outreach'], true);
-        if ($isMessageCampaign) {
-            if (! in_array($channel, self::MESSAGE_CHANNELS, true)) {
-                return response()->json([
-                    'error' => [
-                        'code' => 'MESSAGE_CHANNEL_INVALID',
-                        'message' => 'Message channel is missing or invalid for this campaign.',
-                    ],
-                ], 422);
-            }
-            $providerValidation = $this->validateMessagingProvider($tenant->id, $campaign, $channel);
-            if (($providerValidation['ok'] ?? false) !== true) {
-                return response()->json([
-                    'error' => [
-                        'code' => (string) ($providerValidation['code'] ?? 'PROVIDER_INVALID'),
-                        'message' => (string) ($providerValidation['message'] ?? 'Provider configuration is invalid.'),
-                    ],
-                ], 422);
-            }
-        }
-
-        $run = CampaignRun::query()
-            ->where('tenant_id', $tenant->id)
-            ->where('campaign_id', $campaign->id)
-            ->whereIn('status', ['queued', 'running', 'paused'])
-            ->latest('created_at')
-            ->first();
-
-        if (! $run || $run->status === 'completed' || $run->status === 'stopped') {
-            $run = CampaignRun::query()->create([
-                'tenant_id' => $tenant->id,
-                'campaign_id' => $campaign->id,
-                'started_by' => $request->user()?->id,
-                'status' => 'running',
-                'calls_per_minute' => $campaign->calls_per_minute,
-                'started_at' => now(),
-                'pacing_window_started_at' => now(),
-                'calls_dispatched_in_window' => 0,
-            ]);
+            $settings = (array) ($campaign->settings ?? []);
+            $channel = (string) ($settings['channel'] ?? '');
+            $isMessageCampaign = in_array($campaign->type, ['sms', 'whatsapp', 'outreach'], true);
             if ($isMessageCampaign) {
-                $this->dispatchMessageCampaign($campaign, $run, $channel);
-            } else {
-                $this->seedQueue($campaign, $run);
+                if (! in_array($channel, self::MESSAGE_CHANNELS, true)) {
+                    return response()->json([
+                        'error' => [
+                            'code' => 'MESSAGE_CHANNEL_INVALID',
+                            'message' => 'Message channel is missing or invalid for this campaign.',
+                        ],
+                    ], 422);
+                }
+                $providerValidation = $this->validateMessagingProvider($tenant->id, $campaign, $channel);
+                if (($providerValidation['ok'] ?? false) !== true) {
+                    return response()->json([
+                        'error' => [
+                            'code' => (string) ($providerValidation['code'] ?? 'PROVIDER_INVALID'),
+                            'message' => (string) ($providerValidation['message'] ?? 'Provider configuration is invalid.'),
+                        ],
+                    ], 422);
+                }
             }
-        } else {
-            $run->status = 'running';
-            $run->paused_at = null;
-            $run->started_by = $run->started_by ?: $request->user()?->id;
-            $run->started_at = $run->started_at ?: now();
-            $run->save();
-        }
 
-        $campaign->status = 'running';
-        $campaign->save();
+            $run = CampaignRun::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('campaign_id', $campaign->id)
+                ->whereIn('status', ['queued', 'running', 'paused'])
+                ->latest('created_at')
+                ->first();
 
-        $assignedAgentIds = CampaignAgentAssignment::query()
-            ->where('tenant_id', $tenant->id)
-            ->where('campaign_id', $campaign->id)
-            ->pluck('agent_id')
-            ->map(fn ($id) => (string) $id)
-            ->filter()
-            ->unique()
-            ->values();
-
-        foreach ($assignedAgentIds as $agentId) {
-            AgentSession::query()->updateOrCreate(
-                [
+            if (! $run || $run->status === 'completed' || $run->status === 'stopped') {
+                $run = CampaignRun::query()->create([
                     'tenant_id' => $tenant->id,
-                    'agent_id' => $agentId,
+                    'campaign_id' => $campaign->id,
+                    'started_by' => $request->user()?->id,
+                    'status' => 'running',
+                    'calls_per_minute' => $campaign->calls_per_minute,
+                    'started_at' => now(),
+                    'pacing_window_started_at' => now(),
+                    'calls_dispatched_in_window' => 0,
+                ]);
+                if ($isMessageCampaign) {
+                    $this->dispatchMessageCampaign($campaign, $run, $channel);
+                } else {
+                    $this->seedQueue($campaign, $run);
+                }
+            } else {
+                $run->status = 'running';
+                $run->paused_at = null;
+                $run->started_by = $run->started_by ?: $request->user()?->id;
+                $run->started_at = $run->started_at ?: now();
+                $run->save();
+            }
+
+            $campaign->status = 'running';
+            $campaign->save();
+
+            $assignedAgentIds = CampaignAgentAssignment::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('campaign_id', $campaign->id)
+                ->pluck('agent_id')
+                ->map(fn ($id) => (string) $id)
+                ->filter()
+                ->unique()
+                ->values();
+
+            foreach ($assignedAgentIds as $agentId) {
+                AgentSession::query()->updateOrCreate(
+                    [
+                        'tenant_id' => $tenant->id,
+                        'agent_id' => $agentId,
+                    ],
+                    [
+                        'status' => 'available',
+                        'capacity' => 1,
+                        'available_since' => now(),
+                        'last_heartbeat_at' => now(),
+                    ]
+                );
+            }
+
+            if ($isMessageCampaign && $run) {
+                $this->recoverMessageCampaignIfStuck($campaign, $run, $channel);
+            }
+
+            if (! $isMessageCampaign) {
+                RunCampaignTickJob::dispatch($run->id);
+            }
+
+            return response()->json([
+                'data' => [
+                    'campaign' => $this->serializeCampaign($campaign),
+                    'run' => $this->serializeRun($run->fresh()),
                 ],
-                [
-                    'status' => 'available',
-                    'capacity' => 1,
-                    'available_since' => now(),
-                    'last_heartbeat_at' => now(),
-                ]
-            );
-        }
+            ], 202);
+        } catch (QueryException $exception) {
+            $message = $exception->getMessage();
+            $code = (int) ($exception->errorInfo[1] ?? 0);
+            $isMissingTable = $code === 1146 || str_contains($message, "doesn't exist");
+            if ($isMissingTable) {
+                $missing = [];
+                foreach (['campaign_runs', 'dial_queue_items', 'jobs', 'agent_sessions'] as $table) {
+                    try {
+                        if (! Schema::hasTable($table)) {
+                            $missing[] = $table;
+                        }
+                    } catch (\Throwable) {
+                    }
+                }
+                return response()->json([
+                    'error' => [
+                        'code' => 'MIGRATIONS_REQUIRED',
+                        'message' => 'Database tables are missing. Run `php artisan migrate --force` on the backend container.',
+                        'details' => [
+                            'missing_tables' => $missing,
+                        ],
+                    ],
+                ], 422);
+            }
 
-        if ($isMessageCampaign && $run) {
-            $this->recoverMessageCampaignIfStuck($campaign, $run, $channel);
+            Log::error('Campaign start query failed.', [
+                'campaign_id' => $id,
+                'sql_error' => $exception->getMessage(),
+                'sql_code' => $code,
+            ]);
+            return response()->json([
+                'error' => [
+                    'code' => 'CAMPAIGN_START_FAILED',
+                    'message' => 'Failed to start campaign due to a database error.',
+                ],
+            ], 500);
+        } catch (\Throwable $exception) {
+            Log::error('Campaign start failed.', [
+                'campaign_id' => $id,
+                'error' => $exception->getMessage(),
+            ]);
+            return response()->json([
+                'error' => [
+                    'code' => 'CAMPAIGN_START_FAILED',
+                    'message' => 'Failed to start campaign.',
+                ],
+            ], 500);
         }
-
-        if (! $isMessageCampaign) {
-            RunCampaignTickJob::dispatch($run->id);
-        }
-
-        return response()->json([
-            'data' => [
-                'campaign' => $this->serializeCampaign($campaign),
-                'run' => $this->serializeRun($run->fresh()),
-            ],
-        ], 202);
     }
 
     public function pause(Request $request, string $id): JsonResponse
