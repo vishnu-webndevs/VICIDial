@@ -105,7 +105,7 @@ export default function CommandCenterPage() {
             <MuiButton variant="outlined" onClick={() => void loadData()} disabled={loading}>
               Refresh
             </MuiButton>
-            {selectedCampaign && ["running", "scheduled"].includes(selectedCampaign.status) ? (
+            {selectedCampaign && ["running", "paused"].includes(selectedCampaign.status) ? (
               <MuiButton variant="outlined" color="error" onClick={() => void handleStopCampaign()} disabled={loading}>
                 Stop Campaign
               </MuiButton>

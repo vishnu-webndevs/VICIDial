@@ -14,7 +14,7 @@ type DemoLead = {
 type DemoCampaign = {
   id: string;
   name: string;
-  status: "running" | "scheduled" | "paused";
+  status: "running" | "draft" | "paused";
   queue: number;
   conversion: number;
 };
@@ -40,7 +40,7 @@ const initialDemoDataset: DemoDataset = {
   ],
   campaigns: [
     { id: "C-201", name: "Q2 Renewals", status: "running", queue: 42, conversion: 31 },
-    { id: "C-202", name: "SMB Outbound", status: "scheduled", queue: 28, conversion: 24 },
+    { id: "C-202", name: "SMB Outbound", status: "draft", queue: 28, conversion: 24 },
     { id: "C-203", name: "Churn Recovery", status: "paused", queue: 13, conversion: 18 },
   ],
   analytics: {

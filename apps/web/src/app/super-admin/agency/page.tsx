@@ -40,7 +40,7 @@ export default function SuperAdminAgencyPage() {
 
       const campaigns = campaignResponse.data ?? [];
       const members = memberResponse.data ?? [];
-      const activeCampaigns = campaigns.filter((item) => ["running", "scheduled"].includes(item.status)).length;
+      const activeCampaigns = campaigns.filter((item) => item.status === "running").length;
 
       const teamMembers = members.map((member) => ({
         id: member.id,

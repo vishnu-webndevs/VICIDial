@@ -155,7 +155,7 @@ const defaultDraft: OnboardingDraft = {
     queueSize: 20,
     callsPerMinute: 20,
     listId: "",
-    status: "scheduled",
+    status: "draft",
     completed: false,
     createdCampaignId: "",
   },
@@ -1145,7 +1145,6 @@ export default function OnboardingPage() {
                       }
                     >
                       <MenuItem value="draft">Draft</MenuItem>
-                      <MenuItem value="scheduled">Scheduled</MenuItem>
                     </TextField>
 
                     <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1.5, p: 1.5 }}>

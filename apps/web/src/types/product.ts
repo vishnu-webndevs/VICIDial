@@ -94,7 +94,7 @@ export type Campaign = {
   id: string;
   name: string;
   type: CampaignType;
-  status: "draft" | "running" | "paused" | "completed" | "scheduled";
+  status: "draft" | "running" | "paused" | "completed";
   lead_list_name: string;
   lead_list_ids?: string[];
   schedule_window: string;
