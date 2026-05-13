@@ -7,10 +7,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('CREATE VIEW IF NOT EXISTS call_logs AS SELECT * FROM call_sessions');
-        DB::statement('CREATE VIEW IF NOT EXISTS dispositions AS SELECT * FROM lead_dispositions');
-        DB::statement("CREATE VIEW IF NOT EXISTS callbacks AS SELECT * FROM lead_dispositions WHERE disposition = 'callback'");
-        DB::statement('CREATE VIEW IF NOT EXISTS dnc_numbers AS SELECT * FROM dnc_entries');
+        DB::statement('CREATE OR REPLACE VIEW call_logs AS SELECT * FROM call_sessions');
+        DB::statement('CREATE OR REPLACE VIEW dispositions AS SELECT * FROM lead_dispositions');
+        DB::statement("CREATE OR REPLACE VIEW callbacks AS SELECT * FROM lead_dispositions WHERE disposition = 'callback'");
+        DB::statement('CREATE OR REPLACE VIEW dnc_numbers AS SELECT * FROM dnc_entries');
     }
 
     public function down(): void
