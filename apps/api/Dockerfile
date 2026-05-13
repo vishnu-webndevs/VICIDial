@@ -28,4 +28,4 @@ RUN mkdir -p storage bootstrap/cache \
 
 USER www-data
 EXPOSE 8088
-CMD ["sh", "-lc", "php artisan storage:link || true; php artisan serve --host=0.0.0.0 --port=${PORT:-8088}"]
+CMD ["sh", "-lc", "php artisan storage:link || true; php artisan queue:work --daemon --sleep=1 --tries=3 --timeout=120 & exec php artisan serve --host=0.0.0.0 --port=${PORT:-8088}"]
