@@ -36,10 +36,15 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   reactStrictMode: false,
   async rewrites() {
-    const internalApiOrigin = process.env.INTERNAL_API_ORIGIN ?? "http://api:8088";
+    const internalApiOriginRaw = process.env.INTERNAL_API_ORIGIN ?? "http://api:8088";
+    const internalApiOrigin = internalApiOriginRaw.replace(/\/+$/, "");
+    const internalOriginNoApi = internalApiOrigin.replace(/\/api$/i, "");
+    const internalApiBase = /\/api$/i.test(internalApiOrigin)
+      ? internalApiOrigin
+      : `${internalOriginNoApi}/api`;
     return [
-      { source: "/api/:path*", destination: `${internalApiOrigin}/api/:path*` },
-      { source: "/storage/:path*", destination: `${internalApiOrigin}/storage/:path*` },
+      { source: "/api/:path*", destination: `${internalApiBase}/:path*` },
+      { source: "/storage/:path*", destination: `${internalOriginNoApi}/storage/:path*` },
     ];
   },
   async headers() {
