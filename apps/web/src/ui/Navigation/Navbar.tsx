@@ -3,12 +3,18 @@
 import {
   AppBar,
   Box,
+  Divider,
   IconButton,
   InputAdornment,
+  Menu,
+  MenuItem,
   OutlinedInput,
   Toolbar,
 } from "@mui/material";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { apiRequest } from "@/lib/api";
+import { clearSession, getSessionStorageState } from "@/lib/auth-session";
 
 export function Navbar({
   tenantName,
@@ -21,7 +27,29 @@ export function Navbar({
   mode: "light" | "dark";
   onToggleMode: () => void;
 }) {
+  const router = useRouter();
   const [searchFocused, setSearchFocused] = useState(false);
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  const menuOpen = Boolean(menuAnchor);
+
+  async function logout(): Promise<void> {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    try {
+      const { token, tenantId } = getSessionStorageState();
+      if (token) {
+        await apiRequest("/auth/logout", { method: "POST", token, tenantId });
+      }
+    } catch {
+    } finally {
+      clearSession();
+      setMenuAnchor(null);
+      setLoggingOut(false);
+      router.replace("/login");
+    }
+  }
 
   return (
     <AppBar
@@ -171,9 +199,25 @@ export function Navbar({
                 fontWeight: 600,
                 cursor: "pointer",
               }}
+              onClick={(event) => setMenuAnchor(event.currentTarget)}
             >
               {tenantName ? tenantName.charAt(0).toUpperCase() : "U"}
             </Box>
+
+            <Menu
+              anchorEl={menuAnchor}
+              open={menuOpen}
+              onClose={() => setMenuAnchor(null)}
+              anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+              transformOrigin={{ vertical: "top", horizontal: "right" }}
+              PaperProps={{ sx: { minWidth: 200 } }}
+            >
+              <MenuItem disabled>{tenantName || "Account"}</MenuItem>
+              <Divider />
+              <MenuItem onClick={logout} disabled={loggingOut}>
+                {loggingOut ? "Logging out..." : "Logout"}
+              </MenuItem>
+            </Menu>
           </Box>
         </Toolbar>
       </Box>
