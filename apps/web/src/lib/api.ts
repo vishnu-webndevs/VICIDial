@@ -28,6 +28,7 @@ export async function apiRequest<T>(
   const headers: Record<string, string> = {
     ...extraHeaders,
   };
+  headers.Accept = "application/json";
   const isNgrokApi = /ngrok-free\.(app|dev)/i.test(API_BASE_URL);
 
   if (isNgrokApi) {
