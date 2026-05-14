@@ -384,6 +384,23 @@ class CampaignController extends Controller
                 ], 422);
             }
 
+            $isMissingColumn = $code === 1054 || str_contains($message, 'Unknown column');
+            if ($isMissingColumn) {
+                $column = null;
+                if (preg_match("/Unknown column '([^']+)'/i", $message, $matches) === 1) {
+                    $column = (string) ($matches[1] ?? null);
+                }
+                return response()->json([
+                    'error' => [
+                        'code' => 'MIGRATIONS_REQUIRED',
+                        'message' => 'Database schema is outdated. Run `php artisan migrate --force` on the backend container.',
+                        'details' => [
+                            'missing_column' => $column,
+                        ],
+                    ],
+                ], 422);
+            }
+
             Log::error('Campaign start query failed.', [
                 'campaign_id' => $id,
                 'sql_error' => $exception->getMessage(),
