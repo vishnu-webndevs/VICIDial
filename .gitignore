@@ -1,14 +1,24 @@
+# Global ignores - these should always be ignored
 .DS_Store
 Thumbs.db
+*.zip
+*.7z
+*.tar
+*.tar.gz
+*.md
+*.ps1
 
-**/.claude/
+# Ignore everything by default
+*
 
-**/.env
-**/.env.*
-**/*.log
+# Exception: Include the apps folder
+!apps/
+!apps/**
 
-**/node_modules/
+# Keep .gitignore itself
+!.gitignore
 
+# Ignore specific build artifacts and logs inside apps
 apps/api/vendor/
 apps/api/public/build/
 apps/api/public/hot
@@ -24,12 +34,9 @@ apps/web/coverage/
 apps/web/playwright-report/
 apps/web/test-results/
 
-backups/
-*.zip
-*.7z
-*.tar
-*.tar.gz
-*.md
-*.ps1
-
-agents/shared-state*.json
+# Ignore environment and sensitive files everywhere
+**/.env
+**/.env.*
+**/*.log
+**/node_modules/
+**/.claude/
