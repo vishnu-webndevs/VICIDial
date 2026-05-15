@@ -8,10 +8,13 @@ WORKDIR /var/www/html
 
 RUN apk add --no-cache \
         bash \
+        ca-certificates \
+        curl \
         git \
         icu-dev \
         libzip-dev \
         oniguruma-dev \
+        openssl \
         zip \
     && docker-php-ext-install \
         intl \
