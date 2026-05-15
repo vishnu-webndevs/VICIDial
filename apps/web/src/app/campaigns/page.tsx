@@ -800,6 +800,7 @@ export default function CampaignsPage() {
                         }
                       />
                       {campaignForm.message_use_meta_template && (
+                      <Box sx={{ mt: 1, display: "flex", gap: 1, alignItems: "center" }}>
                         <TextField
                           select
                           fullWidth
@@ -807,7 +808,7 @@ export default function CampaignsPage() {
                           label="Select Meta Template"
                           value={campaignForm.message_meta_template_id}
                           onChange={(e) => setCampaignForm((p) => ({ ...p, message_meta_template_id: e.target.value }))}
-                          sx={{ mt: 1 }}
+                          sx={{ flexGrow: 1 }}
                         >
                           <MenuItem value="">Choose a template...</MenuItem>
                           {metaTemplates.map((t) => (
@@ -816,6 +817,28 @@ export default function CampaignsPage() {
                             </MenuItem>
                           ))}
                         </TextField>
+                        <MuiButton
+                          variant="outlined"
+                          size="small"
+                          onClick={async () => {
+                            try {
+                              setMessage("Syncing templates from Meta...");
+                              setMessageTone("neutral");
+                              const res = await syncMetaTemplates(campaignForm.preferred_provider_account_id || undefined);
+                              setMessage(`Success! Synced ${res.count} templates.`);
+                              setMessageTone("success");
+                              const data = await listMetaTemplates();
+                              setMetaTemplates(data);
+                            } catch (err) {
+                              setMessage("Sync failed. Check credentials.");
+                              setMessageTone("error");
+                            }
+                          }}
+                          sx={{ height: 40, whiteSpace: "nowrap" }}
+                        >
+                          Sync from Meta
+                        </MuiButton>
+                      </Box>
                       )}
                     </Box>
                   )}
