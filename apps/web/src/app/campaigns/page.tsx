@@ -740,29 +740,31 @@ export default function CampaignsPage() {
                       ))}
                   </TextField>
 
-                  <TextField
-                    select
-                    size="medium"
-                    label="Template (optional)"
-                    value={campaignForm.message_template_key}
-                    onChange={(e) =>
-                      setCampaignForm((p) => ({
-                        ...p,
-                        message_template_key: e.target.value,
-                        message_content: e.target.value ? "" : p.message_content,
-                      }))
-                    }
-                  >
-                    <MenuItem value="">No template</MenuItem>
-                    {templates
-                      .filter((t) => t.channel === resolvedMessageChannel && t.is_active)
-                      .filter((t) => (campaignForm.type === "outreach" ? String(t.category ?? "").toLowerCase() === "outreach" : true))
-                      .map((t) => (
-                        <MenuItem key={t.key} value={t.key}>
-                          {t.name} ({t.key})
-                        </MenuItem>
-                      ))}
-                  </TextField>
+                  {!campaignForm.message_use_meta_template && (
+                    <TextField
+                      select
+                      size="medium"
+                      label="Template (optional)"
+                      value={campaignForm.message_template_key}
+                      onChange={(e) =>
+                        setCampaignForm((p) => ({
+                          ...p,
+                          message_template_key: e.target.value,
+                          message_content: templates.find((t) => t.key === e.target.value)?.body || "",
+                        }))
+                      }
+                    >
+                      <MenuItem value="">Custom message...</MenuItem>
+                      {templates
+                        .filter((t) => t.channel === resolvedMessageChannel && t.is_active)
+                        .filter((t) => (campaignForm.type === "outreach" ? String(t.category ?? "").toLowerCase() === "outreach" : true))
+                        .map((t) => (
+                          <MenuItem key={t.key} value={t.key}>
+                            {t.name} ({t.key})
+                          </MenuItem>
+                        ))}
+                    </TextField>
+                  )}
 
                   <TextField
                     size="medium"

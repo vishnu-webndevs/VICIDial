@@ -13,28 +13,25 @@ class MetaTemplateController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $tenant = $request->user()->currentTenant();
+        try {
+            $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+            
+            $providerAccountId = $request->query('provider_account_id');
+            $providerQuery = ProviderAccount::query()
+                ->where('tenant_id', $tenantId)
+                ->where('provider_type', 'meta_whatsapp');
 
-        $providerAccountId = $request->query('provider_account_id');
-        $providerQuery = ProviderAccount::query()
-            ->where('tenant_id', $tenant->id)
-            ->where('provider_type', 'meta_whatsapp');
+            if ($providerAccountId) {
+                $providerQuery->where('id', $providerAccountId);
+            }
 
-        if ($providerAccountId) {
-            $providerQuery->where('id', $providerAccountId);
-        }
+            $provider = $providerQuery->latest('created_at')->first();
+            
+            if (! $provider) {
+                return response()->json(['data' => ['templates' => []]], 200);
+            }
 
-        $provider = $providerQuery->latest('created_at')->first();
-        if (! $provider) {
-            return response()->json([
-                'error' => [
-                    'code' => 'PROVIDER_NOT_FOUND',
-                    'message' => 'Meta WhatsApp provider account not found.',
-                ],
-            ], 404);
-        }
-
-        $templates = $provider->whatsAppTemplates()->get()->map(function ($template) {
+            $templates = $provider->whatsAppTemplates()->get()->map(function ($template) {
             return [
                 'id' => $template->id,
                 'meta_template_id' => $template->meta_template_id,
@@ -52,6 +49,16 @@ class MetaTemplateController extends Controller
         });
 
         return response()->json(['data' => ['templates' => $templates]], 200);
+        } catch (\Throwable $e) {
+            Log::error('Listing meta templates failed.', ['error' => $e->getMessage()]);
+            return response()->json([
+                'error' => [
+                    'code' => 'FETCH_FAILED',
+                    'message' => 'Unable to fetch meta templates. Make sure migrations are run.',
+                ],
+                'details' => ['error' => $e->getMessage()]
+            ], 500);
+        }
     }
 
     public function sync(Request $request, MetaTemplateService $service): JsonResponse
