@@ -66,6 +66,7 @@ class CampaignController extends Controller
             'message_use_meta_template' => ['nullable', 'boolean'],
             'message_meta_template_id' => ['nullable', 'string'],
             'message_channel' => ['nullable', 'in:sms,whatsapp'],
+            'message_media_file' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
         ]);
 
         $type = in_array((string) $validated['type'], ['auto', 'manual'], true) ? 'outbound_call' : (string) $validated['type'];
@@ -125,6 +126,13 @@ class CampaignController extends Controller
                 ], 422);
             }
 
+            $mediaUrl = null;
+            if ($request->hasFile('message_media_file')) {
+                $file = $request->file('message_media_file');
+                $path = $file->store('campaigns/media', 'public');
+                $mediaUrl = asset('storage/' . $path);
+            }
+
             $settings = array_merge($settings, [
                 'channel' => $channel,
                 'provider_account_id' => $validated['preferred_provider_account_id'] ?? null,
@@ -133,6 +141,7 @@ class CampaignController extends Controller
                 'message_variables' => (array) ($validated['message_variables'] ?? []),
                 'message_use_meta_template' => (bool) ($validated['message_use_meta_template'] ?? false),
                 'message_meta_template_id' => trim((string) ($validated['message_meta_template_id'] ?? '')) ?: null,
+                'message_media_url' => $mediaUrl,
             ]);
         }
 
@@ -185,6 +194,7 @@ class CampaignController extends Controller
             'message_use_meta_template' => ['sometimes', 'nullable', 'boolean'],
             'message_meta_template_id' => ['sometimes', 'nullable', 'string'],
             'message_channel' => ['sometimes', 'nullable', 'in:sms,whatsapp'],
+            'message_media_file' => ['sometimes', 'nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
         ]);
 
         if (array_key_exists('type', $validated) && in_array((string) $validated['type'], ['auto', 'manual'], true)) {
@@ -237,6 +247,12 @@ class CampaignController extends Controller
                     : (string) ($validated['message_channel'] ?? ($settings['channel'] ?? 'sms')));
 
             $settings['channel'] = $channel;
+            if ($request->hasFile('message_media_file')) {
+                $file = $request->file('message_media_file');
+                $path = $file->store('campaigns/media', 'public');
+                $settings['message_media_url'] = asset('storage/' . $path);
+            }
+
             if (array_key_exists('preferred_provider_account_id', $validated)) {
                 $settings['provider_account_id'] = $validated['preferred_provider_account_id'];
             }
@@ -1158,6 +1174,7 @@ class CampaignController extends Controller
                 providerAccountId: $providerAccountId !== '' ? $providerAccountId : null,
                 campaignId: $campaign->id,
                 campaignRunId: $run->id,
+                useMetaTemplate: (bool) ($campaign->settings['message_use_meta_template'] ?? false),
                 metaTemplateId: $metaTemplateId !== '' ? $metaTemplateId : null,
             )->delay($now->copy()->addSeconds($delaySeconds));
         }
@@ -1273,6 +1290,7 @@ class CampaignController extends Controller
                 providerAccountId: $providerAccountId !== '' ? $providerAccountId : null,
                 campaignId: $campaign->id,
                 campaignRunId: $run->id,
+                useMetaTemplate: (bool) ($campaign->settings['message_use_meta_template'] ?? false),
                 metaTemplateId: (string) ($campaign->settings['message_meta_template_id'] ?? '') ?: null,
             )->delay($now->copy()->addSeconds($delaySeconds));
         }

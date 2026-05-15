@@ -36,13 +36,14 @@ class DispatchOutboundMessageJob implements ShouldQueue
         public readonly string $leadId,
         public readonly string $channel,
         public readonly string $content,
-        public readonly string $templateKey,
-        public readonly array $variables,
-        public readonly ?string $sentByUserId,
-        public readonly string $bulkBatchId,
+        public readonly ?string $templateKey = null,
+        public readonly array $variables = [],
+        public readonly ?string $sentByUserId = null,
+        public readonly ?string $bulkBatchId = null,
         public readonly ?string $providerAccountId = null,
         public readonly ?string $campaignId = null,
         public readonly ?string $campaignRunId = null,
+        public readonly bool $useMetaTemplate = false,
         public readonly ?string $metaTemplateId = null,
     ) {}
 
@@ -125,7 +126,40 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 ->where('id', $metaTemplateId)
                 ->first();
             if ($metaTemplate) {
-                $variables = $this->variables;
+                // Load campaign for media settings if available
+                $campaignMediaUrl = null;
+                if ($this->campaignId) {
+                    $campaign = Campaign::find($this->campaignId);
+                    $campaignMediaUrl = $campaign?->settings['message_media_url'] ?? null;
+                }
+
+                // Prepare lead variables (same as manual templates)
+                $fullName = trim((string) ($lead->full_name ?? ''));
+                $parts = [];
+                if ($fullName !== '') {
+                    $parts = preg_split('/\s+/', $fullName) ?: [];
+                }
+                $firstName = (string) ($parts[0] ?? '');
+                $lastName = count($parts) > 1 ? (string) end($parts) : '';
+
+                $variables = array_merge([
+                    'first_name' => $firstName,
+                    'last_name' => $lastName,
+                    'company_name' => (string) ($lead->company ?? ''),
+                    'phone' => (string) ($lead->phone ?? ''),
+                    'email' => (string) ($lead->email ?? ''),
+                    'campaign_media_url' => $campaignMediaUrl,
+                    'lead' => [
+                        'id' => $lead->id,
+                        'full_name' => $lead->full_name,
+                        'first_name' => $firstName,
+                        'last_name' => $lastName,
+                        'phone' => $lead->phone,
+                        'email' => $lead->email,
+                        'company' => $lead->company,
+                    ],
+                ], $this->variables);
+
                 $bodyOrPayload = $metaTemplateService->buildTemplatePayload($metaTemplate, (string) $lead->phone, $variables);
                 $content = "[Meta Template: {$metaTemplate->template_name}]";
             } else {

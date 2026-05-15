@@ -3,6 +3,7 @@
 namespace App\Services\Messaging;
 
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class WhatsAppService
@@ -32,11 +33,17 @@ class WhatsAppService
             ];
 
             if (is_array($bodyOrPayload)) {
+                $payload['type'] = 'template';
                 $payload = array_merge($payload, $bodyOrPayload);
             } else {
                 $payload['type'] = 'text';
                 $payload['text'] = ['body' => $bodyOrPayload];
             }
+
+            Log::info('Sending Meta WhatsApp message.', [
+                'to' => $to,
+                'payload' => $payload,
+            ]);
 
             $response = Http::timeout(12)
                 ->withToken($metaToken)

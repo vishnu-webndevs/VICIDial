@@ -234,22 +234,29 @@ class MetaTemplateService
                 continue;
             }
 
-            $templateComponent = ['type' => strtolower($componentType)];
-
-            if ($componentType === 'HEADER' && isset($component['format'])) {
-                $templateComponent['format'] = strtolower((string) $component['format']);
+            $componentTypeLower = strtolower($componentType);
+            if ($componentTypeLower === 'buttons') {
+                $componentTypeLower = 'button';
             }
 
-            if ($componentType === 'BUTTON' && isset($component['sub_type'])) {
-                $templateComponent['sub_type'] = strtolower((string) $component['sub_type']);
+            $templateComponent = ['type' => $componentTypeLower];
+
+            if ($componentTypeLower === 'buttons' || $componentTypeLower === 'button') {
+                $templateComponent['type'] = 'button';
+                $templateComponent['sub_type'] = strtolower((string) ($component['sub_type'] ?? 'quick_reply'));
+                $templateComponent['index'] = (int) (count(array_filter($components, fn($c) => $c['type'] === 'button')));
             }
 
             $resolvedParameters = $this->resolveComponentParameters($component, $parameters);
-            if (! empty($resolvedParameters)) {
+            
+            // Only include component if it has parameters or is a button
+            if (!empty($resolvedParameters)) {
                 $templateComponent['parameters'] = $resolvedParameters;
+                $components[] = $templateComponent;
+            } elseif ($componentTypeLower === 'button') {
+                // Buttons are always included if they exist in the template
+                $components[] = $templateComponent;
             }
-
-            $components[] = $templateComponent;
         }
 
         return $components;
@@ -258,30 +265,94 @@ class MetaTemplateService
     private function resolveComponentParameters(array $component, array $parameters): array
     {
         $result = [];
-        $text = trim((string) ($component['text'] ?? ''));
+        $type = strtoupper((string) ($component['type'] ?? ''));
+        $format = strtoupper((string) ($component['format'] ?? 'TEXT'));
+        
+        // For HEADER, the variable might be in 'text' or 'format' (if it contains placeholders)
+        $text = (string) ($component['text'] ?? '');
+        if ($text === '' && $type === 'HEADER') {
+            $text = (string) ($component['format'] ?? '');
+        }
+
         $placeholders = $this->extractPlaceholderIndexes($text);
 
-        foreach ($placeholders as $index) {
-            $parameterValue = (string) ($parameters[$index] ?? $parameters[$index - 1] ?? '');
-            $result[] = ['type' => 'text', 'text' => $parameterValue];
-        }
-
-        if ($result !== []) {
-            return $result;
-        }
-
-        if ($text !== '' && preg_match('/\{\{\s*(\d+)\s*\}\}/', $text)) {
-            return $result;
-        }
-
-        if ($component['type'] === 'BUTTON' && isset($component['text'])) {
-            $buttonText = trim((string) $component['text']);
-            if ($buttonText !== '') {
-                return [['type' => 'text', 'text' => $buttonText]];
+        // Media headers usually don't have placeholders in 'text', 
+        // but they REQUIRE exactly one parameter (the media link).
+        if ($type === 'HEADER' && in_array($format, ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
+            if (empty($placeholders)) {
+                $placeholders = [1];
             }
         }
 
-        return [];
+        foreach ($placeholders as $index) {
+            $value = '';
+            $possibleKeys = [];
+            
+            // For media headers, the uploaded campaign image/file has highest priority
+            if ($type === 'HEADER' && in_array($format, ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
+                $possibleKeys[] = 'campaign_media_url';
+            }
+
+            $possibleKeys = array_merge($possibleKeys, [
+                $index,
+                (string) $index,
+                "var_{$index}",
+                "header_var_{$index}",
+                "body_var_{$index}",
+                "button_var_{$index}",
+                // Common field fallbacks based on index (if not mapped)
+                $index === 1 ? 'first_name' : null,
+                $index === 1 ? 'full_name' : null,
+                $index === 2 ? 'company_name' : null,
+                $index === 2 ? 'company' : null,
+            ]);
+
+            // Add all keys from parameters as possible keys if they are strings
+            $possibleKeys = array_merge($possibleKeys, array_keys($parameters));
+            $possibleKeys = array_filter(array_unique($possibleKeys));
+
+            foreach ($possibleKeys as $key) {
+                if (isset($parameters[$key]) && (string)$parameters[$key] !== '') {
+                    $value = (string) $parameters[$key];
+                    break;
+                }
+            }
+
+            if ($value === '' && isset($parameters[$index - 1])) {
+                $value = (string) $parameters[$index - 1];
+            }
+
+            $value = (string)$value;
+            
+            if ($type === 'HEADER') {
+                $isUrl = str_starts_with(strtolower($value), 'http');
+                
+                if ($format === 'IMAGE' && $isUrl) {
+                    $result[] = ['type' => 'image', 'image' => ['link' => $value]];
+                    continue;
+                }
+                if ($format === 'VIDEO' && $isUrl) {
+                    $result[] = ['type' => 'video', 'video' => ['link' => $value]];
+                    continue;
+                }
+                if ($format === 'DOCUMENT' && $isUrl) {
+                    $result[] = [
+                        'type' => 'document',
+                        'document' => ['link' => $value, 'filename' => 'Document'],
+                    ];
+                    continue;
+                }
+                
+                // If it's a media format but NOT a URL, we can't send it as a media link
+                if (in_array($format, ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
+                    continue; 
+                }
+            }
+
+            $result[] = ['type' => 'text', 'text' => $value];
+        }
+
+        return $result;
     }
 
     private function extractPlaceholderIndexes(string $text): array
@@ -296,19 +367,7 @@ class MetaTemplateService
 
     private function collectParameterValues(array $variables): array
     {
-        $values = [];
-
-        $flattened = $this->flattenVariables($variables);
-        foreach ($flattened as $key => $value) {
-            if (is_numeric((string) $key) && trim((string) $key) !== '') {
-                $values[(int) $key] = (string) $value;
-            } else {
-                $values[] = (string) $value;
-            }
-        }
-
-        ksort($values);
-        return array_values($values);
+        return $this->flattenVariables($variables);
     }
 
     private function flattenVariables(array $variables): array

@@ -675,16 +675,18 @@ class MessagingController extends Controller
         foreach ($leadIds as $leadId) {
             DispatchOutboundMessageJob::dispatch(
                 tenantId: $tenant->id,
-                leadId: $leadId,
+                leadId: (string) $leadId,
                 channel: $channel,
                 content: (string) ($validated['content'] ?? ''),
-                templateKey: (string) ($validated['template_key'] ?? ''),
+                templateKey: ! empty($validated['template_key']) ? (string) $validated['template_key'] : null,
                 variables: (array) ($validated['variables'] ?? []),
                 sentByUserId: $request->user()?->id,
                 bulkBatchId: $batchId,
                 providerAccountId: ! empty($validated['provider_account_id']) ? (string) $validated['provider_account_id'] : null,
                 campaignId: ! empty($validated['campaign_id']) ? (string) $validated['campaign_id'] : null,
                 campaignRunId: ! empty($validated['campaign_run_id']) ? (string) $validated['campaign_run_id'] : null,
+                useMetaTemplate: false,
+                metaTemplateId: null
             );
         }
 
