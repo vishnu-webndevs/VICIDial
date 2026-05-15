@@ -268,6 +268,12 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
         Route::post('/whatsapp-integration/message-templates/sync', [MetaTemplateController::class, 'sync'])
             ->middleware('permission:tenant.update');
 
+        // Short routes for Meta Templates
+        Route::get('/meta-templates', [MetaTemplateController::class, 'index'])
+            ->middleware('permission:tenant.view');
+        Route::post('/meta-templates/sync', [MetaTemplateController::class, 'sync'])
+            ->middleware('permission:tenant.update');
+
         Route::get('/message-attachments/{id}/download', [MessageAttachmentController::class, 'download'])
             ->middleware('permission:tenant.view');
 
