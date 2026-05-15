@@ -10,7 +10,7 @@ import {
   getTimezoneInfo,
   getTimezoneName,
   isValidTimezone,
-} from "./timezone-utils";
+} from "../lib/timezone-utils";
 
 export interface TimezoneInfo {
   timezone: string;

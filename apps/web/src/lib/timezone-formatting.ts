@@ -6,10 +6,23 @@
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
+import relativeTime from "dayjs/plugin/relativeTime";
 
 // Enable timezone support in dayjs
 dayjs.extend(utc);
 dayjs.extend(timezone);
+dayjs.extend(relativeTime);
+
+// Type augmentation for dayjs with plugins
+declare global {
+  namespace dayjs {
+    interface Dayjs {
+      tz(tz?: string, keepLocalTime?: boolean): Dayjs;
+      utc(keepLocalTime?: boolean): Dayjs;
+      fromNow(): string;
+    }
+  }
+}
 
 /**
  * Format a date/time string in the user's detected timezone
