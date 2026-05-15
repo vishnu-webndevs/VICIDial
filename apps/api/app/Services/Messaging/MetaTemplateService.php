@@ -46,7 +46,7 @@ class MetaTemplateService
             $response = Http::timeout(20)
                 ->withToken($token)
                 ->acceptJson()
-                ->get("https://graph.facebook.com/v25.0/{$wabaId}/message_templates", [
+                ->get("https://graph.facebook.com/v20.0/{$wabaId}/message_templates", [
                     'limit' => 100,
                 ]);
 

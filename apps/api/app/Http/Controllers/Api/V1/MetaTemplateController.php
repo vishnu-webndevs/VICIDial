@@ -63,31 +63,31 @@ class MetaTemplateController extends Controller
 
     public function sync(Request $request, MetaTemplateService $service): JsonResponse
     {
-        $tenant = $request->user()->currentTenant();
-
-        $validated = $request->validate([
-            'provider_account_id' => ['nullable', 'string'],
-        ]);
-
-        $providerQuery = ProviderAccount::query()
-            ->where('tenant_id', $tenant->id)
-            ->where('provider_type', 'meta_whatsapp');
-
-        if (! empty($validated['provider_account_id'])) {
-            $providerQuery->where('id', $validated['provider_account_id']);
-        }
-
-        $provider = $providerQuery->latest('created_at')->first();
-        if (! $provider) {
-            return response()->json([
-                'error' => [
-                    'code' => 'PROVIDER_NOT_FOUND',
-                    'message' => 'Meta WhatsApp provider account not found.',
-                ],
-            ], 404);
-        }
-
         try {
+            $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+
+            $validated = $request->validate([
+                'provider_account_id' => ['nullable', 'string'],
+            ]);
+
+            $providerQuery = ProviderAccount::query()
+                ->where('tenant_id', $tenantId)
+                ->where('provider_type', 'meta_whatsapp');
+
+            if (! empty($validated['provider_account_id'])) {
+                $providerQuery->where('id', $validated['provider_account_id']);
+            }
+
+            $provider = $providerQuery->latest('created_at')->first();
+            if (! $provider) {
+                return response()->json([
+                    'error' => [
+                        'code' => 'PROVIDER_NOT_FOUND',
+                        'message' => 'Meta WhatsApp provider account not found.',
+                    ],
+                ], 404);
+            }
+
             $result = $service->syncTemplates($provider);
 
             if (! ($result['ok'] ?? false)) {
@@ -102,7 +102,7 @@ class MetaTemplateController extends Controller
 
             return response()->json(['data' => ['sync' => $result]], 200);
         } catch (\Throwable $e) {
-            Log::error('Meta template sync failed.', ['error' => $e->getMessage(), 'tenant_id' => $tenant->id]);
+            Log::error('Meta template sync failed.', ['error' => $e->getMessage()]);
             return response()->json([
                 'error' => [
                     'code' => 'SYNC_EXCEPTION',
