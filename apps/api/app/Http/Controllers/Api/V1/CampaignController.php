@@ -679,6 +679,7 @@ class CampaignController extends Controller
             return;
         }
 
+        /** @var Message $message */
         foreach ($messages as $message) {
             $providerAccountId = (string) (($message->metadata['provider_account_id'] ?? null) ?: '');
             if ($providerAccountId === '') {
