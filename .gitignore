@@ -29,5 +29,7 @@ backups/
 *.7z
 *.tar
 *.tar.gz
+*.md
+*.ps1
 
 agents/shared-state*.json
