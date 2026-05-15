@@ -12,15 +12,11 @@ class WhatsAppService
         $credentials = $providerCredentials ?? [];
         $metaToken = (string) ($credentials['meta_access_token'] ?? '');
         $metaPhoneNumberId = (string) ($credentials['phone_number_id'] ?? '');
-        if ($metaToken !== '' || $metaPhoneNumberId !== '') {
-            if ($metaToken === '' || $metaPhoneNumberId === '') {
-                return [
-                    'ok' => false,
-                    'error' => 'Meta WhatsApp credentials are missing. Set meta_access_token and phone_number_id in the selected provider.',
-                    'status_code' => 422,
-                ];
-            }
-
+        
+        // Only use Meta logic if it's explicitly a Meta provider account or has Meta credentials
+        $isMeta = ($metaToken !== '' && $metaPhoneNumberId !== '');
+        
+        if ($isMeta) {
             $normalizedTo = preg_replace('/[^0-9]/', '', (string) $to) ?: '';
             if ($normalizedTo === '') {
                 return [
@@ -45,7 +41,7 @@ class WhatsAppService
             $response = Http::timeout(12)
                 ->withToken($metaToken)
                 ->acceptJson()
-                ->post("https://graph.facebook.com/v25.0/{$metaPhoneNumberId}/messages", $payload);
+                ->post("https://graph.facebook.com/v20.0/{$metaPhoneNumberId}/messages", $payload);
 
             if (! $response->successful()) {
                 return [

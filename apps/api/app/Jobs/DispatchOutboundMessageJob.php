@@ -50,8 +50,8 @@ class DispatchOutboundMessageJob implements ShouldQueue
         SmsService $smsService,
         WhatsAppService $whatsAppService,
         MessageTemplateRenderer $templateRenderer,
-        MetaTemplateService $metaTemplateService,
     ): void {
+        $metaTemplateService = app(MetaTemplateService::class);
         $tenantId = $this->tenantId;
         $lead = Lead::query()
             ->where('tenant_id', $tenantId)
@@ -266,6 +266,15 @@ class DispatchOutboundMessageJob implements ShouldQueue
             : $whatsAppService->send((string) $lead->phone, $bodyOrPayload, $statusCallbackUrl, $providerCredentials));
 
         if (($result['ok'] ?? false) !== true) {
+            Log::error('Outbound message delivery failed.', [
+                'tenant_id' => $tenantId,
+                'lead_id' => $lead->id,
+                'channel' => $channel,
+                'error' => $result['error'] ?? 'Unknown error',
+                'status_code' => $result['status_code'] ?? null,
+                'provider_account_id' => $this->providerAccountId,
+            ]);
+
             $thread = MessageThread::query()->firstOrCreate(
                 [
                     'tenant_id' => $tenantId,

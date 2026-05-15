@@ -248,6 +248,12 @@ class CampaignController extends Controller
                 $templateKey = trim((string) ($validated['message_template_key'] ?? ''));
                 $settings['message_template_key'] = $templateKey !== '' ? $templateKey : null;
             }
+            if (array_key_exists('message_use_meta_template', $validated)) {
+                $settings['message_use_meta_template'] = (bool) $validated['message_use_meta_template'];
+            }
+            if (array_key_exists('message_meta_template_id', $validated)) {
+                $settings['message_meta_template_id'] = trim((string) ($validated['message_meta_template_id'] ?? '')) ?: null;
+            }
             if (array_key_exists('message_variables', $validated)) {
                 $settings['message_variables'] = (array) ($validated['message_variables'] ?? []);
             }
@@ -1136,7 +1142,7 @@ class CampaignController extends Controller
         $spacingSeconds = 60 / $perMinute;
         $now = now();
 
-        $metaTemplateId = trim((string) ($settings['message_meta_template_id'] ?? ''));
+        $metaTemplateId = trim((string) ($campaign->settings['message_meta_template_id'] ?? ''));
 
         foreach (array_values($leadIds) as $index => $leadId) {
             $delaySeconds = (int) floor($index * $spacingSeconds);
@@ -1267,7 +1273,7 @@ class CampaignController extends Controller
                 providerAccountId: $providerAccountId !== '' ? $providerAccountId : null,
                 campaignId: $campaign->id,
                 campaignRunId: $run->id,
-                metaTemplateId: (string) ($settings['message_meta_template_id'] ?? '') ?: null,
+                metaTemplateId: (string) ($campaign->settings['message_meta_template_id'] ?? '') ?: null,
             )->delay($now->copy()->addSeconds($delaySeconds));
         }
     }

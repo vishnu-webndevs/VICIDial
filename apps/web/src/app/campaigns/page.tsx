@@ -898,9 +898,14 @@ export default function CampaignsPage() {
                       ? (activeProviders.find((p) => p.id === campaignForm.preferred_provider_account_id)?.display_name ?? "-")
                       : "-"}
                   </Typography>
-                  <Typography variant="body2">
-                    <strong>Template:</strong> {campaignForm.message_template_key || "-"}
-                  </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      Template:{" "}
+                      <span style={{ color: "var(--text-primary)", fontWeight: 500 }}>
+                        {campaignForm.message_use_meta_template
+                          ? metaTemplates.find((t) => t.id === campaignForm.message_meta_template_id)?.template_name || "Meta Template Selected"
+                          : templates.find((t) => t.key === campaignForm.message_template_key)?.name || "Custom / None"}
+                      </span>
+                    </Typography>
                 </>
               )}
             </Box>
