@@ -53,6 +53,7 @@ type NewCampaignForm = {
   message_channel: "sms" | "whatsapp";
   message_use_meta_template: boolean;
   message_meta_template_id: string;
+  message_media_file: File | null;
 };
 
 const defaultCampaignForm: NewCampaignForm = {
@@ -67,6 +68,7 @@ const defaultCampaignForm: NewCampaignForm = {
   message_channel: "sms",
   message_use_meta_template: false,
   message_meta_template_id: "",
+  message_media_file: null,
 };
 const ACTIVE_STATUSES: Campaign["status"][] = ["running"];
 
@@ -227,6 +229,7 @@ export default function CampaignsPage() {
       message_channel: (campaign.channel === "whatsapp" ? "whatsapp" : "sms") as "sms" | "whatsapp",
       message_use_meta_template: Boolean(campaign.message_use_meta_template),
       message_meta_template_id: String(campaign.message_meta_template_id ?? ""),
+      message_media_file: null,
     });
     setSelectedLists(campaign.lead_list_ids ?? []);
     setSelectedFromAgentId("");
@@ -282,26 +285,46 @@ export default function CampaignsPage() {
         .filter((list) => selectedLists.includes(list.id))
         .map((list) => list.name);
       const { token, tenantId } = getTenantContext();
+      
+      const formData = new FormData();
+      if (editingCampaignId) {
+        formData.append("_method", "PATCH");
+      }
+      formData.append("name", campaignForm.name.trim());
+      formData.append("type", campaignForm.type);
+      formData.append("status", "draft");
+      formData.append("retry_limit", String(campaignForm.retry_limit));
+      formData.append("queue_size", String(campaignForm.queue_size));
+      formData.append("calls_per_minute", String(campaignForm.calls_per_minute));
+      formData.append("lead_list_name", selectedListNames.join(", "));
+      
+      selectedLists.forEach((id) => formData.append("lead_list_ids[]", id));
+      
+      if (!isOutboundCallCampaign) {
+        if (campaignForm.preferred_provider_account_id) {
+          formData.append("preferred_provider_account_id", campaignForm.preferred_provider_account_id);
+        }
+        if (campaignForm.message_content.trim()) {
+          formData.append("message_content", campaignForm.message_content.trim());
+        }
+        if (campaignForm.message_template_key.trim()) {
+          formData.append("message_template_key", campaignForm.message_template_key.trim());
+        }
+        formData.append("message_channel", campaignForm.type === "outreach" ? resolvedMessageChannel : (campaignForm.type === "whatsapp" ? "whatsapp" : "sms"));
+        formData.append("message_use_meta_template", campaignForm.type === "whatsapp" && campaignForm.message_use_meta_template ? "1" : "0");
+        if (campaignForm.type === "whatsapp" && campaignForm.message_use_meta_template && campaignForm.message_meta_template_id) {
+          formData.append("message_meta_template_id", campaignForm.message_meta_template_id);
+        }
+        if (campaignForm.message_media_file) {
+          formData.append("message_media_file", campaignForm.message_media_file);
+        }
+      }
+
       const createOrUpdateResponse = await apiRequest<{ data: Campaign }>(editingCampaignId ? `/campaigns/${editingCampaignId}` : "/campaigns", {
-        method: editingCampaignId ? "PATCH" : "POST",
+        method: "POST", // POST with _method spoofing is required for FormData + PATCH in Laravel
         token,
         tenantId,
-        body: {
-          name: campaignForm.name.trim(),
-          type: campaignForm.type,
-          status: "draft",
-          retry_limit: Number(campaignForm.retry_limit),
-          queue_size: Number(campaignForm.queue_size),
-          calls_per_minute: Number(campaignForm.calls_per_minute),
-          lead_list_name: selectedListNames.join(", "),
-          lead_list_ids: selectedLists,
-          preferred_provider_account_id: isOutboundCallCampaign ? null : campaignForm.preferred_provider_account_id || null,
-          message_content: isOutboundCallCampaign ? null : (campaignForm.message_content.trim() || null),
-          message_template_key: isOutboundCallCampaign ? null : (campaignForm.message_template_key.trim() || null),
-          message_channel: campaignForm.type === "outreach" ? resolvedMessageChannel : null,
-          message_use_meta_template: campaignForm.type === "whatsapp" ? campaignForm.message_use_meta_template : false,
-          message_meta_template_id: (campaignForm.type === "whatsapp" && campaignForm.message_use_meta_template) ? campaignForm.message_meta_template_id : null,
-        },
+        body: formData,
       });
 
       if (isOutboundCallCampaign && selectedFromAgentId) {
@@ -800,45 +823,73 @@ export default function CampaignsPage() {
                         }
                       />
                       {campaignForm.message_use_meta_template && (
-                      <Box sx={{ mt: 1, display: "flex", gap: 1, alignItems: "center" }}>
-                        <TextField
-                          select
-                          fullWidth
-                          size="small"
-                          label="Select Meta Template"
-                          value={campaignForm.message_meta_template_id}
-                          onChange={(e) => setCampaignForm((p) => ({ ...p, message_meta_template_id: e.target.value }))}
-                          sx={{ flexGrow: 1 }}
-                        >
-                          <MenuItem value="">Choose a template...</MenuItem>
-                          {metaTemplates.map((t) => (
-                            <MenuItem key={t.id} value={t.id}>
-                              {t.template_name} ({t.language})
-                            </MenuItem>
-                          ))}
-                        </TextField>
-                        <MuiButton
-                          variant="outlined"
-                          size="small"
-                          onClick={async () => {
-                            try {
-                              setMessage("Syncing templates from Meta...");
-                              setMessageTone("neutral");
-                              const res = await syncMetaTemplates(campaignForm.preferred_provider_account_id || undefined);
-                              setMessage(`Success! Synced ${res.count} templates.`);
-                              setMessageTone("success");
-                              const data = await listMetaTemplates();
-                              setMetaTemplates(data);
-                            } catch (err) {
-                              setMessage("Sync failed. Check credentials.");
-                              setMessageTone("error");
-                            }
-                          }}
-                          sx={{ height: 40, whiteSpace: "nowrap" }}
-                        >
-                          Sync from Meta
-                        </MuiButton>
-                      </Box>
+                        <Box sx={{ mt: 1, display: "grid", gap: 1.25 }}>
+                          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                            <TextField
+                              select
+                              fullWidth
+                              size="small"
+                              label="Select Meta Template"
+                              value={campaignForm.message_meta_template_id}
+                              onChange={(e) => setCampaignForm((p) => ({ ...p, message_meta_template_id: e.target.value }))}
+                              sx={{ flexGrow: 1 }}
+                            >
+                              <MenuItem value="">Choose a template...</MenuItem>
+                              {metaTemplates.map((t) => (
+                                <MenuItem key={t.id} value={t.id}>
+                                  {t.template_name} ({t.language})
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                            <MuiButton
+                              variant="outlined"
+                              size="small"
+                              onClick={async () => {
+                                try {
+                                  setMessage("Syncing templates from Meta...");
+                                  setMessageTone("neutral");
+                                  const res = await syncMetaTemplates(campaignForm.preferred_provider_account_id || undefined);
+                                  setMessage(`Success! Synced ${res.count} templates.`);
+                                  setMessageTone("success");
+                                  const data = await listMetaTemplates();
+                                  setMetaTemplates(data);
+                                } catch (err) {
+                                  setMessage("Sync failed. Check credentials.");
+                                  setMessageTone("error");
+                                }
+                              }}
+                              sx={{ height: 40, whiteSpace: "nowrap" }}
+                            >
+                              Sync from Meta
+                            </MuiButton>
+                          </Box>
+                          
+                          <Box sx={{ mt: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
+                              Media Header (Optional - JPG, PNG)
+                            </Typography>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                setCampaignForm((p) => ({ ...p, message_media_file: file }));
+                              }}
+                              style={{ 
+                                width: '100%', 
+                                padding: '8px', 
+                                border: '1px solid #ccc', 
+                                borderRadius: '4px',
+                                fontSize: '14px'
+                              }}
+                            />
+                            {campaignForm.message_media_file && (
+                              <Typography variant="caption" color="primary" sx={{ mt: 0.5, display: "block" }}>
+                                Selected: {campaignForm.message_media_file.name}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
                       )}
                     </Box>
                   )}
