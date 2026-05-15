@@ -257,7 +257,7 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:tenant.update');
 
         Route::get('/whatsapp-integration', [WhatsAppIntegrationController::class, 'show'])
-            ->middleware('permission:tenant.view');
+            ->middleware('permission:tenant.update');
         Route::put('/whatsapp-integration', [WhatsAppIntegrationController::class, 'upsert'])
             ->middleware('permission:tenant.update');
         Route::post('/whatsapp-integration/test', [WhatsAppIntegrationController::class, 'test'])

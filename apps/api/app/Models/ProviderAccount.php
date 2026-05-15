@@ -17,6 +17,7 @@ class ProviderAccount extends Model
         'provider_type',
         'display_name',
         'credentials_encrypted',
+        'credentials_owner_user_id',
         'status',
         'failover_priority',
         'is_fallback',

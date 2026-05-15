@@ -362,6 +362,8 @@ class CampaignController extends Controller
         } catch (QueryException $exception) {
             $message = $exception->getMessage();
             $code = (int) ($exception->errorInfo[1] ?? 0);
+            $sqlState = (string) ($exception->errorInfo[0] ?? '');
+            $driverMessage = (string) ($exception->errorInfo[2] ?? $message);
             $isMissingTable = $code === 1146 || str_contains($message, "doesn't exist");
             if ($isMissingTable) {
                 $missing = [];
@@ -401,15 +403,94 @@ class CampaignController extends Controller
                 ], 422);
             }
 
+            if ($code === 1452 || str_contains($driverMessage, 'a foreign key constraint fails')) {
+                $details = [
+                    'sql_code' => $code,
+                    'sql_state' => $sqlState !== '' ? $sqlState : null,
+                ];
+                if (preg_match('/a foreign key constraint fails \\(`[^`]+`\\.`([^`]+)`, CONSTRAINT `[^`]+` FOREIGN KEY \\(`([^`]+)`\\) REFERENCES `([^`]+)` \\(`([^`]+)`\\)/i', $driverMessage, $matches) === 1) {
+                    $details['table'] = (string) ($matches[1] ?? '');
+                    $details['column'] = (string) ($matches[2] ?? '');
+                    $details['references_table'] = (string) ($matches[3] ?? '');
+                    $details['references_column'] = (string) ($matches[4] ?? '');
+                }
+                return response()->json([
+                    'error' => [
+                        'code' => 'FOREIGN_KEY_CONSTRAINT',
+                        'message' => 'Campaign start failed due to a foreign key constraint. Data is inconsistent or missing related records.',
+                        'details' => $details,
+                    ],
+                ], 422);
+            }
+
+            if ($code === 1048 || str_contains($driverMessage, 'cannot be null')) {
+                $column = null;
+                if (preg_match("/Column '([^']+)' cannot be null/i", $driverMessage, $matches) === 1) {
+                    $column = (string) ($matches[1] ?? null);
+                }
+                return response()->json([
+                    'error' => [
+                        'code' => 'NULL_CONSTRAINT',
+                        'message' => 'Campaign start failed because a required database field is null.',
+                        'details' => [
+                            'sql_code' => $code,
+                            'sql_state' => $sqlState !== '' ? $sqlState : null,
+                            'column' => $column,
+                        ],
+                    ],
+                ], 422);
+            }
+
+            if ($code === 1406 || str_contains($driverMessage, 'Data too long for column')) {
+                $column = null;
+                if (preg_match("/Data too long for column '([^']+)'/i", $driverMessage, $matches) === 1) {
+                    $column = (string) ($matches[1] ?? null);
+                }
+                return response()->json([
+                    'error' => [
+                        'code' => 'DATA_TOO_LONG',
+                        'message' => 'Campaign start failed because some data is too long for a database field.',
+                        'details' => [
+                            'sql_code' => $code,
+                            'sql_state' => $sqlState !== '' ? $sqlState : null,
+                            'column' => $column,
+                        ],
+                    ],
+                ], 422);
+            }
+
+            if ($code === 1364 || str_contains($driverMessage, "doesn't have a default value")) {
+                $field = null;
+                if (preg_match("/Field '([^']+)' doesn't have a default value/i", $driverMessage, $matches) === 1) {
+                    $field = (string) ($matches[1] ?? null);
+                }
+                return response()->json([
+                    'error' => [
+                        'code' => 'DEFAULT_VALUE_REQUIRED',
+                        'message' => 'Campaign start failed because a required database field has no default value and was not provided.',
+                        'details' => [
+                            'sql_code' => $code,
+                            'sql_state' => $sqlState !== '' ? $sqlState : null,
+                            'field' => $field,
+                        ],
+                    ],
+                ], 422);
+            }
+
             Log::error('Campaign start query failed.', [
                 'campaign_id' => $id,
                 'sql_error' => $exception->getMessage(),
                 'sql_code' => $code,
+                'sql_state' => $sqlState !== '' ? $sqlState : null,
             ]);
             return response()->json([
                 'error' => [
                     'code' => 'CAMPAIGN_START_FAILED',
                     'message' => 'Failed to start campaign due to a database error.',
+                    'details' => [
+                        'sql_code' => $code,
+                        'sql_state' => $sqlState !== '' ? $sqlState : null,
+                    ],
                 ],
             ], 500);
         } catch (\Throwable $exception) {
@@ -942,7 +1023,7 @@ class CampaignController extends Controller
             });
         }
         $leadIds = $leadQuery
-            ->select('leads.id')
+            ->select('leads.id', 'leads.updated_at')
             ->distinct()
             ->limit(max(1, $campaign->queue_size * 10))
             ->pluck('leads.id');
@@ -1201,7 +1282,7 @@ class CampaignController extends Controller
             : max(1, (int) $campaign->queue_size);
 
         return $leadQuery
-            ->select('leads.id')
+            ->select('leads.id', 'leads.updated_at')
             ->distinct()
             ->limit($limit)
             ->pluck('leads.id')

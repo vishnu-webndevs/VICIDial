@@ -1,0 +1,1228 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WND Dialer - How To Use Guide</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --card: #ffffff;
+      --text: #172033;
+      --muted: #4d5e74;
+      --primary: #4f46e5;
+      --primary-dark: #3f35d1;
+      --primary-soft: #eef0ff;
+      --border: #d8e1ee;
+      --border-strong: #b8c6db;
+      --shadow: 0 10px 28px rgba(23, 32, 51, 0.08);
+      --radius: 14px;
+      --danger-soft: #fff2f2;
+      --danger-text: #b42318;
+      --success-soft: #ecfdf3;
+      --success-text: #067647;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .skip-link {
+      position: absolute;
+      left: 1rem;
+      top: -100%;
+      z-index: 2000;
+      padding: 0.6rem 0.8rem;
+      border-radius: 8px;
+      background: #111827;
+      color: #fff;
+      text-decoration: none;
+      font-weight: 600;
+      transition: top 0.18s ease;
+    }
+    .skip-link:focus-visible {
+      top: 0.8rem;
+    }
+    .wrap {
+      width: min(1400px, 100% - 2rem);
+      margin: 1.25rem auto 2rem;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+      gap: 1rem;
+      align-items: start;
+    }
+    .sidebar {
+      min-width: 0;
+    }
+    .sidebar-inner {
+      position: sticky;
+      top: 0.75rem;
+      display: grid;
+      gap: 0.85rem;
+    }
+    .content {
+      min-width: 0;
+    }
+    .hero {
+      background: linear-gradient(135deg, #1f2937, #312e81);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      box-shadow: var(--shadow);
+    }
+    .hero h1 { margin: 0 0 0.5rem; font-size: clamp(1.3rem, 2.4vw, 2rem); }
+    .hero p { margin: 0; color: #dbe2ff; line-height: 1.55; }
+    .meta {
+      margin-top: 0.85rem;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .chip {
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      padding: 0.35rem 0.75rem;
+      font-size: 0.78rem;
+    }
+    .toolbar, .toc, .section, .step, .state-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .toolbar {
+      margin-top: 0;
+      padding: 0.9rem 1rem;
+      position: static;
+      z-index: 1000;
+      backdrop-filter: none;
+      background: var(--card);
+    }
+    .breadcrumb {
+      margin: 0 0 0.8rem;
+      font-size: 0.84rem;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+    .breadcrumb strong {
+      color: var(--text);
+    }
+    .toolbar-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.7rem;
+      align-items: end;
+    }
+    .field {
+      display: grid;
+      gap: 0.3rem;
+    }
+    .field label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .field input,
+    .field select,
+    .field button {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.62rem 0.72rem;
+      font-size: 0.93rem;
+      background: #fff;
+      color: var(--text);
+      min-height: 42px;
+    }
+    .field input:focus-visible,
+    .field select:focus-visible,
+    .field button:focus-visible,
+    .toc a:focus-visible,
+    .collapse-toggle:focus-visible {
+      outline: 3px solid #1d4ed8;
+      outline-offset: 1px;
+    }
+    .btn {
+      border: 1px solid var(--border-strong);
+      background: #fff;
+      cursor: pointer;
+      transition: transform 0.16s ease, background-color 0.16s ease, border-color 0.16s ease;
+      font-weight: 600;
+    }
+    .btn:hover {
+      background: #f8faff;
+      border-color: #8ea3c4;
+      transform: translateY(-1px);
+    }
+    .search-input-wrap {
+      position: relative;
+    }
+    .search-input-wrap input {
+      padding-left: 2rem;
+    }
+    .search-input-wrap::before {
+      content: "⌕";
+      position: absolute;
+      left: 0.7rem;
+      top: 50%;
+      transform: translateY(-50%);
+      color: #64748b;
+      pointer-events: none;
+      font-size: 0.9rem;
+    }
+    .toolbar-summary {
+      margin-top: 0.65rem;
+      display: flex;
+      gap: 0.45rem;
+      flex-wrap: wrap;
+    }
+    .summary-pill {
+      padding: 0.3rem 0.55rem;
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: #2f2ca5;
+      border: 1px solid #d6dbff;
+      font-size: 0.77rem;
+      font-weight: 600;
+    }
+    .state-panel {
+      margin-top: 0.8rem;
+      padding: 0.85rem 0.95rem;
+      display: none;
+      font-size: 0.9rem;
+      line-height: 1.45;
+    }
+    .state-panel.visible {
+      display: block;
+      animation: fadeIn 0.22s ease;
+    }
+    .state-panel.loading {
+      background: #f8fbff;
+    }
+    .state-panel.empty {
+      background: #fff;
+      border-style: dashed;
+    }
+    .state-panel.error {
+      background: var(--danger-soft);
+      border-color: #fecaca;
+      color: var(--danger-text);
+    }
+    .state-panel.success {
+      background: var(--success-soft);
+      border-color: #bbf7d0;
+      color: var(--success-text);
+    }
+    .toc, .section { margin-top: 1rem; padding: 1rem; }
+    .sidebar .hero,
+    .sidebar .toolbar,
+    .sidebar .toc,
+    .sidebar .state-panel {
+      margin-top: 0;
+    }
+    .content .section:first-child {
+      margin-top: 0;
+    }
+    .toc h2, .section h2 { margin: 0 0 0.65rem; font-size: 1.1rem; }
+    .toc ul {
+      margin: 0;
+      padding-left: 1.2rem;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.35rem;
+    }
+    .toc a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .toc a:hover { text-decoration: underline; }
+    .steps {
+      margin-top: 0.8rem;
+      display: grid;
+      gap: 0.85rem;
+      transition: max-height 0.28s ease, opacity 0.24s ease, margin-top 0.24s ease;
+    }
+    .section.filtered-out {
+      display: none;
+    }
+    .section.is-collapsed .steps {
+      margin-top: 0;
+      opacity: 0;
+      max-height: 0;
+      overflow: hidden;
+      pointer-events: none;
+    }
+    .section-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.55rem;
+      border-bottom: 1px solid transparent;
+      padding-bottom: 0.35rem;
+    }
+    .section-title-wrap {
+      display: grid;
+      gap: 0.4rem;
+    }
+    .section-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+    }
+    .meta-badge {
+      padding: 0.24rem 0.46rem;
+      border-radius: 999px;
+      border: 1px solid #d7deea;
+      font-size: 0.72rem;
+      color: #344256;
+      background: #fafcff;
+    }
+    .collapse-toggle {
+      border: 1px solid var(--border-strong);
+      border-radius: 10px;
+      padding: 0.45rem 0.7rem;
+      background: #fff;
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #1f2a37;
+    }
+    .collapse-toggle:hover {
+      background: #f8faff;
+    }
+    .step { padding: 0.8rem; }
+    .step h3 { margin: 0 0 0.45rem; font-size: 1rem; }
+    .step p {
+      margin: 0 0 0.65rem;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+    figure { margin: 0; }
+    img {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #fff;
+    }
+    figcaption {
+      margin-top: 0.45rem;
+      color: #3f4d5b;
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+    .small {
+      font-size: 0.82rem;
+      color: var(--muted);
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+    .fade-in {
+      animation: fadeIn 0.26s ease;
+    }
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    @media (max-width: 1100px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+      .sidebar-inner {
+        position: static;
+      }
+      .section-header {
+        align-items: flex-start;
+      }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        animation: none !important;
+        transition: none !important;
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#guide-content">Skip To Guide Content</a>
+  <main class="wrap">
+    <div class="layout">
+      <aside class="sidebar" aria-label="Guide navigation">
+        <div class="sidebar-inner">
+          <section class="hero">
+            <h1>WND Dialer User Guide</h1>
+            <p>
+              This guide walks through each major area of the application with clear, non-technical steps.
+              Follow sections in order for first-time setup, or jump directly to the module you need.
+            </p>
+            <div class="meta">
+              <span class="chip">Audience: Non-technical users</span>
+              <span class="chip">Format: Step-by-step with screenshots</span>
+              <span class="chip" id="generatedAt"></span>
+            </div>
+          </section>
+
+          <section class="toolbar" aria-label="Guide search and filters">
+            <div class="breadcrumb" aria-live="polite">
+              <span>Guide</span>
+              <span>/</span>
+              <strong id="breadcrumbCurrent">All Sections</strong>
+            </div>
+            <div class="toolbar-grid">
+              <div class="field">
+                <label for="guideSearch">Search Guide Content</label>
+                <div class="search-input-wrap">
+                  <input id="guideSearch" type="search" placeholder="Search titles, descriptions, and step-by-step instructions..." autocomplete="off" />
+                </div>
+              </div>
+              <div class="field">
+                <label for="categoryFilter">Category</label>
+                <select id="categoryFilter">
+                  <option value="all">All categories</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="difficultyFilter">Difficulty</label>
+                <select id="difficultyFilter">
+                  <option value="all">All levels</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="topicFilter">Topic</label>
+                <select id="topicFilter">
+                  <option value="all">All topics</option>
+                </select>
+              </div>
+              <div class="field">
+                <label for="tagFilter">Tag</label>
+                <input id="tagFilter" type="search" placeholder="Filter by tag (example: crm)" autocomplete="off" />
+              </div>
+              <div class="field">
+                <label for="resetFilters" class="sr-only">Reset filters</label>
+                <button id="resetFilters" type="button" class="btn">Reset Filters</button>
+              </div>
+            </div>
+            <div class="toolbar-summary" id="toolbarSummary" aria-live="polite"></div>
+          </section>
+
+          <div id="loadingState" class="state-panel loading" role="status" aria-live="polite">Filtering guide content...</div>
+          <div id="errorState" class="state-panel error" role="alert"></div>
+          <div id="emptyState" class="state-panel empty" role="status" aria-live="polite">
+            No matching guide sections were found. Try clearing filters, simplifying keywords, or selecting broader categories.
+          </div>
+
+          <section class="toc">
+            <h2>Table Of Contents</h2>
+            <ul>
+              <li><a href="#start">1. Getting Started</a></li>
+              <li><a href="#dashboard">2. Dashboard</a></li>
+              <li><a href="#onboarding">3. Onboarding</a></li>
+              <li><a href="#dialer">4. Dialer</a></li>
+              <li><a href="#calls">5. Calls History</a></li>
+              <li><a href="#leads">6. Lead Management</a></li>
+              <li><a href="#campaigns">7. Campaigns</a></li>
+              <li><a href="#analytics">8. Analytics</a></li>
+              <li><a href="#billing">9. Billing</a></li>
+              <li><a href="#team">10. Team</a></li>
+              <li><a href="#tenant">11. Tenant Settings</a></li>
+              <li><a href="#providers">12. Providers</a></li>
+              <li><a href="#webhooks">13. Webhooks</a></li>
+              <li><a href="#tokens">14. API Tokens</a></li>
+              <li><a href="#audit">15. Audit Logs</a></li>
+              <li><a href="#notifications">16. Notifications</a></li>
+              <li><a href="#search">17. Global Search</a></li>
+              <li><a href="#inventory-explorer">18. Feature Inventory Explorer</a></li>
+            </ul>
+          </section>
+        </div>
+      </aside>
+
+      <section class="content" id="guide-content">
+    <section id="start" class="section">
+      <h2>1. Getting Started</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 1: Open the welcome page</h3>
+          <p>Review the product highlights, then choose the action that fits your goal.</p>
+          <figure>
+            <img src="./screenshots/01-landing-home.png" alt="Landing page home screen" />
+            <figcaption>Landing page with quick entry actions.</figcaption>
+          </figure>
+        </article>
+        <article class="step">
+          <h3>Step 2: Review plans</h3>
+          <p>Compare plans before creating your workspace.</p>
+          <figure>
+            <img src="./screenshots/02-pricing-plans.png" alt="Pricing plans page" />
+            <figcaption>Pricing options shown side-by-side for easy comparison.</figcaption>
+          </figure>
+        </article>
+        <article class="step">
+          <h3>Step 3: Check form guidance on registration</h3>
+          <p>If required details are missing, the form will guide you before submission.</p>
+          <figure>
+            <img src="./screenshots/03-register-validation.png" alt="Registration form validation state" />
+            <figcaption>Validation prompts help complete registration correctly.</figcaption>
+          </figure>
+        </article>
+        <article class="step">
+          <h3>Step 4: Verify login validation</h3>
+          <p>The login form also checks required fields before sign-in.</p>
+          <figure>
+            <img src="./screenshots/06-login-validation.png" alt="Login validation on empty form" />
+            <figcaption>Missing fields are highlighted before continuing.</figcaption>
+          </figure>
+        </article>
+        <article class="step">
+          <h3>Step 5: Enter credentials and sign in</h3>
+          <p>Fill your email and password, then select the login button.</p>
+          <figure>
+            <img src="./screenshots/07-login-filled.png" alt="Login form filled with credentials" />
+            <figcaption>Credential entry state before successful sign-in.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="dashboard" class="section">
+      <h2>2. Dashboard</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 6: Confirm successful access</h3>
+          <p>After login, confirm the dashboard is visible and ready.</p>
+          <figure>
+            <img src="./screenshots/08-dashboard-home.png" alt="Main dashboard after login" />
+            <figcaption>Dashboard overview with key workspace information.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="onboarding" class="section">
+      <h2>3. Onboarding</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 7: Complete onboarding checklist</h3>
+          <p>Use the checklist to finish setup milestones in order.</p>
+          <figure>
+            <img src="./screenshots/10-onboarding-checklist.png" alt="Onboarding checklist page" />
+            <figcaption>Track setup progress and complete remaining tasks.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="dialer" class="section">
+      <h2>4. Dialer</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 8: Start and manage calls</h3>
+          <p>Enter destination details and use call controls to manage active sessions.</p>
+          <figure>
+            <img src="./screenshots/11-dialer-console.png" alt="Dialer console page" />
+            <figcaption>Dialer workspace with controls for live call handling.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="calls" class="section">
+      <h2>5. Calls History</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 9: Review call outcomes</h3>
+          <p>Use call history to inspect statuses and operational trends.</p>
+          <figure>
+            <img src="./screenshots/12-calls-history.png" alt="Calls history page" />
+            <figcaption>Call records organized for quick review and follow-up.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="leads" class="section">
+      <h2>6. Lead Management</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 10: Manage lead records</h3>
+          <p>Create, edit, and organize leads before assigning campaign work.</p>
+          <figure>
+            <img src="./screenshots/13-crm-leads.png" alt="Leads management page" />
+            <figcaption>Lead list and controls for outreach preparation.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="campaigns" class="section">
+      <h2>7. Campaigns</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 11: Create and control campaigns</h3>
+          <p>Use campaign controls to run, pause, or stop activity as needed.</p>
+          <figure>
+            <img src="./screenshots/14-campaigns-overview.png" alt="Campaigns page overview" />
+            <figcaption>Campaign operations view with run-state controls.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="analytics" class="section">
+      <h2>8. Analytics</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 12: Monitor performance</h3>
+          <p>Use analytics cards and trends to assess campaign and team results.</p>
+          <figure>
+            <img src="./screenshots/15-analytics-dashboard.png" alt="Analytics dashboard page" />
+            <figcaption>Analytics dashboard for decision-making and reporting.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="billing" class="section">
+      <h2>9. Billing</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 13: Manage billing details</h3>
+          <p>Review usage, invoices, and payment methods in one place.</p>
+          <figure>
+            <img src="./screenshots/17-billing-center.png" alt="Billing center page" />
+            <figcaption>Billing center with plan and payment information.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="team" class="section">
+      <h2>10. Team</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 14: Manage your team</h3>
+          <p>Add members and adjust access so each person has the right permissions.</p>
+          <figure>
+            <img src="./screenshots/18-team-management.png" alt="Team management page" />
+            <figcaption>Team workspace for member and role administration.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="tenant" class="section">
+      <h2>11. Tenant Settings</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 15: Update company settings</h3>
+          <p>Keep profile, branding, and defaults up to date.</p>
+          <figure>
+            <img src="./screenshots/20-tenant-settings.png" alt="Tenant settings page" />
+            <figcaption>Tenant settings for branding and operational defaults.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="providers" class="section">
+      <h2>12. Providers</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 16: Configure providers</h3>
+          <p>Add provider credentials and maintain failover order.</p>
+          <figure>
+            <img src="./screenshots/21-providers-config.png" alt="Providers configuration page" />
+            <figcaption>Provider setup and reliability settings in one module.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="webhooks" class="section">
+      <h2>13. Webhooks</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 17: Monitor webhook health</h3>
+          <p>Review delivery status and replay failed events if required.</p>
+          <figure>
+            <img src="./screenshots/22-webhooks-monitoring.png" alt="Webhooks monitoring page" />
+            <figcaption>Webhook overview for troubleshooting integration issues.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="tokens" class="section">
+      <h2>14. API Tokens</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 18: Create or revoke API tokens</h3>
+          <p>Use token controls to secure external integrations.</p>
+          <figure>
+            <img src="./screenshots/23-api-tokens.png" alt="API tokens page" />
+            <figcaption>Token management for secure API access.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="audit" class="section">
+      <h2>15. Audit Logs</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 19: Check activity history</h3>
+          <p>Use audit logs to review account and configuration actions.</p>
+          <figure>
+            <img src="./screenshots/24-audit-logs.png" alt="Audit logs page" />
+            <figcaption>Action history for governance and compliance reviews.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="notifications" class="section">
+      <h2>16. Notifications</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 20: Process notifications</h3>
+          <p>Review alerts and mark items read as you complete tasks.</p>
+          <figure>
+            <img src="./screenshots/25-notifications-center.png" alt="Notifications center page" />
+            <figcaption>Notification feed with actionable updates.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="search" class="section">
+      <h2>17. Global Search</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 21: Find records quickly</h3>
+          <p>Search across modules to jump directly to the right record.</p>
+          <figure>
+            <img src="./screenshots/26-global-search.png" alt="Global search page" />
+            <figcaption>Global search helps locate data without navigating module by module.</figcaption>
+          </figure>
+        </article>
+      </div>
+    </section>
+
+    <section id="inventory-explorer" class="section">
+      <h2>18. Feature Inventory Explorer (index.html)</h2>
+      <div class="steps">
+        <article class="step">
+          <h3>Step 22: Open the feature inventory overview</h3>
+          <p>Start on the inventory landing view to review summary chips, filters, and role-grouped feature cards.</p>
+          <figure>
+            <img src="./screenshots/33-index-overview-default.png" alt="Feature inventory default view with hero chips, filter controls, summary cards, and role sections" />
+            <figcaption>Default inventory layout with all major explorer components visible.</figcaption>
+          </figure>
+          <p><strong>How to use:</strong> Open <code>features/index.html</code>, review the summary metrics, then scroll into role sections to inspect feature cards.</p>
+          <p><strong>Accessibility:</strong> The role results container uses a live region (<code>aria-live="polite"</code>) so assistive tech receives updates when filters change.</p>
+          <p><strong>Troubleshooting:</strong> If metrics stay at <code>0</code>, refresh the page and confirm JavaScript is enabled in the browser.</p>
+        </article>
+
+        <article class="step">
+          <h3>Step 23: Filter features with the search field</h3>
+          <p>Use the keyword search field to narrow features by name, route, description, permission text, or role labels.</p>
+          <figure>
+            <img src="./screenshots/34-index-search-filter-billing.png" alt="Search filter in action showing filtered billing-related feature cards" />
+            <figcaption>Search query immediately reduces cards and updates metric counters.</figcaption>
+          </figure>
+          <p><strong>How to use:</strong> Click <code>Search Features</code>, type a keyword such as <code>billing</code>, and review filtered cards and updated counts.</p>
+          <p><strong>Accessibility:</strong> Keyboard users can press <code>Tab</code> to focus the field and type directly; screen readers announce the labeled input.</p>
+          <p><strong>Troubleshooting:</strong> If no cards appear, clear the query or check whether role/status filters are also restricting results.</p>
+        </article>
+
+        <article class="step">
+          <h3>Step 24: Use role-based filtering</h3>
+          <p>Role filtering limits visible cards to features available for a selected user role.</p>
+          <figure>
+            <img src="./screenshots/35-index-role-filter-company-admin.png" alt="Role filter set to Company Admin showing role-specific feature results" />
+            <figcaption>Role filter scopes the inventory to one role's accessible features.</figcaption>
+          </figure>
+          <p><strong>How to use:</strong> Open <code>Role Filter</code>, choose a role like <code>Company Admin</code>, then review the updated cards and counts.</p>
+          <p><strong>Accessibility:</strong> Native select controls support keyboard arrows, <code>Home</code>/<code>End</code>, and <code>Alt+Down</code> (browser dependent).</p>
+          <p><strong>Troubleshooting:</strong> If the selected role is not visible, reset filters to <code>All Roles</code> and reload once to repopulate options.</p>
+        </article>
+
+        <article class="step">
+          <h3>Step 25: Filter by implementation status</h3>
+          <p>Status filtering isolates implemented, partial, or planned entries for audit or release checks.</p>
+          <figure>
+            <img src="./screenshots/36-index-status-filter-partial.png" alt="Status filter set to Partial with only partial features visible" />
+            <figcaption>Status-based filtering supports focused implementation reviews.</figcaption>
+          </figure>
+          <p><strong>How to use:</strong> Select <code>Partial</code> or another status from <code>Status Filter</code> and compare the metric cards.</p>
+          <p><strong>Accessibility:</strong> Status labels also appear as colored chips on each card, improving at-a-glance recognition.</p>
+          <p><strong>Troubleshooting:</strong> If expected items do not appear, verify their current status values in <code>features/index.html</code>.</p>
+        </article>
+
+        <article class="step">
+          <h3>Step 26: Include or exclude micro-features</h3>
+          <p>The micro-feature toggle helps separate major workflows from smaller UI utilities.</p>
+          <figure>
+            <img src="./screenshots/37-index-include-micro-features.png" alt="Include micro-features checkbox enabled with additional micro feature cards visible" />
+            <figcaption>Toggle adds micro-level entries and updates visible counts instantly.</figcaption>
+          </figure>
+          <p><strong>How to use:</strong> Check <code>Include micro-features</code> to include helper/UI-level items in the role sections.</p>
+          <p><strong>Accessibility:</strong> The checkbox is label-bound and can be toggled using <code>Space</code> when focused.</p>
+          <p><strong>Troubleshooting:</strong> If counts do not change, clear search/status filters first to make the effect visible.</p>
+        </article>
+
+        <article class="step">
+          <h3>Step 27: Validate empty-state behavior</h3>
+          <p>When filters eliminate all results, the page provides a clear empty-state message.</p>
+          <figure>
+            <img src="./screenshots/38-index-empty-state-no-match.png" alt="Inventory empty state shown after applying a no-match search term" />
+            <figcaption>Empty-state panel confirms no features match the current filter combination.</figcaption>
+          </figure>
+          <p><strong>How to use:</strong> Enter an uncommon term (for example <code>zzzz-no-match</code>) to verify graceful no-result behavior.</p>
+          <p><strong>Accessibility:</strong> The empty-state text is plain, high-contrast content that remains readable without hover interactions.</p>
+          <p><strong>Troubleshooting:</strong> Remove the search term and reset dropdown filters to restore the full feature list.</p>
+        </article>
+
+        <article class="step">
+          <h3>Step 28: Expand and collapse role sections</h3>
+          <p>Role sections are rendered as expandable groups so large inventories remain scan-friendly.</p>
+          <figure>
+            <img src="./screenshots/39-index-role-accordion-expanded.png" alt="Role accordion expanded to reveal grouped feature cards for another role" />
+            <figcaption>Expandable role groups support focused review without overwhelming the page.</figcaption>
+          </figure>
+          <p><strong>How to use:</strong> Click a role header to expand its card grid, then click again to collapse that section.</p>
+          <p><strong>Accessibility:</strong> Each role group uses semantic <code>&lt;details&gt;</code>/<code>&lt;summary&gt;</code> elements with keyboard support (<code>Enter</code>/<code>Space</code>).</p>
+          <p><strong>Troubleshooting:</strong> If a section appears empty, confirm filters still include at least one matching feature for that role.</p>
+        </article>
+
+        <article class="step">
+          <h3>Step 29: Navigate controls by keyboard</h3>
+          <p>All primary controls can be reached and operated without a mouse.</p>
+          <figure>
+            <img src="./screenshots/40-index-keyboard-focus-search.png" alt="Keyboard focus ring visible on inventory controls during tab navigation" />
+            <figcaption>Keyboard focus indicators confirm a fully operable filter flow.</figcaption>
+          </figure>
+          <p><strong>How to use:</strong> Press <code>Tab</code> and <code>Shift+Tab</code> to move focus, then use <code>Enter</code>, <code>Space</code>, and arrow keys to interact with controls.</p>
+          <p><strong>Accessibility:</strong> Form labels are explicitly associated with each field and controls preserve native keyboard behavior.</p>
+          <p><strong>Troubleshooting:</strong> If focus indicators are hard to see, test in a browser without custom high-contrast overrides first.</p>
+        </article>
+
+        <article class="step">
+          <h3>Step 30: Verify responsive mobile layout</h3>
+          <p>The inventory is responsive and reorganizes controls, cards, and metrics on narrow screens.</p>
+          <figure>
+            <img src="./screenshots/41-index-responsive-mobile-layout.png" alt="Mobile responsive view of the feature inventory with stacked filters and cards" />
+            <figcaption>Small-screen layout stacks filters and cards for touch-friendly navigation.</figcaption>
+          </figure>
+          <p><strong>How to use:</strong> Resize the browser window (or use device emulation) and validate stacked controls and readable cards.</p>
+          <p><strong>Accessibility:</strong> Responsive breakpoints keep content linear and scannable for zoomed or mobile contexts.</p>
+          <p><strong>Troubleshooting:</strong> If layout remains desktop-width, clear browser zoom overrides and ensure responsive viewport meta tags are active.</p>
+        </article>
+
+        <article class="step">
+          <h3>Step 31: Use quick guide links from the hero chips</h3>
+          <p>The hero area includes direct links to both the HTML and Markdown guides.</p>
+          <figure>
+            <img src="./screenshots/33-index-overview-default.png" alt="Hero metadata chips including links to How-To Guide and Full User Guide" />
+            <figcaption>Guide-link chips provide fast navigation to supporting documentation.</figcaption>
+          </figure>
+          <p><strong>How to use:</strong> Select <code>How-To Guide</code> or <code>Full User Guide (Markdown)</code> chips to open documentation directly.</p>
+          <p><strong>Accessibility:</strong> Link chips use text labels (not icon-only controls), improving discoverability for screen readers and keyboard users.</p>
+          <p><strong>Troubleshooting:</strong> If links fail, verify all guide files remain under the <code>features</code> folder with unchanged filenames.</p>
+        </article>
+      </div>
+    </section>
+
+      <p class="small">Note: This guide references screenshots captured from the current environment and validates linked image paths at generation time.</p>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    (function () {
+      const SECTION_META = {
+        start: {
+          category: "Getting Started",
+          difficulty: "Beginner",
+          topics: ["account setup", "authentication"],
+          tags: ["welcome", "pricing", "registration", "login"]
+        },
+        dashboard: {
+          category: "Operations",
+          difficulty: "Beginner",
+          topics: ["overview", "monitoring"],
+          tags: ["dashboard", "workspace"]
+        },
+        onboarding: {
+          category: "Getting Started",
+          difficulty: "Beginner",
+          topics: ["setup checklist", "initial configuration"],
+          tags: ["onboarding", "checklist"]
+        },
+        dialer: {
+          category: "Calling",
+          difficulty: "Intermediate",
+          topics: ["outbound calls", "call controls"],
+          tags: ["dialer", "call management"]
+        },
+        calls: {
+          category: "Calling",
+          difficulty: "Intermediate",
+          topics: ["history", "reporting"],
+          tags: ["calls", "outcomes", "logs"]
+        },
+        leads: {
+          category: "CRM",
+          difficulty: "Intermediate",
+          topics: ["lead records", "segmentation"],
+          tags: ["crm", "leads", "contacts"]
+        },
+        campaigns: {
+          category: "Campaign Management",
+          difficulty: "Intermediate",
+          topics: ["campaign lifecycle", "run controls"],
+          tags: ["campaigns", "operations"]
+        },
+        analytics: {
+          category: "Analytics",
+          difficulty: "Intermediate",
+          topics: ["kpis", "trends"],
+          tags: ["analytics", "performance", "reports"]
+        },
+        billing: {
+          category: "Administration",
+          difficulty: "Intermediate",
+          topics: ["payments", "subscriptions"],
+          tags: ["billing", "invoices", "usage"]
+        },
+        team: {
+          category: "Administration",
+          difficulty: "Intermediate",
+          topics: ["users", "roles"],
+          tags: ["team", "access control", "permissions"]
+        },
+        tenant: {
+          category: "Administration",
+          difficulty: "Advanced",
+          topics: ["workspace settings", "branding"],
+          tags: ["tenant", "settings", "branding"]
+        },
+        providers: {
+          category: "Integrations",
+          difficulty: "Advanced",
+          topics: ["provider setup", "failover"],
+          tags: ["providers", "credentials", "reliability"]
+        },
+        webhooks: {
+          category: "Integrations",
+          difficulty: "Advanced",
+          topics: ["event delivery", "retries"],
+          tags: ["webhooks", "events", "monitoring"]
+        },
+        tokens: {
+          category: "Developer",
+          difficulty: "Advanced",
+          topics: ["api access", "security"],
+          tags: ["tokens", "api", "authentication"]
+        },
+        audit: {
+          category: "Governance",
+          difficulty: "Intermediate",
+          topics: ["compliance", "activity tracking"],
+          tags: ["audit", "logs", "governance"]
+        },
+        notifications: {
+          category: "Operations",
+          difficulty: "Beginner",
+          topics: ["alerts", "inbox"],
+          tags: ["notifications", "tasks", "updates"]
+        },
+        search: {
+          category: "Productivity",
+          difficulty: "Beginner",
+          topics: ["cross-module discovery", "record lookup"],
+          tags: ["search", "navigation", "find"]
+        },
+        "inventory-explorer": {
+          category: "Documentation",
+          difficulty: "Advanced",
+          topics: ["feature inventory", "documentation audit"],
+          tags: ["index", "inventory", "filters", "accessibility"]
+        }
+      };
+
+      const generatedAt = document.getElementById("generatedAt");
+      const breadcrumbCurrent = document.getElementById("breadcrumbCurrent");
+      const guideSearch = document.getElementById("guideSearch");
+      const categoryFilter = document.getElementById("categoryFilter");
+      const difficultyFilter = document.getElementById("difficultyFilter");
+      const topicFilter = document.getElementById("topicFilter");
+      const tagFilter = document.getElementById("tagFilter");
+      const resetFilters = document.getElementById("resetFilters");
+      const loadingState = document.getElementById("loadingState");
+      const emptyState = document.getElementById("emptyState");
+      const errorState = document.getElementById("errorState");
+      const toolbarSummary = document.getElementById("toolbarSummary");
+
+      const sections = Array.from(document.querySelectorAll(".section[id]"));
+      const tocLinks = Array.from(document.querySelectorAll(".toc a[href^='#']"));
+      const tocMap = new Map(
+        tocLinks.map((link) => [link.getAttribute("href").slice(1), link.closest("li")])
+      );
+
+      let debounceId = null;
+      generatedAt.textContent = "Generated: " + new Date().toLocaleString();
+
+      function setPanelState(panel, visible, message) {
+        panel.classList.toggle("visible", visible);
+        if (message) {
+          panel.textContent = message;
+        }
+      }
+
+      function populateSelect(selectEl, values, label) {
+        const sorted = Array.from(values).sort((a, b) => a.localeCompare(b));
+        sorted.forEach((value) => {
+          const option = document.createElement("option");
+          option.value = value.toLowerCase();
+          option.textContent = value;
+          selectEl.append(option);
+        });
+        selectEl.setAttribute("aria-label", label);
+      }
+
+      function buildSectionMeta() {
+        const categories = new Set();
+        const difficulties = new Set();
+        const topics = new Set();
+
+        sections.forEach((section) => {
+          const id = section.id;
+          const meta = SECTION_META[id] || {
+            category: "General",
+            difficulty: "Beginner",
+            topics: ["general"],
+            tags: []
+          };
+          section.dataset.category = meta.category.toLowerCase();
+          section.dataset.difficulty = meta.difficulty.toLowerCase();
+          section.dataset.topics = meta.topics.join("|").toLowerCase();
+          section.dataset.tags = meta.tags.join("|").toLowerCase();
+          section.dataset.searchText = section.textContent.toLowerCase().replace(/\s+/g, " ").trim();
+          categories.add(meta.category);
+          difficulties.add(meta.difficulty);
+          meta.topics.forEach((topic) => topics.add(topic));
+
+          const title = section.querySelector("h2");
+          const steps = section.querySelector(".steps");
+          if (!title || !steps) {
+            return;
+          }
+
+          const header = document.createElement("div");
+          header.className = "section-header";
+
+          const titleWrap = document.createElement("div");
+          titleWrap.className = "section-title-wrap";
+          titleWrap.appendChild(title);
+
+          const badges = document.createElement("div");
+          badges.className = "section-meta";
+          [meta.category, meta.difficulty, meta.topics[0]].forEach((label) => {
+            if (!label) {
+              return;
+            }
+            const badge = document.createElement("span");
+            badge.className = "meta-badge";
+            badge.textContent = label;
+            badges.appendChild(badge);
+          });
+          titleWrap.appendChild(badges);
+
+          const toggle = document.createElement("button");
+          toggle.type = "button";
+          toggle.className = "collapse-toggle";
+          toggle.setAttribute("aria-expanded", "true");
+          toggle.textContent = "Collapse";
+          toggle.addEventListener("click", () => {
+            const collapsed = section.classList.toggle("is-collapsed");
+            toggle.setAttribute("aria-expanded", String(!collapsed));
+            toggle.textContent = collapsed ? "Expand" : "Collapse";
+          });
+
+          header.appendChild(titleWrap);
+          header.appendChild(toggle);
+          section.insertBefore(header, steps);
+        });
+
+        populateSelect(categoryFilter, categories, "Filter by category");
+        populateSelect(difficultyFilter, difficulties, "Filter by difficulty");
+        populateSelect(topicFilter, topics, "Filter by topic");
+      }
+
+      function normalizeWords(value) {
+        return value
+          .toLowerCase()
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean);
+      }
+
+      function applyFilters() {
+        try {
+          setPanelState(errorState, false);
+          const queryTerms = normalizeWords(guideSearch.value);
+          const tagTerms = normalizeWords(tagFilter.value);
+          const selectedCategory = categoryFilter.value;
+          const selectedDifficulty = difficultyFilter.value;
+          const selectedTopic = topicFilter.value;
+
+          let visibleCount = 0;
+          sections.forEach((section) => {
+            const text = section.dataset.searchText || "";
+            const tags = section.dataset.tags || "";
+            const topics = section.dataset.topics || "";
+            const category = section.dataset.category || "";
+            const difficulty = section.dataset.difficulty || "";
+            const searchableTags = tags + " " + topics + " " + text;
+
+            const matchesQuery = queryTerms.every((term) => text.includes(term));
+            const matchesCategory = selectedCategory === "all" || category === selectedCategory;
+            const matchesDifficulty = selectedDifficulty === "all" || difficulty === selectedDifficulty;
+            const matchesTopic = selectedTopic === "all" || topics.includes(selectedTopic);
+            const matchesTags = tagTerms.every((term) => searchableTags.includes(term));
+            const matches = matchesQuery && matchesCategory && matchesDifficulty && matchesTopic && matchesTags;
+
+            section.classList.toggle("filtered-out", !matches);
+            section.classList.toggle("fade-in", matches);
+            const tocItem = tocMap.get(section.id);
+            if (tocItem) {
+              tocItem.style.display = matches ? "" : "none";
+            }
+            if (matches) {
+              visibleCount += 1;
+            }
+          });
+
+          const activeFilters = [
+            queryTerms.length ? "Search: " + queryTerms.join(" ") : null,
+            selectedCategory !== "all" ? "Category: " + categoryFilter.options[categoryFilter.selectedIndex].text : null,
+            selectedDifficulty !== "all" ? "Difficulty: " + difficultyFilter.options[difficultyFilter.selectedIndex].text : null,
+            selectedTopic !== "all" ? "Topic: " + topicFilter.options[topicFilter.selectedIndex].text : null,
+            tagTerms.length ? "Tag: " + tagTerms.join(", ") : null
+          ].filter(Boolean);
+
+          toolbarSummary.innerHTML = "";
+          const resultPill = document.createElement("span");
+          resultPill.className = "summary-pill";
+          resultPill.textContent = "Visible sections: " + visibleCount + " / " + sections.length;
+          toolbarSummary.appendChild(resultPill);
+          activeFilters.forEach((filter) => {
+            const pill = document.createElement("span");
+            pill.className = "summary-pill";
+            pill.textContent = filter;
+            toolbarSummary.appendChild(pill);
+          });
+
+          setPanelState(emptyState, visibleCount === 0);
+        } catch (error) {
+          console.error(error);
+          setPanelState(errorState, true, "Search encountered an issue. Please clear filters and try again.");
+        } finally {
+          setPanelState(loadingState, false);
+        }
+      }
+
+      function runFiltersDebounced() {
+        setPanelState(loadingState, true);
+        clearTimeout(debounceId);
+        debounceId = setTimeout(applyFilters, 130);
+      }
+
+      function updateBreadcrumb(id) {
+        if (!id) {
+          breadcrumbCurrent.textContent = "All Sections";
+          return;
+        }
+        const section = document.getElementById(id);
+        const title = section ? section.querySelector("h2") : null;
+        breadcrumbCurrent.textContent = title ? title.textContent : "All Sections";
+      }
+
+      function setupBreadcrumbObserver() {
+        const observer = new IntersectionObserver(
+          (entries) => {
+            const visible = entries
+              .filter((entry) => entry.isIntersecting && !entry.target.classList.contains("filtered-out"))
+              .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+            if (visible.length > 0) {
+              updateBreadcrumb(visible[0].target.id);
+            }
+          },
+          {
+            root: null,
+            rootMargin: "-25% 0px -55% 0px",
+            threshold: [0.2, 0.35, 0.6]
+          }
+        );
+        sections.forEach((section) => observer.observe(section));
+      }
+
+      function resetAllFilters() {
+        guideSearch.value = "";
+        categoryFilter.value = "all";
+        difficultyFilter.value = "all";
+        topicFilter.value = "all";
+        tagFilter.value = "";
+        runFiltersDebounced();
+      }
+
+      buildSectionMeta();
+      setupBreadcrumbObserver();
+      updateBreadcrumb(location.hash ? location.hash.slice(1) : null);
+
+      [guideSearch, categoryFilter, difficultyFilter, topicFilter, tagFilter].forEach((input) => {
+        input.addEventListener("input", runFiltersDebounced);
+        input.addEventListener("change", runFiltersDebounced);
+      });
+
+      guideSearch.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && guideSearch.value) {
+          guideSearch.value = "";
+          runFiltersDebounced();
+        }
+      });
+
+      resetFilters.addEventListener("click", resetAllFilters);
+      window.addEventListener("hashchange", () => updateBreadcrumb(location.hash.slice(1)));
+
+      runFiltersDebounced();
+    })();
+  </script>
+</body>
+</html>

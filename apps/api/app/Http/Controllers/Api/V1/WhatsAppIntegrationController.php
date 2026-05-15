@@ -19,9 +19,15 @@ class WhatsAppIntegrationController extends Controller
             ->latest('created_at')
             ->first();
 
+        $userId = (string) ($request->user()?->id ?? '');
+        $includeSecrets = false;
+        if ($provider && $userId !== '' && (string) ($provider->credentials_owner_user_id ?? '') === $userId) {
+            $includeSecrets = true;
+        }
+
         return response()->json([
             'data' => [
-                'provider' => $provider ? $this->serializeProvider($provider) : null,
+                'provider' => $provider ? $this->serializeProvider($provider, $includeSecrets) : null,
             ],
         ]);
     }
@@ -47,21 +53,42 @@ class WhatsAppIntegrationController extends Controller
             ->first();
 
         $provider = $provider ?: new ProviderAccount();
+        $existingCredentials = (array) ($provider->credentials_encrypted ?? []);
         $provider->tenant_id = $tenant->id;
         $provider->provider_type = 'meta_whatsapp';
         $provider->display_name = (string) ($validated['display_name'] ?? 'Meta WhatsApp');
         $provider->status = $validated['enabled'] ? 'active' : 'inactive';
-        $provider->credentials_encrypted = array_filter([
-            'meta_app_id' => $validated['meta_app_id'] ?? null,
-            'meta_app_secret' => $validated['meta_app_secret'] ?? null,
-            'meta_access_token' => $validated['meta_access_token'] ?? null,
-            'whatsapp_business_account_id' => $validated['whatsapp_business_account_id'] ?? null,
-            'phone_number_id' => $validated['phone_number_id'] ?? null,
-            'webhook_verify_token' => $validated['webhook_verify_token'] ?? null,
-        ], fn ($v) => $v !== null && $v !== '');
+        if (! $provider->credentials_owner_user_id && $request->user()?->id) {
+            $provider->credentials_owner_user_id = $request->user()->id;
+        }
+
+        $incomingKeys = [
+            'meta_app_id',
+            'meta_app_secret',
+            'meta_access_token',
+            'whatsapp_business_account_id',
+            'phone_number_id',
+            'webhook_verify_token',
+        ];
+
+        $nextCredentials = $existingCredentials;
+        foreach ($incomingKeys as $key) {
+            if (! array_key_exists($key, $validated)) {
+                continue;
+            }
+            $value = trim((string) ($validated[$key] ?? ''));
+            if ($value === '') {
+                continue;
+            }
+            $nextCredentials[$key] = $value;
+        }
+
+        $provider->credentials_encrypted = array_filter($nextCredentials, fn ($v) => $v !== null && trim((string) $v) !== '');
         $provider->save();
 
-        return response()->json(['data' => ['provider' => $this->serializeProvider($provider)]], 200);
+        $userId = (string) ($request->user()?->id ?? '');
+        $includeSecrets = $userId !== '' && (string) ($provider->credentials_owner_user_id ?? '') === $userId;
+        return response()->json(['data' => ['provider' => $this->serializeProvider($provider, $includeSecrets)]], 200);
     }
 
     public function test(Request $request): JsonResponse
@@ -136,9 +163,26 @@ class WhatsAppIntegrationController extends Controller
         ], 200);
     }
 
-    private function serializeProvider(ProviderAccount $provider): array
+    private function serializeProvider(ProviderAccount $provider, bool $includeSecrets = false): array
     {
         $credentials = (array) ($provider->credentials_encrypted ?? []);
+        $metaAppSecret = trim((string) ($credentials['meta_app_secret'] ?? ''));
+        $metaAccessToken = trim((string) ($credentials['meta_access_token'] ?? ''));
+        $verifyToken = trim((string) ($credentials['webhook_verify_token'] ?? ''));
+
+        $hasMetaAppSecret = $metaAppSecret !== '';
+        $hasMetaAccessToken = $metaAccessToken !== '';
+        $hasVerifyToken = $verifyToken !== '';
+
+        $suffix = static function (string $value, int $length = 4): ?string {
+            $value = trim($value);
+            if ($value === '') {
+                return null;
+            }
+            $length = max(1, $length);
+            return mb_substr($value, -$length);
+        };
+
         return [
             'id' => $provider->id,
             'provider_type' => $provider->provider_type,
@@ -147,16 +191,23 @@ class WhatsAppIntegrationController extends Controller
             'last_tested_at' => $provider->last_tested_at?->toISOString(),
             'last_error_code' => $provider->last_error_code,
             'last_error_message' => $provider->last_error_message,
+            'secrets' => [
+                'meta_app_secret_configured' => $hasMetaAppSecret,
+                'meta_access_token_configured' => $hasMetaAccessToken,
+                'webhook_verify_token_configured' => $hasVerifyToken,
+                'meta_app_secret_suffix' => $hasMetaAppSecret ? $suffix($metaAppSecret, 4) : null,
+                'meta_access_token_suffix' => $hasMetaAccessToken ? $suffix($metaAccessToken, 6) : null,
+                'webhook_verify_token_suffix' => $hasVerifyToken ? $suffix($verifyToken, 4) : null,
+            ],
             'settings' => [
                 'enabled' => $provider->status === 'active',
                 'meta_app_id' => $credentials['meta_app_id'] ?? null,
-                'meta_app_secret' => $credentials['meta_app_secret'] ?? null,
-                'meta_access_token' => $credentials['meta_access_token'] ?? null,
+                'meta_app_secret' => $includeSecrets ? ($metaAppSecret !== '' ? $metaAppSecret : null) : null,
+                'meta_access_token' => $includeSecrets ? ($metaAccessToken !== '' ? $metaAccessToken : null) : null,
                 'whatsapp_business_account_id' => $credentials['whatsapp_business_account_id'] ?? null,
                 'phone_number_id' => $credentials['phone_number_id'] ?? null,
-                'webhook_verify_token' => $credentials['webhook_verify_token'] ?? null,
+                'webhook_verify_token' => $includeSecrets ? ($verifyToken !== '' ? $verifyToken : null) : null,
             ],
         ];
     }
 }
-

@@ -1,0 +1,226 @@
+[
+  {
+    "sequence": 1,
+    "id": "landing-home",
+    "url": "/landing",
+    "screenshot": "01-landing-home.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 2,
+    "id": "pricing-plans",
+    "url": "/pricing",
+    "screenshot": "02-pricing-plans.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 3,
+    "id": "register-validation",
+    "url": "/register",
+    "screenshot": "03-register-validation.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 4,
+    "id": "forgot-password",
+    "url": "/forgot-password",
+    "screenshot": "04-forgot-password.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 5,
+    "id": "reset-password",
+    "url": "/reset-password",
+    "screenshot": "05-reset-password.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 6,
+    "id": "login-validation",
+    "url": "/login",
+    "screenshot": "06-login-validation.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 7,
+    "id": "login-filled",
+    "url": "/login",
+    "screenshot": "07-login-filled.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 8,
+    "id": "dashboard-home",
+    "url": "/onboarding",
+    "screenshot": "08-dashboard-home.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 9,
+    "id": "dashboard-hover-state",
+    "url": "/onboarding",
+    "screenshot": "09-dashboard-hover-state.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 10,
+    "id": "onboarding-checklist",
+    "url": "/onboarding",
+    "screenshot": "10-onboarding-checklist.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 11,
+    "id": "dialer-console",
+    "url": "/dialer",
+    "screenshot": "11-dialer-console.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 12,
+    "id": "calls-history",
+    "url": "/calls",
+    "screenshot": "12-calls-history.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 13,
+    "id": "crm-leads",
+    "url": "/crm/leads",
+    "screenshot": "13-crm-leads.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 14,
+    "id": "campaigns-overview",
+    "url": "/campaigns",
+    "screenshot": "14-campaigns-overview.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 15,
+    "id": "analytics-dashboard",
+    "url": "/analytics",
+    "screenshot": "15-analytics-dashboard.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 16,
+    "id": "analytics-roadmap-planned-features",
+    "url": "/analytics",
+    "screenshot": "16-analytics-roadmap-planned-features.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 17,
+    "id": "billing-center",
+    "url": "/billing",
+    "screenshot": "17-billing-center.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 18,
+    "id": "team-management",
+    "url": "/team",
+    "screenshot": "18-team-management.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 19,
+    "id": "team-invite-form",
+    "url": "/team",
+    "screenshot": "19-team-invite-form.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 20,
+    "id": "tenant-settings",
+    "url": "/tenant",
+    "screenshot": "20-tenant-settings.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 21,
+    "id": "providers-config",
+    "url": "/providers",
+    "screenshot": "21-providers-config.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 22,
+    "id": "webhooks-monitoring",
+    "url": "/webhooks",
+    "screenshot": "22-webhooks-monitoring.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 23,
+    "id": "api-tokens",
+    "url": "/api-tokens",
+    "screenshot": "23-api-tokens.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 24,
+    "id": "audit-logs",
+    "url": "/audit-logs",
+    "screenshot": "24-audit-logs.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 25,
+    "id": "notifications-center",
+    "url": "/notifications",
+    "screenshot": "25-notifications-center.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 26,
+    "id": "global-search",
+    "url": "/search",
+    "screenshot": "26-global-search.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 27,
+    "id": "help-center",
+    "url": "/help",
+    "screenshot": "27-help-center.png",
+    "accessible": true,
+    "named_correctly": true
+  },
+  {
+    "sequence": 28,
+    "id": "demo-workspace",
+    "url": "/demo",
+    "screenshot": "28-demo-workspace.png",
+    "accessible": true,
+    "named_correctly": true
+  }
+]

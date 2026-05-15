@@ -1,0 +1,348 @@
+{
+  "started_at": "2026-04-13T12:08:47.574Z",
+  "base_url": "http://localhost:3000",
+  "inventory_file": "C:\\xampp\\htdocs\\vicidial\\features\\documentation-inventory.json",
+  "retries": [
+    {
+      "sequence": 4,
+      "id": "forgot-password",
+      "attempt": 1,
+      "state": "loading",
+      "reason": "spinner visible: [aria-busy='true']",
+      "url": "http://localhost:3000/forgot-password",
+      "timestamp": "2026-04-13T12:08:59.535Z"
+    },
+    {
+      "sequence": 28,
+      "id": "demo-workspace",
+      "attempt": 1,
+      "state": "loading",
+      "reason": "spinner visible: [aria-busy='true']",
+      "url": "http://localhost:3000/demo",
+      "timestamp": "2026-04-13T12:11:10.497Z"
+    }
+  ],
+  "captures": [
+    {
+      "sequence": 1,
+      "id": "landing-home",
+      "file": "01-landing-home.png",
+      "page_name": "Landing",
+      "url": "/landing",
+      "feature_description": "Public marketing entry page with primary conversion actions.",
+      "caption": "Public welcome page for first-time users.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 2,
+      "id": "pricing-plans",
+      "file": "02-pricing-plans.png",
+      "page_name": "Pricing",
+      "url": "/pricing",
+      "feature_description": "Plan comparison and subscription guidance.",
+      "caption": "Pricing tiers with plan details.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 3,
+      "id": "register-validation",
+      "file": "03-register-validation.png",
+      "page_name": "Register",
+      "url": "/register",
+      "feature_description": "Registration form required-field validation.",
+      "caption": "Registration validation state with required fields.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 4,
+      "id": "forgot-password",
+      "file": "04-forgot-password.png",
+      "page_name": "Forgot Password",
+      "url": "/forgot-password",
+      "feature_description": "Password reset request form.",
+      "caption": "Password reset request form.",
+      "state": "content",
+      "attempt": 2
+    },
+    {
+      "sequence": 5,
+      "id": "reset-password",
+      "file": "05-reset-password.png",
+      "page_name": "Reset Password",
+      "url": "/reset-password",
+      "feature_description": "Password reset completion form.",
+      "caption": "Password reset completion screen.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 6,
+      "id": "login-validation",
+      "file": "06-login-validation.png",
+      "page_name": "Login",
+      "url": "/login",
+      "feature_description": "Login required-field validation.",
+      "caption": "Login validation state before credential entry.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 7,
+      "id": "login-filled",
+      "file": "07-login-filled.png",
+      "page_name": "Login",
+      "url": "/login",
+      "feature_description": "Credential-ready login form state.",
+      "caption": "Login form with credentials entered.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 8,
+      "id": "dashboard-home",
+      "file": "08-dashboard-home.png",
+      "page_name": "Dashboard",
+      "url": "/onboarding",
+      "feature_description": "Main post-login workspace entry.",
+      "caption": "Dashboard home after successful login.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 9,
+      "id": "dashboard-hover-state",
+      "file": "09-dashboard-hover-state.png",
+      "page_name": "Dashboard",
+      "url": "/onboarding",
+      "feature_description": "Hover feedback on interactive controls.",
+      "caption": "Dashboard hover interaction state.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 10,
+      "id": "onboarding-checklist",
+      "file": "10-onboarding-checklist.png",
+      "page_name": "Onboarding",
+      "url": "/onboarding",
+      "feature_description": "Tenant setup progress checklist.",
+      "caption": "Onboarding checklist and setup status.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 11,
+      "id": "dialer-console",
+      "file": "11-dialer-console.png",
+      "page_name": "Dialer",
+      "url": "/dialer",
+      "feature_description": "Outbound call controls and live call actions.",
+      "caption": "Dialer console with calling controls.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 12,
+      "id": "calls-history",
+      "file": "12-calls-history.png",
+      "page_name": "Calls",
+      "url": "/calls",
+      "feature_description": "Call history records and operational review.",
+      "caption": "Calls history list and status view.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 13,
+      "id": "crm-leads",
+      "file": "13-crm-leads.png",
+      "page_name": "CRM Leads",
+      "url": "/crm/leads",
+      "feature_description": "Lead management, filtering, and import workflow.",
+      "caption": "Lead management workspace.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 14,
+      "id": "campaigns-overview",
+      "file": "14-campaigns-overview.png",
+      "page_name": "Campaigns",
+      "url": "/campaigns",
+      "feature_description": "Campaign lifecycle management and status control.",
+      "caption": "Campaign operations dashboard.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 15,
+      "id": "analytics-dashboard",
+      "file": "15-analytics-dashboard.png",
+      "page_name": "Analytics",
+      "url": "/analytics",
+      "feature_description": "Performance metrics, trends, and filterable analytics.",
+      "caption": "Analytics dashboard overview.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 16,
+      "id": "analytics-roadmap-planned-features",
+      "file": "16-analytics-roadmap-planned-features.png",
+      "page_name": "Analytics",
+      "url": "/analytics",
+      "feature_description": "Roadmap planned-feature status cards and implementation telemetry.",
+      "caption": "Roadmap planned feature status section.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 17,
+      "id": "billing-center",
+      "file": "17-billing-center.png",
+      "page_name": "Billing",
+      "url": "/billing",
+      "feature_description": "Subscription, usage, invoices, and payment methods.",
+      "caption": "Billing center summary and controls.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 18,
+      "id": "team-management",
+      "file": "18-team-management.png",
+      "page_name": "Team",
+      "url": "/team",
+      "feature_description": "Member invitations and role management.",
+      "caption": "Team management workspace.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 19,
+      "id": "team-invite-form",
+      "file": "19-team-invite-form.png",
+      "page_name": "Team",
+      "url": "/team",
+      "feature_description": "Team invitation form state with address entry.",
+      "caption": "Team invitation form ready to send.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 20,
+      "id": "tenant-settings",
+      "file": "20-tenant-settings.png",
+      "page_name": "Tenant",
+      "url": "/tenant",
+      "feature_description": "Tenant profile, branding, and default settings.",
+      "caption": "Tenant profile and settings page.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 21,
+      "id": "providers-config",
+      "file": "21-providers-config.png",
+      "page_name": "Providers",
+      "url": "/providers",
+      "feature_description": "Provider integrations and failover configuration.",
+      "caption": "Provider integration configuration.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 22,
+      "id": "webhooks-monitoring",
+      "file": "22-webhooks-monitoring.png",
+      "page_name": "Webhooks",
+      "url": "/webhooks",
+      "feature_description": "Webhook health overview, delivery logs, and replay.",
+      "caption": "Webhook monitoring and replay tools.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 23,
+      "id": "api-tokens",
+      "file": "23-api-tokens.png",
+      "page_name": "API Tokens",
+      "url": "/api-tokens",
+      "feature_description": "Token creation, listing, and revocation.",
+      "caption": "API token management.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 24,
+      "id": "audit-logs",
+      "file": "24-audit-logs.png",
+      "page_name": "Audit Logs",
+      "url": "/audit-logs",
+      "feature_description": "Activity audit records with actor/action/time context.",
+      "caption": "Audit log activity history.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 25,
+      "id": "notifications-center",
+      "file": "25-notifications-center.png",
+      "page_name": "Notifications",
+      "url": "/notifications",
+      "feature_description": "Notification feed and read-state actions.",
+      "caption": "Notifications center.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 26,
+      "id": "global-search",
+      "file": "26-global-search.png",
+      "page_name": "Global Search",
+      "url": "/search",
+      "feature_description": "Cross-module search with direct navigation.",
+      "caption": "Global search across modules.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 27,
+      "id": "help-center",
+      "file": "27-help-center.png",
+      "page_name": "Help",
+      "url": "/help",
+      "feature_description": "Self-service help and support references.",
+      "caption": "Help center for guidance and support.",
+      "state": "content",
+      "attempt": 1
+    },
+    {
+      "sequence": 28,
+      "id": "demo-workspace",
+      "file": "28-demo-workspace.png",
+      "page_name": "Demo",
+      "url": "/demo",
+      "feature_description": "Demonstration workspace with sample flows.",
+      "caption": "Demo workspace with sample content.",
+      "state": "content",
+      "attempt": 2
+    }
+  ],
+  "rejected_attempts": 2,
+  "successful_captures": 28,
+  "failed_captures": 0,
+  "inventory_count": 28,
+  "quality_gate": "pass",
+  "completed_at": "2026-04-13T12:11:11.875Z",
+  "package_ready": true,
+  "verification_summary": {
+    "expected_pages": 28,
+    "captured_pages": 28,
+    "accessible_pages": 28,
+    "naming_compliant": true
+  }
+}

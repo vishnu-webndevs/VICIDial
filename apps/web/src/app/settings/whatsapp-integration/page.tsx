@@ -36,6 +36,16 @@ export default function WhatsAppIntegrationSettingsPage() {
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [reveal, setReveal] = useState({ token: false, phoneNumberId: false, verifyToken: false });
+  const [storedSecrets, setStoredSecrets] = useState({
+    meta_access_token: false,
+    webhook_verify_token: false,
+    meta_app_secret: false,
+  });
+  const [storedSecretSuffix, setStoredSecretSuffix] = useState({
+    meta_access_token: null as string | null,
+    webhook_verify_token: null as string | null,
+    meta_app_secret: null as string | null,
+  });
 
   const [providerStatus, setProviderStatus] = useState<{ status: string; last_tested_at?: string | null; last_error_message?: string | null } | null>(null);
   const [form, setForm] = useState<FormState>(defaultForm);
@@ -47,11 +57,11 @@ export default function WhatsAppIntegrationSettingsPage() {
 
   const missingRequired = useMemo(() => {
     const missing: string[] = [];
-    if (!form.meta_access_token.trim()) missing.push("Meta Access Token");
+    if (!form.meta_access_token.trim() && !storedSecrets.meta_access_token) missing.push("Meta Access Token");
     if (!form.phone_number_id.trim()) missing.push("Phone Number ID");
-    if (!form.webhook_verify_token.trim()) missing.push("Webhook Verify Token");
+    if (!form.webhook_verify_token.trim() && !storedSecrets.webhook_verify_token) missing.push("Webhook Verify Token");
     return missing;
-  }, [form.meta_access_token, form.phone_number_id, form.webhook_verify_token]);
+  }, [form.meta_access_token, form.phone_number_id, form.webhook_verify_token, storedSecrets.meta_access_token, storedSecrets.webhook_verify_token]);
 
   const canTest = useMemo(() => form.enabled && missingRequired.length === 0, [form.enabled, missingRequired.length]);
 
@@ -68,6 +78,8 @@ export default function WhatsAppIntegrationSettingsPage() {
       if (!provider) {
         setForm(defaultForm);
         setProviderStatus(null);
+        setStoredSecrets({ meta_access_token: false, webhook_verify_token: false, meta_app_secret: false });
+        setStoredSecretSuffix({ meta_access_token: null, webhook_verify_token: null, meta_app_secret: null });
         return;
       }
       setForm({
@@ -80,12 +92,26 @@ export default function WhatsAppIntegrationSettingsPage() {
         phone_number_id: String(provider.settings?.phone_number_id ?? ""),
         webhook_verify_token: String(provider.settings?.webhook_verify_token ?? ""),
       });
+      setStoredSecrets({
+        meta_access_token: Boolean(provider.secrets?.meta_access_token_configured),
+        webhook_verify_token: Boolean(provider.secrets?.webhook_verify_token_configured),
+        meta_app_secret: Boolean(provider.secrets?.meta_app_secret_configured),
+      });
+      setStoredSecretSuffix({
+        meta_access_token: provider.secrets?.meta_access_token_suffix ?? null,
+        webhook_verify_token: provider.secrets?.webhook_verify_token_suffix ?? null,
+        meta_app_secret: provider.secrets?.meta_app_secret_suffix ?? null,
+      });
       setProviderStatus({
         status: provider.status,
         last_tested_at: provider.last_tested_at ?? null,
         last_error_message: provider.last_error_message ?? null,
       });
     } catch (error) {
+      setForm(defaultForm);
+      setProviderStatus(null);
+      setStoredSecrets({ meta_access_token: false, webhook_verify_token: false, meta_app_secret: false });
+      setStoredSecretSuffix({ meta_access_token: null, webhook_verify_token: null, meta_app_secret: null });
       setToast({ tone: "error", message: error instanceof Error ? error.message : "Failed to load WhatsApp integration." });
     } finally {
       setLoading(false);
@@ -103,16 +129,26 @@ export default function WhatsAppIntegrationSettingsPage() {
         enabled: form.enabled,
         display_name: form.display_name || null,
         meta_app_id: form.meta_app_id || null,
-        meta_app_secret: form.meta_app_secret || null,
-        meta_access_token: form.meta_access_token || null,
+        meta_app_secret: form.meta_app_secret.trim() ? form.meta_app_secret : null,
+        meta_access_token: form.meta_access_token.trim() ? form.meta_access_token : null,
         whatsapp_business_account_id: form.whatsapp_business_account_id || null,
         phone_number_id: form.phone_number_id || null,
-        webhook_verify_token: form.webhook_verify_token || null,
+        webhook_verify_token: form.webhook_verify_token.trim() ? form.webhook_verify_token : null,
       });
       setProviderStatus({
         status: saved.status,
         last_tested_at: saved.last_tested_at ?? null,
         last_error_message: saved.last_error_message ?? null,
+      });
+      setStoredSecrets({
+        meta_access_token: Boolean(saved.secrets?.meta_access_token_configured),
+        webhook_verify_token: Boolean(saved.secrets?.webhook_verify_token_configured),
+        meta_app_secret: Boolean(saved.secrets?.meta_app_secret_configured),
+      });
+      setStoredSecretSuffix({
+        meta_access_token: saved.secrets?.meta_access_token_suffix ?? null,
+        webhook_verify_token: saved.secrets?.webhook_verify_token_suffix ?? null,
+        meta_app_secret: saved.secrets?.meta_app_secret_suffix ?? null,
       });
       setToast({ tone: "success", message: "WhatsApp integration saved." });
     } catch (error) {
@@ -140,7 +176,7 @@ export default function WhatsAppIntegrationSettingsPage() {
   }
 
   return (
-    <AppShell requiredPermissions={["tenant.view"]}>
+    <AppShell requiredPermissions={["tenant.update"]}>
       {toast ? <ToastMessage tone={toast.tone} message={toast.message} /> : null}
 
       <SectionCard title="WhatsApp Integration" subtitle="Configure Meta WhatsApp Cloud API (tenant-level).">
@@ -198,6 +234,7 @@ export default function WhatsAppIntegrationSettingsPage() {
                 onChange={(e) => setForm((p) => ({ ...p, phone_number_id: e.target.value }))}
                 error={form.enabled && !form.phone_number_id.trim()}
                 helperText="Required"
+                autoComplete="off"
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
@@ -214,8 +251,18 @@ export default function WhatsAppIntegrationSettingsPage() {
                 type={reveal.verifyToken ? "text" : "password"}
                 value={form.webhook_verify_token}
                 onChange={(e) => setForm((p) => ({ ...p, webhook_verify_token: e.target.value }))}
-                error={form.enabled && !form.webhook_verify_token.trim()}
-                helperText="Required"
+                error={form.enabled && !form.webhook_verify_token.trim() && !storedSecrets.webhook_verify_token}
+                helperText={
+                  storedSecrets.webhook_verify_token && !form.webhook_verify_token.trim()
+                    ? `Stored securely${storedSecretSuffix.webhook_verify_token ? ` (ends with ${storedSecretSuffix.webhook_verify_token})` : ""}. Enter a new value to rotate.`
+                    : "Required"
+                }
+                autoComplete="new-password"
+                placeholder={
+                  storedSecrets.webhook_verify_token && !form.webhook_verify_token.trim()
+                    ? `Stored securely${storedSecretSuffix.webhook_verify_token ? ` (ends with ${storedSecretSuffix.webhook_verify_token})` : ""}`
+                    : ""
+                }
                 InputProps={{
                   endAdornment: (
                     <InputAdornment position="end">
@@ -233,8 +280,18 @@ export default function WhatsAppIntegrationSettingsPage() {
               type={reveal.token ? "text" : "password"}
               value={form.meta_access_token}
               onChange={(e) => setForm((p) => ({ ...p, meta_access_token: e.target.value }))}
-              error={form.enabled && !form.meta_access_token.trim()}
-              helperText="Required"
+              error={form.enabled && !form.meta_access_token.trim() && !storedSecrets.meta_access_token}
+              helperText={
+                storedSecrets.meta_access_token && !form.meta_access_token.trim()
+                  ? `Stored securely${storedSecretSuffix.meta_access_token ? ` (ends with ${storedSecretSuffix.meta_access_token})` : ""}. Enter a new value to rotate.`
+                  : "Required"
+              }
+              autoComplete="new-password"
+              placeholder={
+                storedSecrets.meta_access_token && !form.meta_access_token.trim()
+                  ? `Stored securely${storedSecretSuffix.meta_access_token ? ` (ends with ${storedSecretSuffix.meta_access_token})` : ""}`
+                  : ""
+              }
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
@@ -264,9 +321,26 @@ export default function WhatsAppIntegrationSettingsPage() {
                 <Box sx={{ display: "grid", gap: 1.5 }}>
                   <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)" } }}>
                     <TextField size="medium" label="Display Name" value={form.display_name} onChange={(e) => setForm((p) => ({ ...p, display_name: e.target.value }))} />
-                    <TextField size="medium" label="WhatsApp Business Account ID" value={form.whatsapp_business_account_id} onChange={(e) => setForm((p) => ({ ...p, whatsapp_business_account_id: e.target.value }))} />
-                    <TextField size="medium" label="Meta App ID" value={form.meta_app_id} onChange={(e) => setForm((p) => ({ ...p, meta_app_id: e.target.value }))} />
-                    <TextField type="password" size="medium" label="Meta App Secret" value={form.meta_app_secret} onChange={(e) => setForm((p) => ({ ...p, meta_app_secret: e.target.value }))} />
+                    <TextField size="medium" label="WhatsApp Business Account ID" value={form.whatsapp_business_account_id} onChange={(e) => setForm((p) => ({ ...p, whatsapp_business_account_id: e.target.value }))} autoComplete="off" />
+                    <TextField size="medium" label="Meta App ID" value={form.meta_app_id} onChange={(e) => setForm((p) => ({ ...p, meta_app_id: e.target.value }))} autoComplete="off" />
+                    <TextField
+                      type="password"
+                      size="medium"
+                      label="Meta App Secret"
+                      value={form.meta_app_secret}
+                      onChange={(e) => setForm((p) => ({ ...p, meta_app_secret: e.target.value }))}
+                      autoComplete="new-password"
+                      helperText={
+                        storedSecrets.meta_app_secret && !form.meta_app_secret.trim()
+                          ? `Stored securely${storedSecretSuffix.meta_app_secret ? ` (ends with ${storedSecretSuffix.meta_app_secret})` : ""}. Enter a new value to rotate.`
+                          : ""
+                      }
+                      placeholder={
+                        storedSecrets.meta_app_secret && !form.meta_app_secret.trim()
+                          ? `Stored securely${storedSecretSuffix.meta_app_secret ? ` (ends with ${storedSecretSuffix.meta_app_secret})` : ""}`
+                          : ""
+                      }
+                    />
                   </Box>
                   <Paper variant="outlined" sx={{ p: 1.5 }}>
                     <Typography variant="caption" color="text.secondary">Debug</Typography>

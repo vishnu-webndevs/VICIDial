@@ -1165,6 +1165,14 @@ export type WhatsAppIntegrationProvider = {
   last_tested_at?: string | null;
   last_error_code?: string | null;
   last_error_message?: string | null;
+  secrets?: {
+    meta_app_secret_configured?: boolean;
+    meta_access_token_configured?: boolean;
+    webhook_verify_token_configured?: boolean;
+    meta_app_secret_suffix?: string | null;
+    meta_access_token_suffix?: string | null;
+    webhook_verify_token_suffix?: string | null;
+  };
   settings: {
     enabled: boolean;
     meta_app_id?: string | null;

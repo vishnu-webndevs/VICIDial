@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WND Dialer Feature Inventory by Role</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --surface: #ffffff;
+      --text: #1f2a37;
+      --muted: #5c6b7a;
+      --primary: #4f46e5;
+      --primary-soft: #eef0ff;
+      --success: #0f9d58;
+      --warning: #b7791f;
+      --danger: #c62828;
+      --border: #d9e0ea;
+      --shadow: 0 8px 24px rgba(27, 39, 51, 0.08);
+      --radius: 12px;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .container {
+      width: min(1200px, 100% - 2rem);
+      margin: 1.25rem auto 2rem;
+    }
+    .hero {
+      background: linear-gradient(135deg, #1f2937, #312e81);
+      color: #fff;
+      border-radius: var(--radius);
+      padding: 1.25rem;
+      box-shadow: var(--shadow);
+    }
+    .hero h1 {
+      margin: 0 0 0.5rem;
+      font-size: clamp(1.3rem, 2.4vw, 2rem);
+    }
+    .hero p {
+      margin: 0;
+      color: #dbe2ff;
+      line-height: 1.5;
+    }
+    .meta {
+      margin-top: 0.8rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
+      background: rgba(255, 255, 255, 0.14);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      padding: 0.35rem 0.75rem;
+      font-size: 0.78rem;
+    }
+    .chip a {
+      color: #fff;
+      text-decoration: none;
+    }
+    .chip a:hover {
+      text-decoration: underline;
+    }
+    .controls {
+      margin-top: 1rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 1rem;
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 0.75rem;
+    }
+    .control {
+      display: grid;
+      gap: 0.35rem;
+    }
+    .control label {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .control input,
+    .control select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.6rem 0.7rem;
+      font-size: 0.95rem;
+      background: #fff;
+      color: var(--text);
+    }
+    .search-wrap {
+      grid-column: span 6;
+    }
+    .role-wrap {
+      grid-column: span 3;
+    }
+    .status-wrap {
+      grid-column: span 2;
+    }
+    .micro-wrap {
+      grid-column: span 1;
+      align-self: end;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+    }
+    .micro-wrap label {
+      margin: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.45rem;
+      font-size: 0.83rem;
+      color: var(--muted);
+      font-weight: 600;
+      user-select: none;
+    }
+    .summary {
+      margin-top: 1rem;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0.75rem;
+    }
+    .metric {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 0.85rem;
+      box-shadow: var(--shadow);
+    }
+    .metric .label {
+      color: var(--muted);
+      font-size: 0.77rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.25rem;
+      font-weight: 600;
+    }
+    .metric .value {
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+    .roles {
+      margin-top: 1rem;
+      display: grid;
+      gap: 0.75rem;
+    }
+    details.role-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    details.role-section > summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 0.95rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      background: #fbfcff;
+      border-bottom: 1px solid var(--border);
+    }
+    details.role-section > summary::-webkit-details-marker {
+      display: none;
+    }
+    .summary-left {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      flex-wrap: wrap;
+    }
+    .summary-left h2 {
+      margin: 0;
+      font-size: 1rem;
+    }
+    .count {
+      border-radius: 999px;
+      background: var(--primary-soft);
+      color: var(--primary);
+      font-weight: 700;
+      font-size: 0.78rem;
+      padding: 0.3rem 0.55rem;
+    }
+    .feature-grid {
+      padding: 0.9rem;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.75rem;
+    }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem;
+      background: #fff;
+      display: grid;
+      gap: 0.45rem;
+    }
+    .card h3 {
+      margin: 0;
+      font-size: 0.96rem;
+      line-height: 1.35;
+    }
+    .desc {
+      margin: 0;
+      color: #3f4d5b;
+      font-size: 0.87rem;
+      line-height: 1.45;
+    }
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      font-size: 0.74rem;
+    }
+    .pill {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.22rem 0.5rem;
+      color: #3f4d5b;
+      background: #fafcff;
+      display: inline-flex;
+      align-items: center;
+    }
+    .status {
+      color: #fff;
+      border: none;
+      font-weight: 700;
+    }
+    .implemented { background: var(--success); }
+    .partial { background: var(--warning); }
+    .planned { background: var(--danger); }
+    .empty {
+      margin-top: 1rem;
+      background: #fff;
+      border: 1px dashed var(--border);
+      color: var(--muted);
+      border-radius: var(--radius);
+      padding: 1.1rem;
+      text-align: center;
+      font-size: 0.92rem;
+      display: none;
+    }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      border: 0;
+    }
+    @media (max-width: 1024px) {
+      .search-wrap { grid-column: span 12; }
+      .role-wrap { grid-column: span 5; }
+      .status-wrap { grid-column: span 4; }
+      .micro-wrap { grid-column: span 3; justify-content: flex-start; }
+      .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 740px) {
+      .role-wrap, .status-wrap, .micro-wrap { grid-column: span 12; }
+      .feature-grid { grid-template-columns: 1fr; }
+      .summary { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="container">
+    <section class="hero" aria-labelledby="doc-title">
+      <h1 id="doc-title">WND Dialer Feature Documentation by User Role</h1>
+      <p>
+        Complete feature inventory of the current solution, including core workflows, integrations, and micro-UI capabilities.
+        Use filters to isolate features by role, status, and keywords.
+      </p>
+      <div class="meta">
+        <span class="chip">Product: WND Dialer</span>
+        <span class="chip">Format: Single-file HTML/CSS/JS</span>
+        <span class="chip">Screenshots: 32 (includes Team CRUD)</span>
+        <span class="chip"><a href="./how-to-use.html">How-To Guide</a></span>
+        <span class="chip"><a href="./user-guide.md">Full User Guide (Markdown)</a></span>
+        <span class="chip" id="generatedAtChip"></span>
+      </div>
+    </section>
+
+    <section class="controls" aria-label="Feature filters">
+      <div class="control search-wrap">
+        <label for="searchInput">Search Features</label>
+        <input id="searchInput" type="search" placeholder="Search by name, description, route, permission, UI element, or role" />
+      </div>
+      <div class="control role-wrap">
+        <label for="roleFilter">Role Filter</label>
+        <select id="roleFilter"></select>
+      </div>
+      <div class="control status-wrap">
+        <label for="statusFilter">Status Filter</label>
+        <select id="statusFilter">
+          <option value="all">All Statuses</option>
+          <option value="Implemented">Implemented</option>
+          <option value="Partial">Partial</option>
+          <option value="Planned">Planned</option>
+        </select>
+      </div>
+      <div class="micro-wrap">
+        <label for="microToggle">
+          <input id="microToggle" type="checkbox" />
+          Include micro-features
+        </label>
+      </div>
+    </section>
+
+    <section class="summary" aria-label="Inventory summary">
+      <article class="metric"><div class="label">Visible Features</div><div class="value" id="visibleCount">0</div></article>
+      <article class="metric"><div class="label">Implemented</div><div class="value" id="implementedCount">0</div></article>
+      <article class="metric"><div class="label">Partial</div><div class="value" id="partialCount">0</div></article>
+      <article class="metric"><div class="label">Planned</div><div class="value" id="plannedCount">0</div></article>
+    </section>
+
+    <section id="rolesContainer" class="roles" aria-live="polite"></section>
+    <div id="emptyState" class="empty">No features match the current filters.</div>
+  </main>
+
+  <script>
+    const features = [
+      { name: "User registration", description: "Creates owner account, tenant workspace, and starts onboarding.", route: "/register", roles: ["Guest"], permissions: ["public"], status: "Implemented", level: "major" },
+      { name: "User login", description: "Authenticates user, stores session token, hydrates profile, routes by onboarding state.", route: "/login", roles: ["Guest", "Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["public"], status: "Implemented", level: "major" },
+      { name: "Forgot password request", description: "Requests password reset link by email.", route: "/forgot-password", roles: ["Guest"], permissions: ["public"], status: "Implemented", level: "major" },
+      { name: "Password reset execution", description: "Resets password using token and email pair.", route: "/reset-password", roles: ["Guest"], permissions: ["public"], status: "Implemented", level: "major" },
+      { name: "Landing page funnel CTAs", description: "Tracks CTA events for trial, pricing, and demo conversion flow.", route: "/landing", roles: ["Guest"], permissions: ["public"], status: "Implemented", level: "major" },
+      { name: "Pricing plans display", description: "Shows Starter, Growth, and Pro plans with monthly and yearly values.", route: "/pricing", roles: ["Guest"], permissions: ["public"], status: "Implemented", level: "major" },
+      { name: "Demo workspace", description: "Interactive preloaded leads, campaigns, analytics, and data reset for product evaluation.", route: "/demo", roles: ["Guest"], permissions: ["public"], status: "Implemented", level: "major" },
+      { name: "Session loading gate", description: "Blocks app content until session hydration completes to prevent unauthorized flashes.", route: "Global", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["authenticated"], status: "Implemented", level: "micro" },
+      { name: "Permission-based route access control", description: "Validates required permissions and renders access denied state on mismatch.", route: "Global", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["route required_permissions"], status: "Implemented", level: "major" },
+      { name: "Dashboard KPI overview", description: "Displays high-level activity metrics and operational readiness indicators.", route: "/", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Dashboard next-best-action prompts", description: "Suggests setup/operational next steps based on tenant state.", route: "/", roles: ["Manager", "Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Onboarding checklist progress", description: "Tracks leads import, campaign setup, and first call milestones with progress bar.", route: "/onboarding", roles: ["Manager", "Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Onboarding completion persistence", description: "Stores onboarding completion per tenant and redirects future logins.", route: "/onboarding", roles: ["Manager", "Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Dialer click-to-call", description: "Initiates outbound call with destination, optional caller ID override, and provider account.", route: "/dialer", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.initiate"], status: "Implemented", level: "major" },
+      { name: "Live call controls", description: "Mute, hold/resume, retry, and end call actions on active calls.", route: "/dialer", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.initiate"], status: "Implemented", level: "major" },
+      { name: "Live call timer and status badges", description: "Real-time duration and visual call status labels for current session.", route: "/dialer", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.initiate"], status: "Implemented", level: "micro" },
+      { name: "Call event timeline", description: "Chronological timeline of dialer call state transitions and control actions.", route: "/dialer", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.initiate"], status: "Implemented", level: "major" },
+      { name: "Sticky in-call control bar", description: "Persistent bottom control panel while a call is active.", route: "/dialer", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.initiate"], status: "Implemented", level: "micro" },
+      { name: "Calls list monitoring", description: "Monitors current and historical call records with status visibility.", route: "/calls", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.view"], status: "Implemented", level: "major" },
+      { name: "Call history filtering", description: "Filters call records by relevant criteria for operational review.", route: "/calls", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.view"], status: "Implemented", level: "major" },
+      { name: "Call history export CSV", description: "Exports filtered call records for audit and external analysis.", route: "/calls", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.view"], status: "Implemented", level: "major" },
+      { name: "Call detail inspector", description: "Shows individual call metadata, provider context, and timeline events.", route: "/calls/:id", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.view"], status: "Implemented", level: "major" },
+      { name: "Lead list management", description: "Lists and manages lead records with state and ownership updates.", route: "/crm/leads", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.initiate"], status: "Implemented", level: "major" },
+      { name: "Lead creation and inline editing", description: "Creates new leads and updates lead fields directly from list context.", route: "/crm/leads", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.initiate"], status: "Implemented", level: "major" },
+      { name: "Lead CSV import", description: "Bulk imports leads from CSV for campaign targeting.", route: "/crm/leads", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.initiate"], status: "Implemented", level: "major" },
+      { name: "Lead filters and search", description: "Filters leads by status/owner and narrows lists for workflow precision.", route: "/crm/leads", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.initiate"], status: "Implemented", level: "major" },
+      { name: "Campaign creation", description: "Creates outbound campaigns with queueing and operational settings.", route: "/campaigns", roles: ["Manager", "Company Admin", "Platform Admin"], permissions: ["call.view"], status: "Implemented", level: "major" },
+      { name: "Campaign lifecycle controls", description: "Starts, pauses, and stops campaigns from operations dashboard.", route: "/campaigns", roles: ["Manager", "Company Admin", "Platform Admin"], permissions: ["call.view"], status: "Implemented", level: "major" },
+      { name: "Campaign queue and pacing monitor", description: "Shows live queue state and throughput indicators.", route: "/campaigns", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.view"], status: "Implemented", level: "major" },
+      { name: "Agent status panel in campaigns", description: "Displays participating agent operational statuses.", route: "/campaigns", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.view"], status: "Implemented", level: "micro" },
+      { name: "Analytics campaign performance", description: "Provides campaign metrics for conversion and execution visibility.", route: "/analytics", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["analytics.view"], status: "Implemented", level: "major" },
+      { name: "Analytics agent performance", description: "Compares agent-level output and performance trends.", route: "/analytics", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["analytics.view"], status: "Implemented", level: "major" },
+      { name: "Analytics roadmap planned feature telemetry", description: "Displays roadmap item status and evidence counts from planned-feature telemetry.", route: "/analytics", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["analytics.view"], status: "Implemented", level: "major" },
+      { name: "Billing plan management", description: "Switches tenant plans and billing cycle mode.", route: "/billing", roles: ["Company Admin", "Platform Admin"], permissions: ["billing.view"], status: "Implemented", level: "major" },
+      { name: "Usage monitoring", description: "Displays usage values and quota awareness for billing governance.", route: "/billing", roles: ["Company Admin", "Platform Admin"], permissions: ["billing.view"], status: "Implemented", level: "major" },
+      { name: "Payment method management", description: "Links and manages payment methods for subscription billing.", route: "/billing", roles: ["Company Admin", "Platform Admin"], permissions: ["billing.view"], status: "Implemented", level: "major" },
+      { name: "Invoice review", description: "Shows invoice records and billing history visibility.", route: "/billing", roles: ["Company Admin", "Platform Admin"], permissions: ["billing.view"], status: "Implemented", level: "major" },
+      { name: "Team member invitations", description: "Invites users into tenant workspace and assigns role.", route: "/team", roles: ["Manager", "Company Admin", "Platform Admin"], permissions: ["team.view"], status: "Implemented", level: "major" },
+      { name: "Team role assignment matrix", description: "Supports company_admin, billing_manager, developer_manager, operations_manager, and support_analyst role assignment.", route: "/team", roles: ["Company Admin", "Platform Admin"], permissions: ["team.view"], status: "Implemented", level: "major" },
+      { name: "Team member status update", description: "Enables activation/suspension style member state updates.", route: "/team", roles: ["Manager", "Company Admin", "Platform Admin"], permissions: ["team.view"], status: "Implemented", level: "major" },
+      { name: "Team member removal", description: "Removes members from tenant workspace roster.", route: "/team", roles: ["Company Admin", "Platform Admin"], permissions: ["team.view"], status: "Implemented", level: "major" },
+      { name: "Tenant profile settings", description: "Updates tenant identity fields and operational defaults.", route: "/tenant", roles: ["Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Tenant branding settings", description: "Configures company name and brand logo URL.", route: "/tenant", roles: ["Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Tenant locale and timezone controls", description: "Configures locale, timezone, date format, and voice locale.", route: "/tenant", roles: ["Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Tenant webhook and alert endpoints", description: "Stores default webhook URL and alert email settings.", route: "/tenant", roles: ["Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Default caller ID and voice profile sync", description: "Synchronizes tenant default caller ID and voice locale profile API.", route: "/tenant", roles: ["Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Provider account creation", description: "Creates provider integrations using credential payloads.", route: "/providers", roles: ["Company Admin", "Platform Admin"], permissions: ["provider.view"], status: "Implemented", level: "major" },
+      { name: "Provider connection testing", description: "Runs provider test connection actions to validate integration.", route: "/providers", roles: ["Company Admin", "Platform Admin"], permissions: ["provider.view"], status: "Implemented", level: "major" },
+      { name: "Provider failover policy editor", description: "Defines provider failover priority and fallback behavior.", route: "/providers", roles: ["Company Admin", "Platform Admin"], permissions: ["provider.view"], status: "Implemented", level: "major" },
+      { name: "Webhook health overview", description: "Displays webhook delivery reliability and source health indicators.", route: "/webhooks", roles: ["Manager", "Company Admin", "Platform Admin"], permissions: ["webhook.view"], status: "Implemented", level: "major" },
+      { name: "Webhook delivery logs", description: "Lists webhook events and delivery outcomes for diagnostics.", route: "/webhooks", roles: ["Manager", "Company Admin", "Platform Admin"], permissions: ["webhook.view"], status: "Implemented", level: "major" },
+      { name: "Webhook replay", description: "Queues replay of failed provider or Stripe webhook events.", route: "/webhooks", roles: ["Manager", "Company Admin", "Platform Admin"], permissions: ["webhook.view"], status: "Implemented", level: "major" },
+      { name: "API token generation", description: "Creates scoped API tokens with ability and expiration controls.", route: "/api-tokens", roles: ["Company Admin", "Platform Admin"], permissions: ["api_token.view"], status: "Implemented", level: "major" },
+      { name: "API token inventory", description: "Lists existing API tokens for governance and operational use.", route: "/api-tokens", roles: ["Company Admin", "Platform Admin"], permissions: ["api_token.view"], status: "Implemented", level: "major" },
+      { name: "API token revocation", description: "Revokes compromised or no-longer-required API tokens.", route: "/api-tokens", roles: ["Company Admin", "Platform Admin"], permissions: ["api_token.view"], status: "Implemented", level: "major" },
+      { name: "Audit log viewer", description: "Shows tenant-scoped activity records with actor, action, and timestamp.", route: "/audit-logs", roles: ["Company Admin", "Platform Admin"], permissions: ["audit.view"], status: "Implemented", level: "major" },
+      { name: "Audit log refresh", description: "Manually refreshes audit activity feed.", route: "/audit-logs", roles: ["Company Admin", "Platform Admin"], permissions: ["audit.view"], status: "Implemented", level: "micro" },
+      { name: "Notification center listing", description: "Loads and displays tenant notifications with type/read state.", route: "/notifications", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Unread-only notification filter", description: "Filters notifications to unread items for action prioritization.", route: "/notifications", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "micro" },
+      { name: "Mark notification as read", description: "Marks individual notifications as read in-place.", route: "/notifications", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Global search page", description: "Searches across calls, team members, and invoices with contextual routes.", route: "/search", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Help and FAQ center", description: "Provides self-service answers for provider, billing, export, and auditing workflows.", route: "/help", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "major" },
+      { name: "Support channel directory", description: "Lists product, billing, and urgent incident escalation contacts.", route: "/help", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["tenant.view"], status: "Implemented", level: "micro" },
+      { name: "Sidebar grouped navigation", description: "Navigation grouped by Operations, Growth, Insights, Admin, and Workspace.", route: "Global", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["authenticated"], status: "Implemented", level: "major" },
+      { name: "Sidebar active-route highlighting", description: "Visual active state and marker strip for current route.", route: "Global", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["authenticated"], status: "Implemented", level: "micro" },
+      { name: "Responsive sidebar drawer", description: "Collapsible mobile drawer with tap-to-close navigation.", route: "Global", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["authenticated"], status: "Implemented", level: "major" },
+      { name: "Top navigation search input UI", description: "Displays topbar search field with keyboard hint and focus styling.", route: "Global", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["authenticated"], status: "Partial", level: "micro" },
+      { name: "Dark mode toggle button", description: "Allows theme mode switch in top navigation.", route: "Global", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["authenticated"], status: "Implemented", level: "micro" },
+      { name: "Topbar notification bell UI", description: "Bell action icon available in navbar for notification affordance.", route: "Global", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["authenticated"], status: "Partial", level: "micro" },
+      { name: "Tenant avatar indicator", description: "Initial-based avatar indicator in top navigation.", route: "Global", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["authenticated"], status: "Implemented", level: "micro" },
+      { name: "Toast and alert messaging", description: "Standardized action feedback messages for success, info, and errors.", route: "Global", roles: ["Guest", "Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["contextual"], status: "Implemented", level: "micro" },
+      { name: "Loading skeleton lines/blocks", description: "Skeleton placeholders to smooth loading transitions.", route: "Global", roles: ["Guest", "Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["contextual"], status: "Implemented", level: "micro" },
+      { name: "Empty state panels", description: "Contextual no-data guidance states in modules.", route: "Global", roles: ["Guest", "Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["contextual"], status: "Implemented", level: "micro" },
+      { name: "Status badge mapping", description: "Normalizes status labels to success/warning/error/default semantic chips.", route: "Global", roles: ["Guest", "Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["contextual"], status: "Implemented", level: "micro" },
+      { name: "Reusable button variants", description: "Primary, secondary, danger, and ghost button variants for action consistency.", route: "Global", roles: ["Guest", "Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["contextual"], status: "Implemented", level: "micro" },
+      { name: "Client-side form validation via required fields", description: "Critical forms enforce required entries before submission.", route: "Global", roles: ["Guest", "Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["contextual"], status: "Implemented", level: "micro" },
+      { name: "CSV upload workflow", description: "Lead import file flow for high-volume contact onboarding.", route: "/crm/leads", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["call.initiate"], status: "Implemented", level: "major" },
+      { name: "Demo reset confirmation snackbar", description: "Transient notification confirms demo dataset reset action.", route: "/demo", roles: ["Guest"], permissions: ["public"], status: "Implemented", level: "micro" },
+      { name: "AI receptionist intent handling", description: "AI receptionist routing intent is implemented via API with persisted event telemetry surfaced in analytics roadmap cards.", route: "/api/v1/ai/reception/handle", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["tenant-authenticated API"], status: "Implemented", level: "major" },
+      { name: "Microsoft Graph booking sync", description: "Graph availability and booking are implemented via API endpoints with query/booking persistence.", route: "/api/v1/integrations/graph/availability + /api/v1/integrations/graph/book", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["tenant-authenticated API"], status: "Implemented", level: "major" },
+      { name: "WhatsApp messaging channel", description: "WhatsApp channel is implemented via inbound webhook handling plus opt-in enforcement and update endpoint.", route: "/api/webhooks/whatsapp/mock + /api/v1/inbox/whatsapp-opt-in", roles: ["Agent", "Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["tenant-authenticated API"], status: "Implemented", level: "major" },
+      { name: "Workflow automation engine", description: "Workflow definitions/listing and run execution are implemented via automation API endpoints.", route: "/api/v1/automation/workflows + /api/v1/automation/workflows/run", roles: ["Manager", "Company Admin", "Platform Admin"], permissions: ["tenant-authenticated API"], status: "Implemented", level: "major" },
+      { name: "Unified reporting layer", description: "Unified KPI reporting with snapshot persistence is implemented via reporting API endpoint.", route: "/api/v1/reporting/unified", roles: ["Supervisor", "Manager", "Company Admin", "Platform Admin"], permissions: ["analytics.view"], status: "Implemented", level: "major" },
+      { name: "Advanced governance controls", description: "Retention policy and governance drill history are implemented via governance API endpoints.", route: "/api/v1/governance/retention-policy + /api/v1/governance/drills", roles: ["Company Admin", "Platform Admin"], permissions: ["tenant-authenticated API"], status: "Implemented", level: "major" }
+    ];
+
+    const allRoles = ["All Roles", ...new Set(features.flatMap((item) => item.roles))];
+    const roleFilter = document.getElementById("roleFilter");
+    const statusFilter = document.getElementById("statusFilter");
+    const searchInput = document.getElementById("searchInput");
+    const microToggle = document.getElementById("microToggle");
+    const rolesContainer = document.getElementById("rolesContainer");
+    const emptyState = document.getElementById("emptyState");
+    const visibleCount = document.getElementById("visibleCount");
+    const implementedCount = document.getElementById("implementedCount");
+    const partialCount = document.getElementById("partialCount");
+    const plannedCount = document.getElementById("plannedCount");
+    const generatedAtChip = document.getElementById("generatedAtChip");
+
+    allRoles.forEach((role) => {
+      const option = document.createElement("option");
+      option.value = role === "All Roles" ? "all" : role;
+      option.textContent = role;
+      roleFilter.appendChild(option);
+    });
+
+    generatedAtChip.textContent = `Generated: ${new Date().toLocaleString()}`;
+
+    function normalize(value) {
+      return String(value || "").toLowerCase();
+    }
+
+    function searchText(item) {
+      return [
+        item.name,
+        item.description,
+        item.route,
+        item.status,
+        item.level,
+        item.roles.join(" "),
+        item.permissions.join(" ")
+      ].join(" ").toLowerCase();
+    }
+
+    function roleOrder(selectedRole) {
+      const unique = [...new Set(features.flatMap((item) => item.roles))];
+      if (selectedRole && selectedRole !== "all") {
+        return [selectedRole, ...unique.filter((r) => r !== selectedRole)];
+      }
+      return unique;
+    }
+
+    function statusClass(status) {
+      if (status === "Implemented") return "implemented";
+      if (status === "Partial") return "partial";
+      return "planned";
+    }
+
+    function buildCard(item) {
+      const article = document.createElement("article");
+      article.className = "card";
+      const statusCls = statusClass(item.status);
+      article.innerHTML = `
+        <h3>${item.name}</h3>
+        <p class="desc">${item.description}</p>
+        <div class="meta-row">
+          <span class="pill"><strong>Route:</strong>&nbsp;${item.route}</span>
+          <span class="pill status ${statusCls}">${item.status}</span>
+          <span class="pill"><strong>Level:</strong>&nbsp;${item.level}</span>
+        </div>
+        <div class="meta-row">
+          <span class="pill"><strong>Role Permission:</strong>&nbsp;${item.permissions.join(", ")}</span>
+        </div>
+        <div class="meta-row">
+          <span class="pill"><strong>Roles:</strong>&nbsp;${item.roles.join(", ")}</span>
+        </div>
+      `;
+      return article;
+    }
+
+    function render() {
+      const selectedRole = roleFilter.value;
+      const selectedStatus = statusFilter.value;
+      const term = normalize(searchInput.value).trim();
+      const includeMicro = microToggle.checked;
+
+      let filtered = features.filter((item) => {
+        const roleMatch = selectedRole === "all" || item.roles.includes(selectedRole);
+        const statusMatch = selectedStatus === "all" || item.status === selectedStatus;
+        const levelMatch = includeMicro ? true : item.level !== "micro";
+        const searchMatch = !term || searchText(item).includes(term);
+        return roleMatch && statusMatch && levelMatch && searchMatch;
+      });
+
+      rolesContainer.innerHTML = "";
+
+      const countImplemented = filtered.filter((f) => f.status === "Implemented").length;
+      const countPartial = filtered.filter((f) => f.status === "Partial").length;
+      const countPlanned = filtered.filter((f) => f.status === "Planned").length;
+      visibleCount.textContent = String(filtered.length);
+      implementedCount.textContent = String(countImplemented);
+      partialCount.textContent = String(countPartial);
+      plannedCount.textContent = String(countPlanned);
+
+      const orderedRoles = roleOrder(selectedRole);
+      let renderedSections = 0;
+
+      orderedRoles.forEach((roleName, index) => {
+        const items = filtered.filter((item) => item.roles.includes(roleName));
+        if (items.length === 0) return;
+        renderedSections += 1;
+        const section = document.createElement("details");
+        section.className = "role-section";
+        section.open = index === 0;
+        const summary = document.createElement("summary");
+        summary.innerHTML = `
+          <div class="summary-left">
+            <h2>${roleName}</h2>
+            <span class="count">${items.length} features</span>
+          </div>
+          <span class="pill">Collapse / Expand</span>
+        `;
+        const grid = document.createElement("div");
+        grid.className = "feature-grid";
+        items.sort((a, b) => a.name.localeCompare(b.name)).forEach((item) => {
+          grid.appendChild(buildCard(item));
+        });
+        section.appendChild(summary);
+        section.appendChild(grid);
+        rolesContainer.appendChild(section);
+      });
+
+      emptyState.style.display = renderedSections === 0 ? "block" : "none";
+    }
+
+    [roleFilter, statusFilter, microToggle].forEach((el) => el.addEventListener("change", render));
+    searchInput.addEventListener("input", render);
+    render();
+  </script>
+</body>
+</html>
