@@ -1,11 +1,12 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Box, Checkbox, FormControlLabel, MenuItem, MuiButton, Stack, TextField, Typography } from "@/ui";
+import { Box, Checkbox, FormControlLabel, MenuItem, MuiButton, Stack, TextField, Typography, Alert } from "@/ui";
 import { AppShell, EmptyState, ErrorState, LoadingState, SectionCard } from "@/components/app-shell";
 import { ToastMessage } from "@/components/ui-primitives";
 import { apiRequest } from "@/lib/api";
 import { getTenantContext, getTenantScopedStorageKey } from "@/lib/tenant-context";
+import { useDetectTimezone } from "@/hooks/useDetectTimezone";
 
 const leadCountryOptions = [
   { code: "US", label: "United States (+1)" },
@@ -75,12 +76,17 @@ export default function SuperAdminSettingsPage() {
   const [defaultLeadCountry, setDefaultLeadCountry] = useState("US");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
+  const [showTimezoneLoaded, setShowTimezoneLoaded] = useState(false);
 
   const [callingDays, setCallingDays] = useState<string[]>(["Mon", "Tue", "Wed", "Thu", "Fri"]);
   const [callingStart, setCallingStart] = useState("09:00");
   const [callingEnd, setCallingEnd] = useState("18:00");
   const [callingTimezone, setCallingTimezone] = useState("UTC");
   const [savingWindow, setSavingWindow] = useState(false);
+  const [showCallingTimezoneLoaded, setShowCallingTimezoneLoaded] = useState(false);
+
+  // Auto-detect user's timezone
+  const { detectedTimezone, abbreviation, name: tzName, isLoading: tzLoading } = useDetectTimezone();
 
   function readCallingWindowFromStorage(tenantId: string | null): CallingWindowResponse | null {
     if (typeof window === "undefined") {
@@ -217,7 +223,42 @@ export default function SuperAdminSettingsPage() {
           >
             <TextField size="medium" value={name} onChange={(event) => setName(event.target.value)} placeholder="Tenant name" required />
             <TextField size="medium" value={companyName} onChange={(event) => setCompanyName(event.target.value)} placeholder="Company name" />
-            <TextField size="medium" value={timezone} onChange={(event) => setTimezone(event.target.value)} placeholder="Timezone (e.g. UTC)" />
+            <Box sx={{ gridColumn: { md: "span 2" } }}>
+              <Stack spacing={1}>
+                <TextField
+                  size="medium"
+                  value={timezone}
+                  onChange={(event) => setTimezone(event.target.value)}
+                  placeholder="Timezone (e.g. UTC)"
+                  label="Timezone"
+                />
+                {detectedTimezone && detectedTimezone !== timezone && (
+                  <Alert severity="info">
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      Detected timezone: <strong>{detectedTimezone}</strong> ({abbreviation})
+                    </Typography>
+                    <Typography variant="caption" sx={{ display: "block", mb: 1 }}>
+                      {tzName}
+                    </Typography>
+                    <MuiButton
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        setTimezone(detectedTimezone);
+                        setShowTimezoneLoaded(true);
+                      }}
+                    >
+                      Use Detected Timezone
+                    </MuiButton>
+                  </Alert>
+                )}
+                {showTimezoneLoaded && timezone === detectedTimezone && (
+                  <Alert severity="success">
+                    <Typography variant="body2">✓ Using detected timezone: {detectedTimezone}</Typography>
+                  </Alert>
+                )}
+              </Stack>
+            </Box>
             <TextField size="medium" value={locale} onChange={(event) => setLocale(event.target.value)} placeholder="Locale (e.g. en)" />
             <TextField size="medium" value={dateFormat} onChange={(event) => setDateFormat(event.target.value)} placeholder="Date format (e.g. Y-m-d)" />
             <TextField size="medium" value={alertEmail} onChange={(event) => setAlertEmail(event.target.value)} placeholder="Alert email" />
@@ -287,18 +328,44 @@ export default function SuperAdminSettingsPage() {
                 inputProps={{ step: 60 }}
                 fullWidth
               />
-              <TextField
-                select
-                size="medium"
-                label="Timezone"
-                value={callingTimezone}
-                onChange={(event) => setCallingTimezone(event.target.value)}
-                fullWidth
-              >
-                {timezoneOptions.map((value) => (
-                  <MenuItem key={value} value={value}>{value}</MenuItem>
-                ))}
-              </TextField>
+              <Box sx={{ width: "100%" }}>
+                <Stack spacing={1}>
+                  <TextField
+                    select
+                    size="medium"
+                    label="Timezone"
+                    value={callingTimezone}
+                    onChange={(event) => setCallingTimezone(event.target.value)}
+                    fullWidth
+                  >
+                    {timezoneOptions.map((value) => (
+                      <MenuItem key={value} value={value}>{value}</MenuItem>
+                    ))}
+                  </TextField>
+                  {detectedTimezone && detectedTimezone !== callingTimezone && (
+                    <Alert severity="info">
+                      <Typography variant="body2" sx={{ mb: 1 }}>
+                        Your timezone: <strong>{detectedTimezone}</strong> ({abbreviation})
+                      </Typography>
+                      <MuiButton
+                        size="small"
+                        variant="outlined"
+                        onClick={() => {
+                          setCallingTimezone(detectedTimezone);
+                          setShowCallingTimezoneLoaded(true);
+                        }}
+                      >
+                        Use My Timezone
+                      </MuiButton>
+                    </Alert>
+                  )}
+                  {showCallingTimezoneLoaded && callingTimezone === detectedTimezone && (
+                    <Alert severity="success">
+                      <Typography variant="body2">✓ Using your timezone: {callingTimezone}</Typography>
+                    </Alert>
+                  )}
+                </Stack>
+              </Box>
             </Stack>
 
             <MuiButton variant="contained" onClick={() => void saveCallingWindow()} disabled={savingWindow}>

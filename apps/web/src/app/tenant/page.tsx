@@ -1,9 +1,10 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Box, FormControlLabel, MenuItem, MuiButton, Stack, Switch, TextField, Typography } from "@/ui";
+import { Box, FormControlLabel, MenuItem, MuiButton, Stack, Switch, TextField, Typography, Alert, Chip } from "@/ui";
 import { AppShell, EmptyState, ErrorState, LoadingState, SectionCard } from "@/components/app-shell";
 import { apiRequest } from "@/lib/api";
+import { useDetectTimezone } from "@/hooks/useDetectTimezone";
 
 const leadCountryOptions = [
   { code: "US", label: "United States (+1)" },
@@ -60,6 +61,10 @@ export default function TenantPage() {
   const [integrationMode, setIntegrationMode] = useState<"sandbox" | "production">("sandbox");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [showTimezoneLoaded, setShowTimezoneLoaded] = useState(false);
+  
+  // Auto-detect user's timezone
+  const { detectedTimezone, abbreviation, name: tzName, isLoading: tzLoading } = useDetectTimezone();
 
   async function loadTenant() {
     setLoading(true);
@@ -164,12 +169,42 @@ export default function TenantPage() {
               onChange={(event) => setCompanyName(event.target.value)}
               placeholder="Company name"
             />
-            <TextField
-              size="medium"
-              value={timezone}
-              onChange={(event) => setTimezone(event.target.value)}
-              placeholder="Timezone (e.g. UTC)"
-            />
+            <Box sx={{ gridColumn: { md: "span 2" } }}>
+              <Stack spacing={1}>
+                <TextField
+                  size="medium"
+                  value={timezone}
+                  onChange={(event) => setTimezone(event.target.value)}
+                  placeholder="Timezone (e.g. UTC)"
+                  label="Timezone"
+                />
+                {detectedTimezone && detectedTimezone !== timezone && (
+                  <Alert severity="info">
+                    <Typography variant="body2" sx={{ mb: 1 }}>
+                      Detected timezone: <strong>{detectedTimezone}</strong> ({abbreviation})
+                    </Typography>
+                    <Typography variant="caption" sx={{ display: "block", mb: 1 }}>
+                      {tzName}
+                    </Typography>
+                    <MuiButton
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        setTimezone(detectedTimezone);
+                        setShowTimezoneLoaded(true);
+                      }}
+                    >
+                      Use Detected Timezone
+                    </MuiButton>
+                  </Alert>
+                )}
+                {showTimezoneLoaded && timezone === detectedTimezone && (
+                  <Alert severity="success">
+                    <Typography variant="body2">✓ Using detected timezone: {detectedTimezone}</Typography>
+                  </Alert>
+                )}
+              </Stack>
+            </Box>
             <TextField
               size="medium"
               value={locale}
