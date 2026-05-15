@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('meta_whatsapp_templates', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('tenant_id')->constrained()->onDelete('cascade');
-            $table->foreignId('provider_account_id')->constrained('provider_accounts')->onDelete('cascade');
+            $table->uuid('id')->primary();
+            $table->foreignUuid('tenant_id')->constrained()->onDelete('cascade');
+            $table->foreignUuid('provider_account_id')->constrained('provider_accounts')->onDelete('cascade');
             $table->string('meta_template_id')->unique(); // Meta's template ID
             $table->string('template_name');
             $table->string('category')->nullable();
@@ -38,9 +38,9 @@ return new class extends Migration
         });
 
         Schema::create('meta_template_sync_logs', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('tenant_id')->constrained()->onDelete('cascade');
-            $table->foreignId('provider_account_id')->constrained('provider_accounts')->onDelete('cascade');
+            $table->uuid('id')->primary();
+            $table->foreignUuid('tenant_id')->constrained()->onDelete('cascade');
+            $table->foreignUuid('provider_account_id')->constrained('provider_accounts')->onDelete('cascade');
             $table->timestamp('sync_started_at');
             $table->timestamp('sync_completed_at')->nullable();
             $table->integer('templates_fetched')->default(0);

@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Casts\AsArrayObject;
+use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class MetaWhatsappTemplate extends Model
 {
-    use HasFactory;
+    use HasFactory, HasUuids;
 
     protected $table = 'meta_whatsapp_templates';
 
