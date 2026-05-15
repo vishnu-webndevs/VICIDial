@@ -107,6 +107,8 @@ export type Campaign = {
   provider_account_id?: string | null;
   message_content?: string | null;
   message_template_key?: string | null;
+  message_use_meta_template?: boolean;
+  message_meta_template_id?: string | null;
   updated_at: string;
 };
 
@@ -121,6 +123,21 @@ export type MessageTemplate = {
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
+};
+
+export type MetaWhatsappTemplate = {
+  id: string;
+  meta_template_id: string;
+  template_name: string;
+  language: string;
+  status: string;
+  category?: string | null;
+  button_count: number;
+  variable_count: number;
+  has_header: boolean;
+  has_body: boolean;
+  has_footer: boolean;
+  synced_at?: string | null;
 };
 
 export type AnalyticsSummary = {

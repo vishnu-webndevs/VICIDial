@@ -21,6 +21,7 @@ import type {
   LeadStatus,
   MessageThread,
   MessageTemplate,
+  MetaWhatsappTemplate,
   ProviderNumberOption,
   TeamMember,
   TrendPoint,
@@ -29,6 +30,28 @@ import type {
 type ApiListResponse<T> = { data: T[]; meta?: Record<string, unknown> };
 type ApiDataResponse<T> = { data: T; meta?: Record<string, unknown> };
 type ApiEnvelope<T> = { data: T };
+
+export async function listMetaTemplates(params: { provider_account_id?: string } = {}): Promise<MetaWhatsappTemplate[]> {
+  const { token, tenantId } = getTenantContext();
+  const search = new URLSearchParams();
+  if (params.provider_account_id) {
+    search.set("provider_account_id", params.provider_account_id);
+  }
+  const path = `/meta-templates${search.toString() ? `?${search.toString()}` : ""}`;
+  const response = await apiRequest<{ data: { templates: MetaWhatsappTemplate[] } }>(path, { token, tenantId });
+  return response.data.templates ?? [];
+}
+
+export async function syncMetaTemplates(providerAccountId?: string): Promise<{ ok: boolean; count: number }> {
+  const { token, tenantId } = getTenantContext();
+  const response = await apiRequest<{ data: { sync: { ok: boolean; count: number } } }>("/meta-templates/sync", {
+    method: "POST",
+    token,
+    tenantId,
+    body: { provider_account_id: providerAccountId },
+  });
+  return response.data.sync;
+}
 
 export type SessionProfile = {
   id: string;

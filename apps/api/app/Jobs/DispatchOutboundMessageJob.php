@@ -11,6 +11,8 @@ use App\Models\MessagingOptOut;
 use App\Models\ProviderAccount;
 use App\Models\CampaignRun;
 use App\Models\Campaign;
+use App\Models\MetaWhatsappTemplate;
+use App\Services\Messaging\MetaTemplateService;
 use App\Services\Messaging\MessageTemplateRenderer;
 use App\Services\Messaging\SmsService;
 use App\Services\Messaging\WhatsAppService;
@@ -41,13 +43,14 @@ class DispatchOutboundMessageJob implements ShouldQueue
         public readonly ?string $providerAccountId = null,
         public readonly ?string $campaignId = null,
         public readonly ?string $campaignRunId = null,
-    ) {
-    }
+        public readonly ?string $metaTemplateId = null,
+    ) {}
 
     public function handle(
         SmsService $smsService,
         WhatsAppService $whatsAppService,
         MessageTemplateRenderer $templateRenderer,
+        MetaTemplateService $metaTemplateService,
     ): void {
         $tenantId = $this->tenantId;
         $lead = Lead::query()
@@ -104,6 +107,7 @@ class DispatchOutboundMessageJob implements ShouldQueue
             'channel' => $channel,
             'to' => $this->maskPhone((string) $lead->phone),
             'template_key' => $this->templateKey !== '' ? $this->templateKey : null,
+            'meta_template_id' => $this->metaTemplateId,
             'bulk_batch_id' => $this->bulkBatchId,
             'provider_account_id' => $this->providerAccountId,
             'campaign_id' => $this->campaignId,
@@ -112,7 +116,25 @@ class DispatchOutboundMessageJob implements ShouldQueue
 
         $content = trim($this->content);
         $templateKey = trim($this->templateKey);
-        if ($templateKey !== '') {
+        $metaTemplateId = $this->metaTemplateId;
+        $bodyOrPayload = $content;
+
+        if ($metaTemplateId && $channel === 'whatsapp') {
+            $metaTemplate = MetaWhatsappTemplate::query()
+                ->where('tenant_id', $tenantId)
+                ->where('id', $metaTemplateId)
+                ->first();
+            if ($metaTemplate) {
+                $variables = $this->variables;
+                $bodyOrPayload = $metaTemplateService->buildTemplatePayload($metaTemplate, (string) $lead->phone, $variables);
+                $content = "[Meta Template: {$metaTemplate->template_name}]";
+            } else {
+                Log::warning('Meta template not found.', [
+                    'tenant_id' => $tenantId,
+                    'meta_template_id' => $metaTemplateId,
+                ]);
+            }
+        } elseif ($templateKey !== '') {
             $template = MessageTemplate::query()
                 ->where('tenant_id', $tenantId)
                 ->where('channel', $channel)
@@ -163,6 +185,7 @@ class DispatchOutboundMessageJob implements ShouldQueue
             ], $this->variables);
 
             $content = trim($templateRenderer->render((string) $template->body, $variables));
+            $bodyOrPayload = $content;
             if ($content === '') {
                 Log::info('Outbound message dispatch skipped.', [
                     'tenant_id' => $tenantId,
@@ -237,10 +260,10 @@ class DispatchOutboundMessageJob implements ShouldQueue
             }
         }
 
-        $statusCallbackUrl = rtrim((string) config('app.url'), '/').'/api/v1/webhooks/twilio/message-status';
+        $statusCallbackUrl = rtrim((string) config('app.url'), '/') . '/api/v1/webhooks/twilio/message-status';
         $result = $result ?? ($channel === 'sms'
             ? $smsService->send((string) $lead->phone, $content, $statusCallbackUrl, $providerCredentials)
-            : $whatsAppService->send((string) $lead->phone, $content, $statusCallbackUrl, $providerCredentials));
+            : $whatsAppService->send((string) $lead->phone, $bodyOrPayload, $statusCallbackUrl, $providerCredentials));
 
         if (($result['ok'] ?? false) !== true) {
             $thread = MessageThread::query()->firstOrCreate(
@@ -356,6 +379,7 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 'provider_account_id' => $this->providerAccountId,
                 'campaign_id' => $this->campaignId,
                 'campaign_run_id' => $this->campaignRunId,
+                'meta_template_id' => $this->metaTemplateId,
             ],
             'sent_at' => now(),
         ]);
@@ -465,7 +489,7 @@ class DispatchOutboundMessageJob implements ShouldQueue
             return str_repeat('*', max(0, strlen($digits)));
         }
 
-        return '+'.str_repeat('*', max(0, strlen($digits) - 4)).substr($digits, -4);
+        return '+' . str_repeat('*', max(0, strlen($digits) - 4)) . substr($digits, -4);
     }
 
     private function logEvent(string $level, string $message, array $context): void

@@ -18,6 +18,8 @@ class MessageTemplate extends Model
         'key',
         'name',
         'body',
+        'meta_template_id',
+        'is_meta_approved',
         'is_active',
         'created_by',
         'updated_by',
@@ -27,7 +29,13 @@ class MessageTemplate extends Model
     {
         return [
             'is_active' => 'boolean',
+            'is_meta_approved' => 'boolean',
         ];
+    }
+
+    public function metaTemplate(): BelongsTo
+    {
+        return $this->belongsTo(MetaWhatsappTemplate::class, 'meta_template_id');
     }
 
     public function tenant(): BelongsTo

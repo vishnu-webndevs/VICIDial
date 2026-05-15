@@ -7,7 +7,7 @@ use Illuminate\Support\Str;
 
 class WhatsAppService
 {
-    public function send(string $to, string $body, ?string $statusCallbackUrl = null, ?array $providerCredentials = null): array
+    public function send(string $to, string|array $bodyOrPayload, ?string $statusCallbackUrl = null, ?array $providerCredentials = null): array
     {
         $credentials = $providerCredentials ?? [];
         $metaToken = (string) ($credentials['meta_access_token'] ?? '');
@@ -30,15 +30,22 @@ class WhatsAppService
                 ];
             }
 
+            $payload = [
+                'messaging_product' => 'whatsapp',
+                'to' => $normalizedTo,
+            ];
+
+            if (is_array($bodyOrPayload)) {
+                $payload = array_merge($payload, $bodyOrPayload);
+            } else {
+                $payload['type'] = 'text';
+                $payload['text'] = ['body' => $bodyOrPayload];
+            }
+
             $response = Http::timeout(12)
                 ->withToken($metaToken)
                 ->acceptJson()
-                ->post("https://graph.facebook.com/v25.0/{$metaPhoneNumberId}/messages", [
-                    'messaging_product' => 'whatsapp',
-                    'to' => $normalizedTo,
-                    'type' => 'text',
-                    'text' => ['body' => $body],
-                ]);
+                ->post("https://graph.facebook.com/v25.0/{$metaPhoneNumberId}/messages", $payload);
 
             if (! $response->successful()) {
                 return [
@@ -76,12 +83,20 @@ class WhatsAppService
             ];
         }
 
+        if (is_array($bodyOrPayload)) {
+            return [
+                'ok' => false,
+                'error' => 'Twilio provider does not support Meta template payloads directly. Use a custom template or switch to Meta provider.',
+                'status_code' => 422,
+            ];
+        }
+
         $response = Http::asForm()
             ->withBasicAuth($sid, $token)
             ->post("https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json", [
                 'From' => Str::startsWith($from, 'whatsapp:') ? $from : 'whatsapp:'.$from,
                 'To' => Str::startsWith($to, 'whatsapp:') ? $to : 'whatsapp:'.$to,
-                'Body' => $body,
+                'Body' => $bodyOrPayload,
                 'StatusCallback' => $statusCallbackUrl,
             ]);
 

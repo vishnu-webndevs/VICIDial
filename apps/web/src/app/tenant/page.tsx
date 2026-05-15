@@ -62,7 +62,7 @@ export default function TenantPage() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [showTimezoneLoaded, setShowTimezoneLoaded] = useState(false);
-  
+
   // Auto-detect user's timezone
   const { detectedTimezone, abbreviation, name: tzName, isLoading: tzLoading } = useDetectTimezone();
 

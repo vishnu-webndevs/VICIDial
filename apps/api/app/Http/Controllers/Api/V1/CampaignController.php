@@ -34,10 +34,10 @@ class CampaignController extends Controller
         $type = $request->filled('type') ? (string) $request->query('type') : null;
         $campaigns = Campaign::query()
             ->where('tenant_id', $tenant->id)
-            ->when($type, fn ($q) => $q->where('type', $type))
+            ->when($type, fn($q) => $q->where('type', $type))
             ->latest('updated_at')
             ->get()
-            ->map(fn (Campaign $campaign) => $this->serializeCampaign($campaign))
+            ->map(fn(Campaign $campaign) => $this->serializeCampaign($campaign))
             ->values();
 
         return response()->json(['data' => $campaigns]);
@@ -63,6 +63,8 @@ class CampaignController extends Controller
             'message_content' => ['nullable', 'string', 'max:5000'],
             'message_template_key' => ['nullable', 'string', 'max:80'],
             'message_variables' => ['nullable', 'array', 'max:50'],
+            'message_use_meta_template' => ['nullable', 'boolean'],
+            'message_meta_template_id' => ['nullable', 'string'],
             'message_channel' => ['nullable', 'in:sms,whatsapp'],
         ]);
 
@@ -72,9 +74,9 @@ class CampaignController extends Controller
         $leadLists = $requestedLeadListIds->isEmpty()
             ? collect()
             : LeadList::query()
-                ->where('tenant_id', $tenant->id)
-                ->whereIn('id', $requestedLeadListIds->all())
-                ->get(['id', 'name']);
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('id', $requestedLeadListIds->all())
+            ->get(['id', 'name']);
         if ($requestedLeadListIds->isNotEmpty() && $leadLists->count() !== $requestedLeadListIds->count()) {
             return response()->json([
                 'error' => [
@@ -129,6 +131,8 @@ class CampaignController extends Controller
                 'message_content' => $content !== '' ? $content : null,
                 'message_template_key' => $templateKey !== '' ? $templateKey : null,
                 'message_variables' => (array) ($validated['message_variables'] ?? []),
+                'message_use_meta_template' => (bool) ($validated['message_use_meta_template'] ?? false),
+                'message_meta_template_id' => trim((string) ($validated['message_meta_template_id'] ?? '')) ?: null,
             ]);
         }
 
@@ -178,6 +182,8 @@ class CampaignController extends Controller
             'message_content' => ['sometimes', 'nullable', 'string', 'max:5000'],
             'message_template_key' => ['sometimes', 'nullable', 'string', 'max:80'],
             'message_variables' => ['sometimes', 'nullable', 'array', 'max:50'],
+            'message_use_meta_template' => ['sometimes', 'nullable', 'boolean'],
+            'message_meta_template_id' => ['sometimes', 'nullable', 'string'],
             'message_channel' => ['sometimes', 'nullable', 'in:sms,whatsapp'],
         ]);
 
@@ -190,9 +196,9 @@ class CampaignController extends Controller
             $leadLists = $requestedLeadListIds->isEmpty()
                 ? collect()
                 : LeadList::query()
-                    ->where('tenant_id', $tenant->id)
-                    ->whereIn('id', $requestedLeadListIds->all())
-                    ->get(['id', 'name']);
+                ->where('tenant_id', $tenant->id)
+                ->whereIn('id', $requestedLeadListIds->all())
+                ->get(['id', 'name']);
             if ($requestedLeadListIds->isNotEmpty() && $leadLists->count() !== $requestedLeadListIds->count()) {
                 return response()->json([
                     'error' => [
@@ -244,6 +250,12 @@ class CampaignController extends Controller
             }
             if (array_key_exists('message_variables', $validated)) {
                 $settings['message_variables'] = (array) ($validated['message_variables'] ?? []);
+            }
+            if (array_key_exists('message_use_meta_template', $validated)) {
+                $settings['message_use_meta_template'] = (bool) ($validated['message_use_meta_template'] ?? false);
+            }
+            if (array_key_exists('message_meta_template_id', $validated)) {
+                $settings['message_meta_template_id'] = trim((string) ($validated['message_meta_template_id'] ?? '')) ?: null;
             }
             $validated['settings'] = $settings;
         }
@@ -325,7 +337,7 @@ class CampaignController extends Controller
                 ->where('tenant_id', $tenant->id)
                 ->where('campaign_id', $campaign->id)
                 ->pluck('agent_id')
-                ->map(fn ($id) => (string) $id)
+                ->map(fn($id) => (string) $id)
                 ->filter()
                 ->unique()
                 ->values();
@@ -631,7 +643,7 @@ class CampaignController extends Controller
             ->orderByDesc('last_heartbeat_at')
             ->limit(50)
             ->get()
-            ->map(fn (AgentSession $session) => [
+            ->map(fn(AgentSession $session) => [
                 'id' => $session->id,
                 'agent_id' => $session->agent_id,
                 'name' => (string) ($session->agent?->company_number ?? ''),
@@ -811,7 +823,7 @@ class CampaignController extends Controller
             ->paginate((int) $request->integer('per_page', 50));
 
         return response()->json([
-            'data' => collect($queueItems->items())->map(fn (DialQueueItem $item) => [
+            'data' => collect($queueItems->items())->map(fn(DialQueueItem $item) => [
                 'id' => $item->id,
                 'status' => $item->status,
                 'priority' => $item->priority,
@@ -854,7 +866,7 @@ class CampaignController extends Controller
         $run = CampaignRun::query()
             ->where('tenant_id', $tenant->id)
             ->where('campaign_id', $campaign->id)
-            ->when($runId, fn ($q) => $q->where('id', $runId))
+            ->when($runId, fn($q) => $q->where('id', $runId))
             ->latest('created_at')
             ->first();
 
@@ -877,13 +889,13 @@ class CampaignController extends Controller
         $leads = $leadIds === []
             ? collect()
             : Lead::query()
-                ->where('tenant_id', $tenant->id)
-                ->whereIn('id', $leadIds)
-                ->get(['id', 'full_name', 'phone'])
-                ->values();
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('id', $leadIds)
+            ->get(['id', 'full_name', 'phone'])
+            ->values();
 
         $numbers = $leads
-            ->map(fn (Lead $lead) => (string) $lead->phone)
+            ->map(fn(Lead $lead) => (string) $lead->phone)
             ->filter()
             ->unique()
             ->values();
@@ -891,12 +903,12 @@ class CampaignController extends Controller
         $threadsByNumber = $numbers->isEmpty()
             ? collect()
             : MessageThread::query()
-                ->where('tenant_id', $tenant->id)
-                ->whereIn('counterparty_number', $numbers->all())
-                ->when($channelFilter, fn ($q) => $q->where('channel', $channelFilter))
-                ->orderByDesc('updated_at')
-                ->get(['id', 'channel', 'counterparty_number'])
-                ->keyBy('counterparty_number');
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('counterparty_number', $numbers->all())
+            ->when($channelFilter, fn($q) => $q->where('channel', $channelFilter))
+            ->orderByDesc('updated_at')
+            ->get(['id', 'channel', 'counterparty_number'])
+            ->keyBy('counterparty_number');
 
         $threadIds = $threadsByNumber->values()->pluck('id')->filter()->unique()->values();
 
@@ -913,30 +925,30 @@ class CampaignController extends Controller
         $outboundTimelineByLead = $leadIds === []
             ? collect()
             : LeadTimelineItem::query()
-                ->where('tenant_id', $tenant->id)
-                ->whereIn('lead_id', $leadIds)
-                ->where('related_type', 'message')
-                ->where('metadata->bulk_batch_id', (string) $run->id)
-                ->where('metadata->direction', 'outbound')
-                ->orderBy('occurred_at')
-                ->get(['id', 'lead_id', 'related_id', 'content', 'metadata', 'occurred_at'])
-                ->groupBy('lead_id');
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('lead_id', $leadIds)
+            ->where('related_type', 'message')
+            ->where('metadata->bulk_batch_id', (string) $run->id)
+            ->where('metadata->direction', 'outbound')
+            ->orderBy('occurred_at')
+            ->get(['id', 'lead_id', 'related_id', 'content', 'metadata', 'occurred_at'])
+            ->groupBy('lead_id');
 
         $inboundByThread = $threadIds->isEmpty()
             ? collect()
             : Message::query()
-                ->where('tenant_id', $tenant->id)
-                ->where('direction', 'inbound')
-                ->whereIn('thread_id', $threadIds->all())
-                ->when($startedAt, fn ($q) => $q->where('sent_at', '>=', $startedAt))
-                ->orderBy('sent_at')
-                ->get(['id', 'thread_id', 'body', 'status', 'sent_at'])
-                ->groupBy('thread_id');
+            ->where('tenant_id', $tenant->id)
+            ->where('direction', 'inbound')
+            ->whereIn('thread_id', $threadIds->all())
+            ->when($startedAt, fn($q) => $q->where('sent_at', '>=', $startedAt))
+            ->orderBy('sent_at')
+            ->get(['id', 'thread_id', 'body', 'status', 'sent_at'])
+            ->groupBy('thread_id');
 
         $duplicateNumbers = $leads
-            ->groupBy(fn (Lead $lead) => (string) $lead->phone)
-            ->map(fn ($items) => $items->count())
-            ->filter(fn (int $count, string $phone) => $phone !== '' && $count > 1);
+            ->groupBy(fn(Lead $lead) => (string) $lead->phone)
+            ->map(fn($items) => $items->count())
+            ->filter(fn(int $count, string $phone) => $phone !== '' && $count > 1);
 
         $entries = $leads->map(function (Lead $lead) use ($threadsByNumber, $outboundTimelineByLead, $outboundById, $inboundByThread): array {
             $phone = (string) $lead->phone;
@@ -964,14 +976,14 @@ class CampaignController extends Controller
 
             $inboundMessages = $threadId
                 ? ($inboundByThread->get($threadId) ?? collect())
-                    ->map(fn (Message $message) => [
-                        'id' => $message->id,
-                        'status' => $message->status,
-                        'body' => $message->body,
-                        'sent_at' => $message->sent_at?->toISOString(),
-                    ])
-                    ->values()
-                    ->all()
+                ->map(fn(Message $message) => [
+                    'id' => $message->id,
+                    'status' => $message->status,
+                    'body' => $message->body,
+                    'sent_at' => $message->sent_at?->toISOString(),
+                ])
+                ->values()
+                ->all()
                 : [];
 
             return [
@@ -1030,7 +1042,7 @@ class CampaignController extends Controller
             ->pluck('leads.id');
 
         $now = now();
-        $rows = $leadIds->map(fn (string $leadId) => [
+        $rows = $leadIds->map(fn(string $leadId) => [
             'id' => (string) Str::uuid(),
             'tenant_id' => $campaign->tenant_id,
             'campaign_id' => $campaign->id,
@@ -1078,6 +1090,8 @@ class CampaignController extends Controller
             'channel' => $settings['channel'] ?? null,
             'message_content' => $settings['message_content'] ?? null,
             'message_template_key' => $settings['message_template_key'] ?? null,
+            'message_use_meta_template' => (bool) ($settings['message_use_meta_template'] ?? false),
+            'message_meta_template_id' => $settings['message_meta_template_id'] ?? null,
             'provider_account_id' => $settings['provider_account_id'] ?? null,
             'updated_at' => $campaign->updated_at?->toISOString(),
         ];
@@ -1122,6 +1136,8 @@ class CampaignController extends Controller
         $spacingSeconds = 60 / $perMinute;
         $now = now();
 
+        $metaTemplateId = trim((string) ($settings['message_meta_template_id'] ?? ''));
+
         foreach (array_values($leadIds) as $index => $leadId) {
             $delaySeconds = (int) floor($index * $spacingSeconds);
             \App\Jobs\DispatchOutboundMessageJob::dispatch(
@@ -1136,6 +1152,7 @@ class CampaignController extends Controller
                 providerAccountId: $providerAccountId !== '' ? $providerAccountId : null,
                 campaignId: $campaign->id,
                 campaignRunId: $run->id,
+                metaTemplateId: $metaTemplateId !== '' ? $metaTemplateId : null,
             )->delay($now->copy()->addSeconds($delaySeconds));
         }
     }
@@ -1153,7 +1170,7 @@ class CampaignController extends Controller
 
         $pendingJobs = (int) DB::table('jobs')
             ->where('payload', 'like', '%DispatchOutboundMessageJob%')
-            ->where('payload', 'like', '%'.$runId.'%')
+            ->where('payload', 'like', '%' . $runId . '%')
             ->count();
         if ($pendingJobs > 0) {
             return;
@@ -1165,19 +1182,19 @@ class CampaignController extends Controller
             ->where('metadata->bulk_batch_id', $runId)
             ->where('metadata->direction', 'outbound')
             ->pluck('lead_id')
-            ->map(fn ($id) => (string) $id)
+            ->map(fn($id) => (string) $id)
             ->filter()
             ->unique()
             ->values();
 
         $leadIds = collect($this->resolveCampaignLeadIds($campaign))
-            ->map(fn ($id) => (string) $id)
+            ->map(fn($id) => (string) $id)
             ->filter()
             ->unique()
             ->values();
 
         $missingLeadIds = $leadIds
-            ->reject(fn (string $leadId) => $processedLeadIds->contains($leadId))
+            ->reject(fn(string $leadId) => $processedLeadIds->contains($leadId))
             ->values();
 
         if ($missingLeadIds->isEmpty()) {
@@ -1250,6 +1267,7 @@ class CampaignController extends Controller
                 providerAccountId: $providerAccountId !== '' ? $providerAccountId : null,
                 campaignId: $campaign->id,
                 campaignRunId: $run->id,
+                metaTemplateId: (string) ($settings['message_meta_template_id'] ?? '') ?: null,
             )->delay($now->copy()->addSeconds($delaySeconds));
         }
     }
@@ -1264,7 +1282,7 @@ class CampaignController extends Controller
             ->where('leads.phone', '!=', '')
             ->when(
                 ! $isMessageCampaign,
-                fn ($q) => $q->whereIn('leads.status', ['new', 'follow_up', 'contacted'])
+                fn($q) => $q->whereIn('leads.status', ['new', 'follow_up', 'contacted'])
             )
             ->orderBy('leads.updated_at');
         $leadListIds = collect((array) (($campaign->settings ?? [])['lead_list_ids'] ?? []))
@@ -1287,7 +1305,7 @@ class CampaignController extends Controller
             ->distinct()
             ->limit($limit)
             ->pluck('leads.id')
-            ->map(fn ($id) => (string) $id)
+            ->map(fn($id) => (string) $id)
             ->values()
             ->all();
     }
@@ -1311,14 +1329,14 @@ class CampaignController extends Controller
             return [
                 'ok' => false,
                 'code' => 'PROVIDER_MISSING',
-                'message' => 'Selected provider does not exist for this tenant (provider_account_id='.$providerAccountId.').',
+                'message' => 'Selected provider does not exist for this tenant (provider_account_id=' . $providerAccountId . ').',
             ];
         }
         if ($provider->status !== 'active') {
             return [
                 'ok' => false,
                 'code' => 'PROVIDER_INACTIVE',
-                'message' => 'Selected provider is not active (provider_account_id='.$providerAccountId.', status='.$provider->status.'). Click "Test Connection" in Providers to activate it.',
+                'message' => 'Selected provider is not active (provider_account_id=' . $providerAccountId . ', status=' . $provider->status . '). Click "Test Connection" in Providers to activate it.',
             ];
         }
 

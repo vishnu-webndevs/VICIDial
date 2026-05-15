@@ -45,4 +45,9 @@ class ProviderAccount extends Model
     {
         return $this->hasMany(ProviderPhoneNumber::class);
     }
+
+    public function whatsAppTemplates(): HasMany
+    {
+        return $this->hasMany(MetaWhatsappTemplate::class);
+    }
 }

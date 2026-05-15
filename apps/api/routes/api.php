@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\LeadController;
 use App\Http\Controllers\Api\V1\LeadWorkflowController;
 use App\Http\Controllers\Api\V1\MessagingController;
 use App\Http\Controllers\Api\V1\MessageTemplateController;
+use App\Http\Controllers\Api\V1\MetaTemplateController;
 use App\Http\Controllers\Api\V1\WhatsAppIntegrationController;
 use App\Http\Controllers\Api\V1\MessageAttachmentController;
 use App\Http\Controllers\Api\V1\RealtimeController;
@@ -262,6 +263,10 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:tenant.update');
         Route::post('/whatsapp-integration/test', [WhatsAppIntegrationController::class, 'test'])
             ->middleware('permission:tenant.update');
+        Route::get('/whatsapp-integration/message-templates', [MetaTemplateController::class, 'index'])
+            ->middleware('permission:tenant.view');
+        Route::post('/whatsapp-integration/message-templates/sync', [MetaTemplateController::class, 'sync'])
+            ->middleware('permission:tenant.update');
 
         Route::get('/message-attachments/{id}/download', [MessageAttachmentController::class, 'download'])
             ->middleware('permission:tenant.view');
@@ -499,8 +504,8 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<Response>',
         '<Say voice="alice">Connecting you now.</Say>',
-        '<Dial timeout="25" callerId="'.$callerId.'">',
-        '<Number>'.$dest.'</Number>',
+        '<Dial timeout="25" callerId="' . $callerId . '">',
+        '<Number>' . $dest . '</Number>',
         '</Dial>',
         '</Response>',
     ]);
@@ -518,7 +523,7 @@ Route::get('/webhooks/vonage/ncco/outbound', function (\Illuminate\Http\Request 
         ],
         [
             'action' => 'conversation',
-            'name' => $callSessionId !== '' ? 'call_'.$callSessionId : 'call_hold',
+            'name' => $callSessionId !== '' ? 'call_' . $callSessionId : 'call_hold',
             'startOnEnter' => true,
             'endOnExit' => true,
         ],

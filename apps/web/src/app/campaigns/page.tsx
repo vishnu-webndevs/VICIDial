@@ -23,8 +23,8 @@ import { CreateGuard } from "@/components/plans/CreateGuard";
 import { EmptyPanel, KpiCard, ToastMessage } from "@/components/ui-primitives";
 import { apiRequest } from "@/lib/api";
 import { getTenantContext } from "@/lib/tenant-context";
-import { listAgents, listCampaigns, listMessageTemplates, listProviderAccounts, pauseCampaign, startCampaign } from "@/lib/product-api";
-import type { AgentEntity, Campaign, CampaignStatusPayload, LeadList, MessageTemplate } from "@/types/product";
+import { listAgents, listCampaigns, listMessageTemplates, listMetaTemplates, listProviderAccounts, pauseCampaign, startCampaign } from "@/lib/product-api";
+import type { AgentEntity, Campaign, CampaignStatusPayload, LeadList, MessageTemplate, MetaWhatsappTemplate } from "@/types/product";
 
 type PopupState = "new-campaign" | "command-center" | null;
 type CampaignTab = "all" | "active" | "paused" | "draft";
@@ -51,6 +51,8 @@ type NewCampaignForm = {
   message_template_key: string;
   message_content: string;
   message_channel: "sms" | "whatsapp";
+  message_use_meta_template: boolean;
+  message_meta_template_id: string;
 };
 
 const defaultCampaignForm: NewCampaignForm = {
@@ -63,6 +65,8 @@ const defaultCampaignForm: NewCampaignForm = {
   message_template_key: "",
   message_content: "",
   message_channel: "sms",
+  message_use_meta_template: false,
+  message_meta_template_id: "",
 };
 const ACTIVE_STATUSES: Campaign["status"][] = ["running"];
 
@@ -89,6 +93,7 @@ export default function CampaignsPage() {
   const [agents, setAgents] = useState<AgentEntity[]>([]);
   const [providers, setProviders] = useState<Array<{ id: string; provider_type: string; display_name: string; status: string }>>([]);
   const [templates, setTemplates] = useState<MessageTemplate[]>([]);
+  const [metaTemplates, setMetaTemplates] = useState<MetaWhatsappTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "error">("neutral");
@@ -128,6 +133,12 @@ export default function CampaignsPage() {
         setAgents(agentData);
       } catch {
         setAgents([]);
+      }
+      try {
+        const metaTemplateData = await listMetaTemplates();
+        setMetaTemplates(metaTemplateData);
+      } catch {
+        setMetaTemplates([]);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to load campaigns.");
@@ -214,6 +225,8 @@ export default function CampaignsPage() {
       message_template_key: String(campaign.message_template_key ?? ""),
       message_content: String(campaign.message_content ?? ""),
       message_channel: (campaign.channel === "whatsapp" ? "whatsapp" : "sms") as "sms" | "whatsapp",
+      message_use_meta_template: Boolean(campaign.message_use_meta_template),
+      message_meta_template_id: String(campaign.message_meta_template_id ?? ""),
     });
     setSelectedLists(campaign.lead_list_ids ?? []);
     setSelectedFromAgentId("");
@@ -286,6 +299,8 @@ export default function CampaignsPage() {
           message_content: isOutboundCallCampaign ? null : (campaignForm.message_content.trim() || null),
           message_template_key: isOutboundCallCampaign ? null : (campaignForm.message_template_key.trim() || null),
           message_channel: campaignForm.type === "outreach" ? resolvedMessageChannel : null,
+          message_use_meta_template: campaignForm.type === "whatsapp" ? campaignForm.message_use_meta_template : false,
+          message_meta_template_id: (campaignForm.type === "whatsapp" && campaignForm.message_use_meta_template) ? campaignForm.message_meta_template_id : null,
         },
       });
 
@@ -585,6 +600,8 @@ export default function CampaignsPage() {
                     message_template_key: "",
                     message_content: "",
                     message_channel: "sms",
+                    message_use_meta_template: false,
+                    message_meta_template_id: "",
                   }))
                 }
               >
@@ -761,7 +778,45 @@ export default function CampaignsPage() {
                     multiline
                     minRows={4}
                     placeholder={"Hi {{first_name}},\n\nThis is {{company_name}}."}
+                    disabled={campaignForm.message_use_meta_template}
                   />
+
+                  {campaignForm.type === "whatsapp" && (
+                    <Box sx={{ border: 1, borderColor: "primary.light", borderRadius: 1, p: 1.5, bgcolor: "action.hover" }}>
+                      <FormControlLabel
+                        control={
+                          <Checkbox
+                            size="small"
+                            checked={campaignForm.message_use_meta_template}
+                            onChange={(e) => setCampaignForm((p) => ({ ...p, message_use_meta_template: e.target.checked }))}
+                          />
+                        }
+                        label={
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            Use Meta-Approved Template
+                          </Typography>
+                        }
+                      />
+                      {campaignForm.message_use_meta_template && (
+                        <TextField
+                          select
+                          fullWidth
+                          size="small"
+                          label="Select Meta Template"
+                          value={campaignForm.message_meta_template_id}
+                          onChange={(e) => setCampaignForm((p) => ({ ...p, message_meta_template_id: e.target.value }))}
+                          sx={{ mt: 1 }}
+                        >
+                          <MenuItem value="">Choose a template...</MenuItem>
+                          {metaTemplates.map((t) => (
+                            <MenuItem key={t.id} value={t.id}>
+                              {t.template_name} ({t.language})
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                      )}
+                    </Box>
+                  )}
 
                   <Paper variant="outlined" sx={{ p: 1.5 }}>
                     <Typography variant="caption" color="text.secondary">Preview</Typography>
