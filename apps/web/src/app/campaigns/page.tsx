@@ -23,7 +23,7 @@ import { CreateGuard } from "@/components/plans/CreateGuard";
 import { EmptyPanel, KpiCard, ToastMessage } from "@/components/ui-primitives";
 import { apiRequest } from "@/lib/api";
 import { getTenantContext } from "@/lib/tenant-context";
-import { listAgents, listCampaigns, listMessageTemplates, listMetaTemplates, listProviderAccounts, pauseCampaign, startCampaign } from "@/lib/product-api";
+import { listAgents, listCampaigns, listMessageTemplates, listMetaTemplates, listProviderAccounts, pauseCampaign, startCampaign, syncMetaTemplates } from "@/lib/product-api";
 import type { AgentEntity, Campaign, CampaignStatusPayload, LeadList, MessageTemplate, MetaWhatsappTemplate } from "@/types/product";
 
 type PopupState = "new-campaign" | "command-center" | null;
