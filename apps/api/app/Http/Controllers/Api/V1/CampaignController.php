@@ -166,17 +166,6 @@ class CampaignController extends Controller
         return response()->json(['data' => $this->serializeCampaign($campaign)], 201);
     }
 
-    public function show(Request $request, string $id): JsonResponse
-    {
-        $tenant = $request->attributes->get('tenant');
-        $campaign = Campaign::query()
-            ->where('tenant_id', $tenant->id)
-            ->where('id', $id)
-            ->firstOrFail();
-
-        return response()->json(['data' => $this->serializeCampaign($campaign)]);
-    }
-
     public function update(Request $request, string $id): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');

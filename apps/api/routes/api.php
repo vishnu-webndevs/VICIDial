@@ -168,8 +168,6 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:call.view|call.initiate');
         Route::post('/campaigns', [CampaignController::class, 'store'])
             ->middleware('permission:call.initiate');
-        Route::get('/campaigns/{id}', [CampaignController::class, 'show'])
-            ->middleware('permission:call.view|call.initiate');
         Route::patch('/campaigns/{id}', [CampaignController::class, 'update'])
             ->middleware('permission:call.initiate');
         Route::post('/campaigns/{id}/start', [CampaignController::class, 'start'])
@@ -254,8 +252,6 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:tenant.view');
         Route::post('/message-templates', [MessageTemplateController::class, 'store'])
             ->middleware('permission:tenant.update');
-        Route::get('/message-templates/{id}', [MessageTemplateController::class, 'show'])
-            ->middleware('permission:tenant.view');
         Route::patch('/message-templates/{id}', [MessageTemplateController::class, 'update'])
             ->middleware('permission:tenant.update');
         Route::delete('/message-templates/{id}', [MessageTemplateController::class, 'destroy'])

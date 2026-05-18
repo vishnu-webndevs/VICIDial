@@ -69,17 +69,6 @@ class MessageTemplateController extends Controller
         return response()->json(['data' => $template], 201);
     }
 
-    public function show(Request $request, string $id): JsonResponse
-    {
-        $tenant = $request->attributes->get('tenant');
-        $template = MessageTemplate::query()
-            ->where('tenant_id', $tenant->id)
-            ->where('id', $id)
-            ->firstOrFail();
-
-        return response()->json(['data' => $template]);
-    }
-
     public function update(Request $request, string $id): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');
