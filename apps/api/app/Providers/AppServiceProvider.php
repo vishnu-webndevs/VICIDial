@@ -47,6 +47,10 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->make(IntegrationMode::class)->assertRuntimeSafety();
 
+        if (str_starts_with(config('app.url'), 'https://')) {
+            \Illuminate\Support\Facades\URL::forceScheme('https');
+        }
+
         RateLimiter::for('auth', function (Request $request): Limit {
             $email = (string) $request->input('email', 'guest');
             $ip = (string) $request->ip();
