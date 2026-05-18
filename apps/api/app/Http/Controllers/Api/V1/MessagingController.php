@@ -313,13 +313,47 @@ class MessagingController extends Controller
             $message->delivered_at = $message->delivered_at ?: ($timestamp ?: now());
         }
 
-        $message->metadata = array_merge((array) ($message->metadata ?? []), [
-            'status_callback' => $payload,
-            'provider_account_id' => $providerAccountId,
-        ]);
+        $errors = (array) data_get($row, 'errors', []);
+        $pricing = (array) data_get($row, 'pricing', []);
+        $conversation = (array) data_get($row, 'conversation', []);
+        $errorMessage = null;
+
+        if (!empty($errors)) {
+            $firstError = $errors[0];
+            $errorMessage = data_get($firstError, 'title', data_get($firstError, 'message', 'Unknown Error')) . ' (Code: ' . data_get($firstError, 'code', 'N/A') . ')';
+        }
+
+        $metadata = (array) ($message->metadata ?? []);
+        $metadata['status_callback'] = $payload; // Keep raw payload
+        $metadata['provider_account_id'] = $providerAccountId;
+        
+        // Save structured debug data from Meta
+        if (!empty($errors)) $metadata['meta_errors'] = $errors;
+        if (!empty($pricing)) $metadata['meta_pricing'] = $pricing;
+        if (!empty($conversation)) $metadata['meta_conversation'] = $conversation;
+        if ($errorMessage) $metadata['error'] = $errorMessage;
+
+        $message->metadata = $metadata;
         $message->save();
 
-        $this->writeMessageLog('info', 'Message status updated.', [
+        // Sync to timeline so UI reflects the asynchronous failure/delivery
+        $timelineItems = \App\Models\LeadTimelineItem::query()
+            ->where('tenant_id', $tenantId)
+            ->where('related_id', $message->id)
+            ->where('related_type', 'message')
+            ->get();
+
+        foreach ($timelineItems as $item) {
+            $itemMeta = (array) ($item->metadata ?? []);
+            $itemMeta['status'] = $status;
+            if ($errorMessage) {
+                $itemMeta['error'] = $errorMessage;
+            }
+            $item->metadata = $itemMeta;
+            $item->save();
+        }
+
+        $this->writeMessageLog($errorMessage ? 'warning' : 'info', 'Message status updated via Meta webhook.', [
             'provider' => 'meta_whatsapp',
             'tenant_id' => $tenantId,
             'provider_account_id' => $providerAccountId,
@@ -327,6 +361,8 @@ class MessagingController extends Controller
             'provider_message_id' => $messageId,
             'channel' => (string) (($message->metadata['channel'] ?? '') ?: ''),
             'status' => $status,
+            'error' => $errorMessage,
+            'meta_errors' => $errors,
         ]);
 
         return true;
