@@ -696,31 +696,30 @@ class CorePhaseOneController extends Controller
                 ->latest('created_at')
                 ->first();
 
-            if (! $provider) {
-                return response()->json([
-                    'success' => false,
-                    'error' => [
-                        'code' => 'PROVIDER_REQUIRED',
-                        'message' => 'No active Twilio provider is configured for messaging.',
-                    ],
-                ], 422);
-            }
+        if (! $provider) {
+            return response()->json([
+                'success' => false,
+                'error' => [
+                    'code' => 'PROVIDER_REQUIRED',
+                    'message' => 'No active Twilio provider is configured for messaging.',
+                ],
+            ], 422);
+        }
 
-            $providerCredentials = (array) ($provider->credentials_encrypted ?? []);
-            $statusCallbackUrl = rtrim((string) config('app.url'), '/').'/api/v1/webhooks/twilio/message-status';
-            $result = $thread->channel === 'sms'
-                ? app(\App\Services\Messaging\SmsService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials)
-                : app(\App\Services\Messaging\WhatsAppService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials);
+        $providerCredentials = (array) ($provider->credentials_encrypted ?? []);
+        $statusCallbackUrl = rtrim((string) config('app.url'), '/').'/api/v1/webhooks/twilio/message-status';
+        $result = $thread->channel === 'sms'
+            ? app(\App\Services\Messaging\SmsService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials)
+            : app(\App\Services\Messaging\WhatsAppService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials);
 
-            if (($result['ok'] ?? false) !== true) {
-                $errorMessage = (string) ($result['error'] ?? 'Message delivery failed.');
-                $statusCode = $result['status_code'] ?? null;
-                $status = 'failed';
-            } else {
-                $providerMessageId = (string) ($result['provider_message_id'] ?? '');
-                $status = (string) ($result['status'] ?? 'queued');
-                $mode = 'live';
-            }
+        if (($result['ok'] ?? false) !== true) {
+            $errorMessage = (string) ($result['error'] ?? 'Message delivery failed.');
+            $statusCode = $result['status_code'] ?? null;
+            $status = 'failed';
+        } else {
+            $providerMessageId = (string) ($result['provider_message_id'] ?? '');
+            $status = (string) ($result['status'] ?? 'queued');
+            $mode = 'live';
         }
 
         $message = Message::query()->create([
