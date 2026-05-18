@@ -680,32 +680,14 @@ class CorePhaseOneController extends Controller
             }
         }
 
-        $adapterData = null;
-        try {
-            $adapterData = $this->part3AdapterManager->adapter()->sendOutboundMessage($thread->channel, [
-                'tenant_id' => $tenant->id,
-                'thread_id' => $thread->id,
-                'body' => $body,
-                'media' => $validated['media'] ?? [],
-                'counterparty_number' => $thread->counterparty_number,
-            ]);
-        } catch (\Throwable) {
-            $adapterData = null;
-        }
-
         $providerMessageId = '';
         $status = '';
-        $mode = 'mock';
+        $mode = 'live';
         $errorMessage = null;
         $statusCode = null;
 
-        if (is_array($adapterData) && ($adapterData['ok'] ?? true) !== false) {
-            $providerMessageId = (string) ($adapterData['provider_message_id'] ?? '');
-            $status = (string) ($adapterData['status'] ?? '');
-            $mode = (string) ($adapterData['mode'] ?? 'mock');
-        } else {
-            $providerTypes = $thread->channel === 'whatsapp' ? ['meta_whatsapp', 'twilio'] : ['twilio'];
-            $provider = \App\Models\ProviderAccount::query()
+        $providerTypes = $thread->channel === 'whatsapp' ? ['meta_whatsapp', 'twilio'] : ['twilio'];
+        $provider = \App\Models\ProviderAccount::query()
                 ->where('tenant_id', $tenant->id)
                 ->whereIn('provider_type', $providerTypes)
                 ->where('status', 'active')

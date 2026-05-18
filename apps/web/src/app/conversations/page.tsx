@@ -104,6 +104,63 @@ export default function ConversationsPage() {
     return () => { mounted = false };
   }, [selectedThreadId]);
 
+  // Silent background polling for new messages & threads list to provide real-time updates
+  useEffect(() => {
+    if (!selectedThreadId) {
+      // If no thread is selected, we still poll threads list silently
+      const threadsInterval = setInterval(async () => {
+        try {
+          const response = await listInboxThreads(channel, { per_page: 100 });
+          setThreads(prev => {
+            if (JSON.stringify(prev.map(t => ({id: t.id, last_message_at: t.last_message_at}))) !== JSON.stringify(response.data.map(t => ({id: t.id, last_message_at: t.last_message_at})))) {
+              return response.data;
+            }
+            return prev;
+          });
+        } catch (err) {
+          // ignore
+        }
+      }, 5000);
+      return () => clearInterval(threadsInterval);
+    }
+
+    const interval = setInterval(async () => {
+      try {
+        // Poll messages silently
+        const res = await listInboxThreadMessages(selectedThreadId, { per_page: 200 });
+        setMessages(prev => {
+          // Only update if message list changed (e.g. new messages, or status changes)
+          const prevSign = JSON.stringify(prev.map(m => ({id: m.id, status: m.status})));
+          const nextSign = JSON.stringify(res.data.map(m => ({id: m.id, status: m.status})));
+          if (prevSign !== nextSign) {
+            // Check if we got a new message at the end
+            const hadNewMessage = res.data.length > prev.length;
+            if (hadNewMessage) {
+              setTimeout(scrollToBottom, 100);
+            }
+            return res.data;
+          }
+          return prev;
+        });
+
+        // Poll threads list
+        const response = await listInboxThreads(channel, { per_page: 100 });
+        setThreads(prev => {
+          const prevSign = JSON.stringify(prev.map(t => ({id: t.id, last_message_at: t.last_message_at, status: t.status})));
+          const nextSign = JSON.stringify(response.data.map(t => ({id: t.id, last_message_at: t.last_message_at, status: t.status})));
+          if (prevSign !== nextSign) {
+            return response.data;
+          }
+          return prev;
+        });
+      } catch (err) {
+        // ignore
+      }
+    }, 3500); // 3.5 seconds polling for fast real-time feel!
+
+    return () => clearInterval(interval);
+  }, [selectedThreadId, channel]);
+
   async function onSend(event?: FormEvent<HTMLFormElement>) {
     if (event) event.preventDefault();
     if (!selectedThreadId || !outboundBody.trim()) return;
