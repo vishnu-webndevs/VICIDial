@@ -29,6 +29,6 @@ COPY . .
 RUN mkdir -p storage bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache public
 
-USER www-data
+# Recreating storage structure in CMD because mounted volumes might be empty
 EXPOSE 8088
-CMD ["sh", "-lc", "php artisan storage:link || true; php artisan queue:work --daemon --sleep=1 --tries=3 --timeout=120 & exec php artisan serve --host=0.0.0.0 --port=${PORT:-8088}"]
+CMD ["sh", "-lc", "mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions storage/logs storage/app/public && chown -R www-data:www-data storage bootstrap/cache && php artisan storage:link || true; php artisan queue:work --daemon --sleep=1 --tries=3 --timeout=120 & exec php artisan serve --host=0.0.0.0 --port=${PORT:-8088}"]
