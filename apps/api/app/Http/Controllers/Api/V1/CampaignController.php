@@ -67,6 +67,7 @@ class CampaignController extends Controller
             'message_meta_template_id' => ['nullable', 'string'],
             'message_channel' => ['nullable', 'in:sms,whatsapp'],
             'message_media_file' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'message_media_url' => ['nullable', 'url', 'max:2000'],
         ]);
 
         $type = in_array((string) $validated['type'], ['auto', 'manual'], true) ? 'outbound_call' : (string) $validated['type'];
@@ -131,6 +132,8 @@ class CampaignController extends Controller
                 $file = $request->file('message_media_file');
                 $path = $file->store('campaigns/media', 'public');
                 $mediaUrl = asset('storage/' . $path);
+            } elseif (!empty($validated['message_media_url'])) {
+                $mediaUrl = $validated['message_media_url'];
             }
 
             $settings = array_merge($settings, [
@@ -195,6 +198,7 @@ class CampaignController extends Controller
             'message_meta_template_id' => ['sometimes', 'nullable', 'string'],
             'message_channel' => ['sometimes', 'nullable', 'in:sms,whatsapp'],
             'message_media_file' => ['sometimes', 'nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'message_media_url' => ['sometimes', 'nullable', 'url', 'max:2000'],
         ]);
 
         if (array_key_exists('type', $validated) && in_array((string) $validated['type'], ['auto', 'manual'], true)) {
@@ -251,6 +255,8 @@ class CampaignController extends Controller
                 $file = $request->file('message_media_file');
                 $path = $file->store('campaigns/media', 'public');
                 $settings['message_media_url'] = asset('storage/' . $path);
+            } elseif (array_key_exists('message_media_url', $validated) && !empty($validated['message_media_url'])) {
+                $settings['message_media_url'] = $validated['message_media_url'];
             }
 
             if (array_key_exists('preferred_provider_account_id', $validated)) {
@@ -1114,6 +1120,7 @@ class CampaignController extends Controller
             'message_template_key' => $settings['message_template_key'] ?? null,
             'message_use_meta_template' => (bool) ($settings['message_use_meta_template'] ?? false),
             'message_meta_template_id' => $settings['message_meta_template_id'] ?? null,
+            'message_media_url' => $settings['message_media_url'] ?? null,
             'provider_account_id' => $settings['provider_account_id'] ?? null,
             'updated_at' => $campaign->updated_at?->toISOString(),
         ];
