@@ -451,7 +451,7 @@ class MessagingController extends Controller
         return $nextRank >= $currentRank;
     }
 
-    private function parseProviderTimestamp(string $unixSeconds): ?\Illuminate\Support\Carbon
+    private function parseProviderTimestamp(string $unixSeconds): ?\Carbon\CarbonInterface
     {
         $trimmed = trim($unixSeconds);
         if ($trimmed === '' || ! ctype_digit($trimmed)) {
@@ -459,7 +459,7 @@ class MessagingController extends Controller
         }
 
         try {
-            return now()->setTimestamp((int) $trimmed);
+            return \Illuminate\Support\Carbon::createFromTimestamp((int) $trimmed);
         } catch (\Throwable) {
             return null;
         }
@@ -865,6 +865,7 @@ class MessagingController extends Controller
             ->get();
 
         foreach ($providers as $provider) {
+            assert($provider instanceof ProviderAccount);
             $credentials = (array) $provider->credentials_encrypted;
             if (($credentials['account_sid'] ?? null) === $accountSid) {
                 return $provider;
@@ -887,6 +888,7 @@ class MessagingController extends Controller
             ->get();
 
         foreach ($providers as $provider) {
+            assert($provider instanceof ProviderAccount);
             $credentials = (array) ($provider->credentials_encrypted ?? []);
             if ((string) ($credentials['webhook_verify_token'] ?? '') === $verifyToken) {
                 return $provider;
@@ -909,6 +911,7 @@ class MessagingController extends Controller
             ->get();
 
         foreach ($providers as $provider) {
+            assert($provider instanceof ProviderAccount);
             $credentials = (array) ($provider->credentials_encrypted ?? []);
             if ((string) ($credentials['phone_number_id'] ?? '') === $phoneNumberId) {
                 return $provider;
