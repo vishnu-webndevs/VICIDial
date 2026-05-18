@@ -375,4 +375,57 @@ class MetaTemplateService
         });
         return $flat;
     }
+
+    public function buildTemplateTextPreview(MetaWhatsappTemplate $template, array $variables): string
+    {
+        $parameters = $this->collectParameterValues($variables);
+        $text = '';
+        
+        foreach ((array) $template->components as $component) {
+            $type = strtoupper((string) ($component['type'] ?? ''));
+            if ($type === 'HEADER' && isset($component['text'])) {
+                $text .= $component['text'] . "\n\n";
+            }
+            if ($type === 'BODY' && isset($component['text'])) {
+                $text .= $component['text'] . "\n\n";
+            }
+            if ($type === 'FOOTER' && isset($component['text'])) {
+                $text .= $component['text'] . "\n\n";
+            }
+        }
+
+        $text = trim($text);
+
+        // Replace placeholders {{1}}, {{2}} etc.
+        $text = preg_replace_callback('/\{\{\s*(\d+)\s*\}\}/', function ($matches) use ($parameters) {
+            $index = (int) $matches[1];
+            // Follow the same fallback logic as buildTemplateComponents
+            $possibleKeys = [
+                $index,
+                (string) $index,
+                "var_{$index}",
+                "body_var_{$index}",
+                $index === 1 ? 'first_name' : null,
+                $index === 1 ? 'full_name' : null,
+                $index === 2 ? 'company_name' : null,
+                $index === 2 ? 'company' : null,
+            ];
+            
+            $possibleKeys = array_merge($possibleKeys, array_keys($parameters));
+            
+            foreach ($possibleKeys as $key) {
+                if ($key !== null && isset($parameters[$key]) && (string)$parameters[$key] !== '') {
+                    return (string) $parameters[$key];
+                }
+            }
+            
+            if (isset($parameters[$index - 1])) {
+                return (string) $parameters[$index - 1];
+            }
+            
+            return $matches[0]; // leave it as {{1}} if no replacement found
+        }, $text);
+
+        return $text !== '' ? $text : "[Meta Template: {$template->template_name}]";
+    }
 }

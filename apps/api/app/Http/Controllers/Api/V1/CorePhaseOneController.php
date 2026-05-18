@@ -704,10 +704,13 @@ class CorePhaseOneController extends Controller
             $status = (string) ($adapterData['status'] ?? '');
             $mode = (string) ($adapterData['mode'] ?? 'mock');
         } else {
+            $providerTypes = $thread->channel === 'whatsapp' ? ['meta_whatsapp', 'twilio'] : ['twilio'];
             $provider = \App\Models\ProviderAccount::query()
                 ->where('tenant_id', $tenant->id)
-                ->where('provider_type', 'twilio')
+                ->whereIn('provider_type', $providerTypes)
                 ->where('status', 'active')
+                // Prefer meta_whatsapp over twilio for whatsapp channels
+                ->orderByRaw("CASE WHEN provider_type = 'meta_whatsapp' THEN 1 ELSE 2 END")
                 ->latest('created_at')
                 ->first();
 

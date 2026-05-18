@@ -161,7 +161,7 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 ], $this->variables);
 
                 $bodyOrPayload = $metaTemplateService->buildTemplatePayload($metaTemplate, (string) $lead->phone, $variables);
-                $content = "[Meta Template: {$metaTemplate->template_name}]";
+                $content = $metaTemplateService->buildTemplateTextPreview($metaTemplate, $variables);
             } else {
                 Log::warning('Meta template not found.', [
                     'tenant_id' => $tenantId,
