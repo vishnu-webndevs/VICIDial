@@ -212,10 +212,13 @@ class AuthController extends Controller
         ]);
 
         $user = User::query()->where('email', Str::lower($validated['email']))->first();
+        
         if (! $user || ! Hash::check($validated['password'], $user->password)) {
-            throw ValidationException::withMessages([
-                'email' => ['Invalid credentials provided.'],
-            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid email or password.',
+                'error' => 'invalid_credentials'
+            ], 200);
         }
 
         $user->update([

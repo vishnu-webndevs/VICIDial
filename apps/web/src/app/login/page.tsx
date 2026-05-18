@@ -46,10 +46,17 @@ export default function LoginPage() {
     };
 
     try {
-      const response = await apiRequest<LoginResponse>("/auth/login", {
+      const response = await apiRequest<LoginResponse & { success?: boolean; message?: string }>("/auth/login", {
         method: "POST",
         body: payload,
       });
+
+      if (response.success === false) {
+        setMessage(response.message || "Invalid credentials provided.");
+        setLoading(false);
+        return;
+      }
+
       saveSession(response.data.token);
       const profile = await fetchSessionProfile();
       syncTenantFromProfile(profile);

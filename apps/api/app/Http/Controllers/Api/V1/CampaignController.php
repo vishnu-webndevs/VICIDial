@@ -1230,7 +1230,7 @@ class CampaignController extends Controller
         if ($missingLeadIds->isEmpty()) {
             if ((int) $run->queued_items !== 0) {
                 $run->queued_items = 0;
-                $run->last_tick_at = now();
+                $run->last_tick_at = \Illuminate\Support\Carbon::now();
                 $run->save();
             }
             return;
@@ -1262,7 +1262,7 @@ class CampaignController extends Controller
         DB::transaction(function () use ($campaign, $run, $leadIds, $missingLeadIds): void {
             $run->total_items = (int) $leadIds->count();
             $run->queued_items = (int) $missingLeadIds->count();
-            $run->last_tick_at = now();
+            $run->last_tick_at = \Illuminate\Support\Carbon::now();
             $run->save();
         });
 
