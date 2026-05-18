@@ -249,12 +249,9 @@ class MetaTemplateService
 
             $resolvedParameters = $this->resolveComponentParameters($component, $parameters);
             
-            // Only include component if it has parameters or is a button
+            // Only include component if it has parameters
             if (!empty($resolvedParameters)) {
                 $templateComponent['parameters'] = $resolvedParameters;
-                $components[] = $templateComponent;
-            } elseif ($componentTypeLower === 'button') {
-                // Buttons are always included if they exist in the template
                 $components[] = $templateComponent;
             }
         }

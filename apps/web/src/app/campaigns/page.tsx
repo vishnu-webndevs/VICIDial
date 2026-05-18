@@ -54,6 +54,7 @@ type NewCampaignForm = {
   message_use_meta_template: boolean;
   message_meta_template_id: string;
   message_media_file: File | null;
+  message_media_url: string;
 };
 
 const defaultCampaignForm: NewCampaignForm = {
@@ -69,6 +70,7 @@ const defaultCampaignForm: NewCampaignForm = {
   message_use_meta_template: false,
   message_meta_template_id: "",
   message_media_file: null,
+  message_media_url: "",
 };
 const ACTIVE_STATUSES: Campaign["status"][] = ["running"];
 
@@ -230,6 +232,7 @@ export default function CampaignsPage() {
       message_use_meta_template: Boolean(campaign.message_use_meta_template),
       message_meta_template_id: String(campaign.message_meta_template_id ?? ""),
       message_media_file: null,
+      message_media_url: String((campaign as any).message_media_url ?? ""),
     });
     setSelectedLists(campaign.lead_list_ids ?? []);
     setSelectedFromAgentId("");
@@ -317,6 +320,9 @@ export default function CampaignsPage() {
         }
         if (campaignForm.message_media_file) {
           formData.append("message_media_file", campaignForm.message_media_file);
+        }
+        if (campaignForm.message_media_url.trim()) {
+          formData.append("message_media_url", campaignForm.message_media_url.trim());
         }
       }
 
@@ -868,26 +874,38 @@ export default function CampaignsPage() {
                             <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: "block" }}>
                               Media Header (Optional - JPG, PNG)
                             </Typography>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0] || null;
-                                setCampaignForm((p) => ({ ...p, message_media_file: file }));
-                              }}
-                              style={{ 
-                                width: '100%', 
-                                padding: '8px', 
-                                border: '1px solid #ccc', 
-                                borderRadius: '4px',
-                                fontSize: '14px'
-                              }}
-                            />
-                            {campaignForm.message_media_file && (
-                              <Typography variant="caption" color="primary" sx={{ mt: 0.5, display: "block" }}>
-                                Selected: {campaignForm.message_media_file.name}
-                              </Typography>
-                            )}
+                            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              <TextField
+                                size="small"
+                                placeholder="https://example.com/image.jpg"
+                                value={campaignForm.message_media_url}
+                                onChange={(e) => setCampaignForm((p) => ({ ...p, message_media_url: e.target.value }))}
+                                fullWidth
+                                disabled={Boolean(campaignForm.message_media_file)}
+                                helperText={campaignForm.message_media_file ? "Clear file to enter URL manually" : "Enter a public image URL manually"}
+                              />
+                              <Typography variant="caption" sx={{ textAlign: 'center' }}>- OR -</Typography>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0] || null;
+                                  setCampaignForm((p) => ({ ...p, message_media_file: file, message_media_url: file ? "" : p.message_media_url }));
+                                }}
+                                style={{ 
+                                  width: '100%', 
+                                  padding: '8px', 
+                                  border: '1px solid #ccc', 
+                                  borderRadius: '4px',
+                                  fontSize: '14px'
+                                }}
+                              />
+                              {campaignForm.message_media_file && (
+                                <Typography variant="caption" color="primary" sx={{ display: "block" }}>
+                                  Selected: {campaignForm.message_media_file.name}
+                                </Typography>
+                              )}
+                            </Box>
                           </Box>
                         </Box>
                       )}
