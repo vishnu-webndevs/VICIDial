@@ -549,6 +549,41 @@ class CorePhaseOneController extends Controller
         ]);
     }
 
+    public function threadsMessagesIndex(Request $request, string $threadId): JsonResponse
+    {
+        if ($disabled = $this->ensureEnabled('phase1_sms_inbox')) {
+            return $disabled;
+        }
+
+        $tenant = $request->attributes->get('tenant');
+        $thread = MessageThread::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('id', $threadId)
+            ->firstOrFail();
+
+        $messages = \App\Models\Message::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('thread_id', $thread->id)
+            ->orderByDesc('sent_at')
+            ->paginate((int) $request->integer('per_page', 50));
+
+        // Return messages in chronological order (earliest first) for chat UI
+        $items = collect($messages->items())->reverse()->values();
+
+        return response()->json([
+            'success' => true,
+            'data' => $items,
+            'meta' => [
+                'pagination' => [
+                    'total' => $messages->total(),
+                    'per_page' => $messages->perPage(),
+                    'current_page' => $messages->currentPage(),
+                    'last_page' => $messages->lastPage(),
+                ],
+            ],
+        ]);
+    }
+
     public function threadsSendMessage(Request $request, string $threadId): JsonResponse
     {
         if ($disabled = $this->ensureEnabled('phase1_sms_inbox')) {

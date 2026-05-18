@@ -1071,6 +1071,30 @@ export async function sendInboxThreadMessage(threadId: string, body: string): Pr
   return response.data;
 }
 
+export async function listInboxThreadMessages(threadId: string, params: { per_page?: number; page?: number } = {}): Promise<{
+  data: any[];
+  total: number;
+  currentPage: number;
+  lastPage: number;
+}> {
+  const { token, tenantId } = getTenantContext();
+  const search = new URLSearchParams({
+    per_page: String(params.per_page ?? 50),
+    page: String(params.page ?? 1),
+  });
+  const response = await apiRequest<{ success: boolean; data: any[]; meta?: { pagination?: { total?: number; current_page?: number; last_page?: number } } }>(
+    `/inbox/threads/${threadId}/messages?${search.toString()}`,
+    { token, tenantId }
+  );
+  const pagination = response.meta?.pagination ?? {};
+  return {
+    data: response.data,
+    total: Number(pagination.total ?? response.data.length),
+    currentPage: Number(pagination.current_page ?? params.page ?? 1),
+    lastPage: Number(pagination.last_page ?? 1),
+  };
+}
+
 export async function updateInboxThread(
   threadId: string,
   payload: { assigned_user_id?: string | null; status?: string; priority?: string }

@@ -380,6 +380,8 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:tenant.update');
         Route::post('/inbox/threads/{threadId}/messages', [CorePhaseOneController::class, 'threadsSendMessage'])
             ->middleware('permission:tenant.update');
+        Route::get('/inbox/threads/{threadId}/messages', [CorePhaseOneController::class, 'threadsMessagesIndex'])
+            ->middleware('permission:tenant.view');
         Route::get('/inbox/sla-policy', [CorePhaseOneController::class, 'inboxSlaPolicyShow'])
             ->middleware('permission:tenant.view');
         Route::post('/inbox/sla-policy', [CorePhaseOneController::class, 'inboxSlaPolicyUpsert'])
