@@ -390,6 +390,17 @@ class CampaignController extends Controller
             }
 
             if (! $isMessageCampaign) {
+                $run->save();
+
+                app(\App\Services\AuditLogger::class)->log(
+                    action: 'run_campaign',
+                    resourceType: 'campaign',
+                    resourceId: $campaign->id,
+                    tenantId: $tenant->id,
+                    actorId: $request->user()?->id,
+                    request: $request
+                );
+
                 RunCampaignTickJob::dispatch($run->id);
             }
 
@@ -572,6 +583,15 @@ class CampaignController extends Controller
         $campaign->status = 'paused';
         $campaign->save();
 
+        app(\App\Services\AuditLogger::class)->log(
+            action: 'pause_campaign',
+            resourceType: 'campaign',
+            resourceId: $campaign->id,
+            tenantId: $tenant->id,
+            actorId: $request->user()?->id,
+            request: $request
+        );
+
         return response()->json([
             'data' => [
                 'campaign' => $this->serializeCampaign($campaign),
@@ -603,6 +623,15 @@ class CampaignController extends Controller
 
         $campaign->status = 'completed';
         $campaign->save();
+
+        app(\App\Services\AuditLogger::class)->log(
+            action: 'stop_campaign',
+            resourceType: 'campaign',
+            resourceId: $campaign->id,
+            tenantId: $tenant->id,
+            actorId: $request->user()?->id,
+            request: $request
+        );
 
         return response()->json([
             'data' => [
@@ -898,7 +927,16 @@ class CampaignController extends Controller
             ->latest('created_at')
             ->first();
 
-        if (! $run) {
+        // If no specific run is requested, get all run IDs for this campaign to aggregate data
+        $runIds = $runId 
+            ? [$runId] 
+            : CampaignRun::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('campaign_id', $campaign->id)
+                ->pluck('id')
+                ->all();
+
+        if (! $run || empty($runIds)) {
             return response()->json([
                 'data' => [
                     'campaign_id' => $campaign->id,
@@ -943,12 +981,14 @@ class CampaignController extends Controller
         $outbound = Message::query()
             ->where('tenant_id', $tenant->id)
             ->where('direction', 'outbound')
-            ->where('metadata->campaign_run_id', (string) $run->id)
+            ->whereIn('metadata->campaign_run_id', $runIds)
             ->orderBy('sent_at')
             ->get(['id', 'thread_id', 'body', 'status', 'sent_at', 'delivered_at', 'provider_message_id']);
 
         $outboundById = $outbound->keyBy('id');
-        $startedAt = $run->started_at ?: $outbound->min('sent_at');
+        $startedAt = count($runIds) > 1 
+            ? CampaignRun::query()->whereIn('id', $runIds)->min('started_at') ?: $outbound->min('sent_at')
+            : ($run->started_at ?: $outbound->min('sent_at'));
 
         $outboundTimelineByLead = $leadIds === []
             ? collect()
@@ -956,7 +996,7 @@ class CampaignController extends Controller
             ->where('tenant_id', $tenant->id)
             ->whereIn('lead_id', $leadIds)
             ->where('related_type', 'message')
-            ->where('metadata->bulk_batch_id', (string) $run->id)
+            ->whereIn('metadata->bulk_batch_id', $runIds)
             ->where('metadata->direction', 'outbound')
             ->orderBy('occurred_at')
             ->get(['id', 'lead_id', 'related_id', 'content', 'metadata', 'occurred_at'])
@@ -1035,7 +1075,7 @@ class CampaignController extends Controller
         return response()->json([
             'data' => [
                 'campaign_id' => $campaign->id,
-                'campaign_run_id' => $run->id,
+                'campaign_run_id' => count($runIds) > 1 ? 'All Runs' : $run->id,
                 'channel' => $channelFilter ?: $channel,
                 'summary' => [
                     'leads' => $leads->count(),

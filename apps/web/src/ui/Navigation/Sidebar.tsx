@@ -68,6 +68,7 @@ const adminNavGroups: NavGroup[] = [
     items: [
       { href: "/analytics", label: "Analytics", icon: "bx-bar-chart-alt-2" },
       { href: "/reports", label: "Reports", icon: "bx-line-chart" },
+      { href: "/audit-logs", label: "Audit Logs", icon: "bx-history" },
     ],
   },
   {
