@@ -36,12 +36,11 @@ Artisan::command('retention:enforce {--tenant=} {--execute}', function () {
     $tenantFilter = (string) ($this->option('tenant') ?? '');
 
     $policies = RetentionPolicy::query()
-        ->where('enabled', true)
         ->when($tenantFilter !== '', fn ($q) => $q->where('tenant_id', $tenantFilter))
         ->get();
 
     if ($policies->isEmpty()) {
-        $this->info('No enabled retention policies found.');
+        $this->info('No retention policies found.');
         return;
     }
 
