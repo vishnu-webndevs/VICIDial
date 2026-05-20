@@ -107,7 +107,7 @@ async function login(page: Page, email: string, password: string) {
   expect(loginResponse.ok(), "Login API response should be successful").toBeTruthy();
 
   const loginText = await loginResponse.text();
-  let loginBody: unknown;
+  let loginBody: any;
   try {
     loginBody = JSON.parse(loginText);
   } catch {

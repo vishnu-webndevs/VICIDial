@@ -219,7 +219,8 @@ export default function LeadsPage() {
 
   async function handleImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const formData = new FormData(event.currentTarget);
+    const formEl = event.currentTarget;
+    const formData = new FormData(formEl);
     const file = formData.get("csv_file");
     if (!(file instanceof File)) {
       setMessage("Select a CSV file first.");
@@ -252,7 +253,7 @@ export default function LeadsPage() {
           `Import completed: ${current.successful_rows} success, ${current.failed_rows} failed.`
         );
         setMessageTone("success");
-        event.currentTarget.reset();
+        formEl?.reset();
         await load();
       } else if (current.status === "failed") {
         setMessage("Import failed. Review the error summary.");

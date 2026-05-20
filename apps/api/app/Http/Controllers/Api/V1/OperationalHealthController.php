@@ -61,4 +61,27 @@ class OperationalHealthController extends Controller
             return 'down';
         }
     }
+    public function logs(): JsonResponse
+    {
+        $logPath = storage_path('logs/laravel.log');
+        
+        if (!file_exists($logPath)) {
+            return response()->json(['logs' => 'Log file not found.']);
+        }
+
+        $lines = 200;
+        $file = new \SplFileObject($logPath, 'r');
+        $file->seek(PHP_INT_MAX);
+        $lastLine = $file->key();
+        $linesToRead = max(0, $lastLine - $lines);
+        
+        $file->seek($linesToRead);
+        $content = '';
+        while (!$file->eof()) {
+            $content .= $file->current();
+            $file->next();
+        }
+
+        return response()->json(['logs' => $content]);
+    }
 }

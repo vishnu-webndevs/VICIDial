@@ -53,6 +53,33 @@ export async function syncMetaTemplates(providerAccountId?: string): Promise<{ o
   return response.data.sync;
 }
 
+export async function sendWhatsAppDebugTest(payload: {
+  phone_number: string;
+  template_id: string;
+  variables: Record<string, string>;
+}): Promise<{ success: boolean; message: any; debug_result: any }> {
+  const { token, tenantId } = getTenantContext();
+  const response = await apiRequest<{ success: boolean; message: any; debug_result: any }>("/whatsapp-debug/send-test", {
+    method: "POST",
+    token,
+    tenantId,
+    body: payload,
+  });
+  return response;
+}
+
+export async function fetchWhatsAppDebugInspector(): Promise<{
+  messages: any[];
+  comparison: any[];
+}> {
+  const { token, tenantId } = getTenantContext();
+  const response = await apiRequest<{ data: { messages: any[]; comparison: any[] } }>("/whatsapp-debug/delivery-inspector", {
+    token,
+    tenantId,
+  });
+  return response.data;
+}
+
 export type SessionProfile = {
   id: string;
   email: string;

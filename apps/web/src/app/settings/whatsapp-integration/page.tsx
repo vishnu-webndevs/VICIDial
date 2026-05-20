@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Accordion, AccordionDetails, AccordionSummary, IconButton, InputAdornment } from "@mui/material";
+import { Accordion, AccordionDetails, AccordionSummary, IconButton, InputAdornment, Select, MenuItem, FormControl, InputLabel } from "@mui/material";
 import { Box, Checkbox, FormControlLabel, MuiButton, Paper, Stack, TextField, Typography } from "@/ui";
 import { AppShell, EmptyState, LoadingState, SectionCard, StatusBadge } from "@/components/app-shell";
 import { ToastMessage } from "@/components/ui-primitives";
-import { getWhatsAppIntegration, saveWhatsAppIntegration, testWhatsAppIntegration } from "@/lib/product-api";
+import { getWhatsAppIntegration, saveWhatsAppIntegration, testWhatsAppIntegration, syncMetaTemplates, listMetaTemplates, sendWhatsAppDebugTest, fetchWhatsAppDebugInspector } from "@/lib/product-api";
+import { MetaWhatsappTemplate } from "@/types/product";
 
 type FormState = {
   enabled: boolean;
@@ -49,6 +50,90 @@ export default function WhatsAppIntegrationSettingsPage() {
 
   const [providerStatus, setProviderStatus] = useState<{ status: string; last_tested_at?: string | null; last_error_message?: string | null } | null>(null);
   const [form, setForm] = useState<FormState>(defaultForm);
+
+  // WhatsApp Debugger & Delivery Inspector States
+  const [templates, setTemplates] = useState<MetaWhatsappTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [variables, setVariables] = useState<Record<string, string>>({});
+  const [debugPhone, setDebugPhone] = useState<string>("");
+  const [sendingDebug, setSendingDebug] = useState(false);
+  const [syncingTemplates, setSyncingTemplates] = useState(false);
+  const [inspectorData, setInspectorData] = useState<{ messages: any[]; comparison: any[] }>({ messages: [], comparison: [] });
+  const [loadingInspector, setLoadingInspector] = useState(false);
+
+  const selectedTemplate = useMemo(() => {
+    return templates.find((t) => t.id === selectedTemplateId) || null;
+  }, [templates, selectedTemplateId]);
+
+  const loadDebugData = useCallback(async () => {
+    try {
+      const list = await listMetaTemplates();
+      setTemplates(list);
+      if (list.length > 0 && !selectedTemplateId) {
+        setSelectedTemplateId(list[0].id);
+      }
+    } catch (err) {
+      console.error("Failed to load templates", err);
+    }
+
+    setLoadingInspector(true);
+    try {
+      const data = await fetchWhatsAppDebugInspector();
+      setInspectorData(data || { messages: [], comparison: [] });
+    } catch (err) {
+      console.error("Failed to fetch debug inspector logs", err);
+    } finally {
+      setLoadingInspector(false);
+    }
+  }, [selectedTemplateId]);
+
+  async function onSyncTemplates() {
+    setSyncingTemplates(true);
+    try {
+      const result = await syncMetaTemplates();
+      setToast({ tone: "success", message: `WhatsApp templates synced: ${result.count} templates.` });
+      const list = await listMetaTemplates();
+      setTemplates(list);
+      if (list.length > 0) {
+        setSelectedTemplateId(list[0].id);
+      }
+    } catch (err: any) {
+      setToast({ tone: "error", message: err.message || "Failed to sync templates." });
+    } finally {
+      setSyncingTemplates(false);
+    }
+  }
+
+  async function onSendDebug() {
+    if (!debugPhone.trim()) {
+      setToast({ tone: "error", message: "Please specify a recipient phone number." });
+      return;
+    }
+    if (!selectedTemplateId) {
+      setToast({ tone: "error", message: "Please select a template." });
+      return;
+    }
+    setSendingDebug(true);
+    try {
+      const res = await sendWhatsAppDebugTest({
+        phone_number: debugPhone,
+        template_id: selectedTemplateId,
+        variables,
+      });
+      if (res.success) {
+        setToast({ tone: "success", message: "Debug test message sent successfully!" });
+        // Reload inspector data
+        const data = await fetchWhatsAppDebugInspector();
+        setInspectorData(data || { messages: [], comparison: [] });
+      } else {
+        setToast({ tone: "error", message: res.debug_result?.error || "Failed to send debug message." });
+      }
+    } catch (err: any) {
+      setToast({ tone: "error", message: err.message || "An error occurred while sending debug message." });
+    } finally {
+      setSendingDebug(false);
+    }
+  }
 
   const webhookUrl = useMemo(() => {
     if (typeof window === "undefined") return "";
@@ -121,6 +206,12 @@ export default function WhatsAppIntegrationSettingsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (form.enabled) {
+      void loadDebugData();
+    }
+  }, [form.enabled, loadDebugData]);
 
   async function onSave() {
     setSaving(true);
@@ -357,6 +448,182 @@ export default function WhatsAppIntegrationSettingsPage() {
           </Box>
         )}
       </SectionCard>
+
+      {form.enabled && !loading && (
+        <Box sx={{ mt: 3 }}>
+          <SectionCard title="WhatsApp Debugger & Delivery Inspector" subtitle="Test template delivery and monitor real-time webhook status.">
+            <Box sx={{ display: "grid", gap: 3, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" } }}>
+              
+              {/* Column 1: Test Console */}
+              <Paper variant="outlined" sx={{ p: 3, display: "flex", flexDirection: "column", gap: 2 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="h6" fontWeight="bold">Debug Console</Typography>
+                  <MuiButton
+                    variant="outlined"
+                    size="small"
+                    onClick={() => void onSyncTemplates()}
+                    disabled={syncingTemplates}
+                    startIcon={syncingTemplates ? <i className="bx bx-loader-alt bx-spin" /> : <i className="bx bx-sync" />}
+                  >
+                    {syncingTemplates ? "Syncing..." : "Sync Templates"}
+                  </MuiButton>
+                </Stack>
+
+                <TextField
+                  label="Recipient Phone Number"
+                  placeholder="+1234567890"
+                  size="medium"
+                  value={debugPhone}
+                  onChange={(e) => setDebugPhone(e.target.value)}
+                  fullWidth
+                />
+
+                {templates.length === 0 ? (
+                  <Paper sx={{ p: 2, bgcolor: "#f8f9fa", textAlign: "center" }}>
+                    <Typography variant="body2" color="text.secondary">No templates loaded. Click Sync Templates above.</Typography>
+                  </Paper>
+                ) : (
+                  <>
+                    <FormControl fullWidth>
+                      <InputLabel id="template-select-label">Select Template</InputLabel>
+                      <Select
+                        labelId="template-select-label"
+                        id="template-select"
+                        value={selectedTemplateId}
+                        label="Select Template"
+                        onChange={(e) => {
+                          setSelectedTemplateId(e.target.value);
+                          setVariables({});
+                        }}
+                      >
+                        {templates.map((t) => (
+                          <MenuItem key={t.id} value={t.id}>
+                            {t.template_name} ({t.language}) [{t.status}]
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+
+                    {selectedTemplate && selectedTemplate.variable_count > 0 && (
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, mt: 1 }}>
+                        <Typography variant="subtitle2" color="text.secondary">Template Variables ({selectedTemplate.variable_count})</Typography>
+                        {Array.from({ length: selectedTemplate.variable_count }).map((_, idx) => {
+                          const varKey = String(idx + 1);
+                          return (
+                            <TextField
+                              key={varKey}
+                              label={`Variable {{${varKey}}}`}
+                              size="small"
+                              value={variables[varKey] || ""}
+                              onChange={(e) => setVariables((v) => ({ ...v, [varKey]: e.target.value }))}
+                              fullWidth
+                            />
+                          );
+                        })}
+                      </Box>
+                    )}
+
+                    <MuiButton
+                      variant="contained"
+                      onClick={() => void onSendDebug()}
+                      disabled={sendingDebug || !debugPhone.trim()}
+                      sx={{ mt: 2 }}
+                      startIcon={sendingDebug ? <i className="bx bx-loader-alt bx-spin" /> : <i className="bx bx-paper-plane" />}
+                    >
+                      {sendingDebug ? "Sending..." : "Send Test Message"}
+                    </MuiButton>
+                  </>
+                )}
+              </Paper>
+
+              {/* Column 2: Delivery Inspector & Stats */}
+              <Paper variant="outlined" sx={{ p: 3, display: "flex", flexDirection: "column", gap: 3 }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Typography variant="h6" fontWeight="bold">Delivery Inspector</Typography>
+                  <MuiButton
+                    variant="outlined"
+                    size="small"
+                    onClick={() => void loadDebugData()}
+                    disabled={loadingInspector}
+                    startIcon={loadingInspector ? <i className="bx bx-loader-alt bx-spin" /> : <i className="bx bx-refresh" />}
+                  >
+                    Refresh Logs
+                  </MuiButton>
+                </Stack>
+
+                {loadingInspector && inspectorData.messages.length === 0 ? (
+                  <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+                    <i className="bx bx-loader-alt bx-spin" style={{ fontSize: "2rem", color: "#696cff" }} />
+                  </Box>
+                ) : (
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                    
+                    {/* Numbers Stats summary */}
+                    {inspectorData.comparison && inspectorData.comparison.length > 0 && (
+                      <Box>
+                        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>Delivery Rate by Phone Number</Typography>
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                          {inspectorData.comparison.map((stat: any) => (
+                            <Paper key={stat.number} variant="outlined" sx={{ p: 1.5, bgcolor: "#fafafa" }}>
+                              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                <Box>
+                                  <Typography variant="body2" fontWeight="bold">{stat.number}</Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    Total: {stat.total_messages} | Del: {stat.delivered_count} | Failed: {stat.failed_count}
+                                  </Typography>
+                                </Box>
+                                <Box sx={{ textAlign: "right" }}>
+                                  <Typography variant="body2" fontWeight="bold" color={stat.delivery_rate > 80 ? "success.main" : "warning.main"}>
+                                    {stat.delivery_rate}%
+                                  </Typography>
+                                  <StatusBadge label={stat.is_working ? "Active" : "Incomplete"} />
+                                </Box>
+                              </Stack>
+                            </Paper>
+                          ))}
+                        </Box>
+                      </Box>
+                    )}
+
+                    {/* Messages Log Feed */}
+                    <Box>
+                      <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 1 }}>Recent Debug Messages (Last 100)</Typography>
+                      {inspectorData.messages && inspectorData.messages.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">No debug messages logged yet.</Typography>
+                      ) : (
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, maxHeight: 300, overflowY: "auto", pr: 1 }}>
+                          {inspectorData.messages.map((msg: any) => (
+                            <Paper key={msg.id} variant="outlined" sx={{ p: 1.5, borderLeft: `4px solid ${msg.status === "failed" ? "#ff4d49" : msg.status === "read" ? "#28c76f" : "#26c6f9"}` }}>
+                              <Stack direction="row" justifyContent="space-between" sx={{ mb: 0.5 }}>
+                                <Typography variant="caption" fontWeight="bold">{msg.recipient}</Typography>
+                                <Typography variant="caption" color="text.secondary">
+                                  {msg.created_at ? new Date(msg.created_at).toLocaleTimeString() : ""}
+                                </Typography>
+                              </Stack>
+                              <Typography variant="body2" sx={{ whiteSpace: "pre-wrap", mb: 1, fontSize: "0.85rem", fontStyle: "italic", bgcolor: "#f8f9fa", p: 1, borderRadius: 1 }}>
+                                {msg.body}
+                              </Typography>
+                              <Stack direction="row" justifyContent="space-between" alignItems="center">
+                                <StatusBadge label={msg.status} />
+                                {msg.error_code && (
+                                  <Typography variant="caption" color="error">
+                                    Error {msg.error_code}: {msg.error_title}
+                                  </Typography>
+                                )}
+                              </Stack>
+                            </Paper>
+                          ))}
+                        </Box>
+                      )}
+                    </Box>
+
+                  </Box>
+                )}
+              </Paper>
+            </Box>
+          </SectionCard>
+        </Box>
+      )}
     </AppShell>
   );
 }

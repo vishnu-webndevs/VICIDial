@@ -79,6 +79,7 @@ const adminNavGroups: NavGroup[] = [
       { href: "/user-roles", label: "User Roles", icon: "bx-shield-quarter" },
       { href: "/settings", label: "Settings", icon: "bx-buildings" },
       { href: "/settings/whatsapp-integration", label: "WhatsApp Integration", icon: "bx-chat" },
+      { href: "/system-logs", label: "System Logs", icon: "bx-terminal" },
       { href: "/billing", label: "Billing", icon: "bx-credit-card" },
     ],
   },

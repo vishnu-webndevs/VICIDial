@@ -389,6 +389,11 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
         Route::post('/inbox/whatsapp-opt-in', [CorePhaseOneController::class, 'whatsappOptInUpdate'])
             ->middleware('permission:tenant.update');
 
+        Route::post('/whatsapp-debug/send-test', [CorePhaseOneController::class, 'whatsappDebugSendTest'])
+            ->middleware('permission:tenant.update');
+        Route::get('/whatsapp-debug/delivery-inspector', [CorePhaseOneController::class, 'whatsappDebugDeliveryInspector'])
+            ->middleware('permission:tenant.view');
+
         Route::post('/ai/reception/handle', [CorePhaseOneController::class, 'aiReceptionHandleMock'])
             ->middleware('permission:tenant.view');
         Route::post('/integrations/graph/availability', [CorePhaseOneController::class, 'graphAvailabilityMock'])
@@ -441,6 +446,8 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
         Route::post('/governance/drill', [CorePhaseOneController::class, 'governanceDrillMock'])
             ->middleware('permission:tenant.update');
         Route::get('/governance/drills', [CorePhaseOneController::class, 'governanceDrillsIndex'])
+            ->middleware('permission:tenant.view');
+        Route::get('/system/logs', [OperationalHealthController::class, 'logs'])
             ->middleware('permission:tenant.view');
     });
 });

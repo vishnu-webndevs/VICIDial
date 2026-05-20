@@ -472,6 +472,7 @@ class MessagingController extends Controller
             'received' => 70,
             'failed' => 80,
             'undelivered' => 80,
+            'held_for_quality_assessment' => 80,
         ];
 
         $currentRank = $rank[$current] ?? 0;

@@ -2093,4 +2093,242 @@ class CorePhaseOneController extends Controller
             ],
         ], 501);
     }
+
+    public function whatsappDebugSendTest(Request $request): JsonResponse
+    {
+        $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+        
+        $validated = $request->validate([
+            'phone_number' => ['required', 'string'],
+            'template_id' => ['required', 'string'],
+            'variables' => ['nullable', 'array'],
+        ]);
+
+        $provider = \App\Models\ProviderAccount::query()
+            ->where('tenant_id', $tenantId)
+            ->where('provider_type', 'meta_whatsapp')
+            ->where('status', 'active')
+            ->latest('created_at')
+            ->first();
+
+        if (! $provider) {
+            return response()->json([
+                'success' => false,
+                'error' => [
+                    'code' => 'PROVIDER_REQUIRED',
+                    'message' => 'No active Meta WhatsApp provider is configured.',
+                ],
+            ], 422);
+        }
+
+        $template = \App\Models\MetaWhatsappTemplate::query()
+            ->where('tenant_id', $tenantId)
+            ->where('id', $validated['template_id'])
+            ->first();
+
+        if (! $template) {
+            return response()->json([
+                'success' => false,
+                'error' => [
+                    'code' => 'TEMPLATE_NOT_FOUND',
+                    'message' => 'Meta WhatsApp template not found.',
+                ],
+            ], 404);
+        }
+
+        $metaTemplateService = app(\App\Services\Messaging\MetaTemplateService::class);
+        $payload = $metaTemplateService->buildTemplatePayload($template, $validated['phone_number'], $validated['variables'] ?? []);
+        $bodyText = $metaTemplateService->buildTemplateTextPreview($template, $validated['variables'] ?? []);
+
+        // Task 3: Logging before sending
+        \Illuminate\Support\Facades\Log::channel('single')->info('WhatsApp Debugger: Before sending test message.', [
+            'phone_number' => $validated['phone_number'],
+            'template_name' => $template->template_name,
+            'provider_account_id' => $provider->id,
+            'variables' => $validated['variables'] ?? [],
+            'payload' => $payload,
+        ]);
+
+        $whatsAppService = app(\App\Services\Messaging\WhatsAppService::class);
+        $providerCredentials = (array) ($provider->credentials_encrypted ?? []);
+        $statusCallbackUrl = rtrim((string) config('app.url'), '/').'/api/v1/webhooks/twilio/message-status';
+
+        $result = $whatsAppService->send($validated['phone_number'], $payload, $statusCallbackUrl, $providerCredentials);
+
+        // Task 3: Logging after sending
+        \Illuminate\Support\Facades\Log::channel('single')->info('WhatsApp Debugger: After sending test message.', [
+            'phone_number' => $validated['phone_number'],
+            'template_name' => $template->template_name,
+            'provider_account_id' => $provider->id,
+            'result' => $result,
+        ]);
+
+        $normalizedTo = Str::startsWith($validated['phone_number'], '+') ? $validated['phone_number'] : '+'.$validated['phone_number'];
+        $thread = MessageThread::query()->firstOrCreate(
+            [
+                'tenant_id' => $tenantId,
+                'channel' => 'whatsapp',
+                'counterparty_number' => $normalizedTo,
+            ],
+            [
+                'status' => 'open',
+                'priority' => 'normal',
+            ]
+        );
+        $thread->last_message_at = now();
+        $thread->save();
+
+        $providerMessageId = (string) ($result['provider_message_id'] ?? '');
+        $status = (($result['ok'] ?? false) === true) ? 'accepted' : 'failed';
+        $errorMessage = $result['error'] ?? null;
+        $statusCode = $result['status_code'] ?? null;
+
+        $message = Message::query()->create([
+            'tenant_id' => $tenantId,
+            'thread_id' => $thread->id,
+            'direction' => 'outbound',
+            'status' => $status,
+            'body' => $bodyText,
+            'sent_by_user_id' => $request->user()?->id,
+            'provider_message_id' => $providerMessageId,
+            'metadata' => [
+                'channel' => 'whatsapp',
+                'is_debug_test' => true,
+                'template_key' => $template->template_name,
+                'variables' => $validated['variables'] ?? [],
+                'provider_account_id' => $provider->id,
+                'debug_log' => [
+                    'sent_payload' => $payload,
+                    'response' => $result,
+                ],
+                'error' => $errorMessage,
+                'status_code' => $statusCode,
+            ],
+            'sent_at' => now(),
+        ]);
+
+        $lead = \App\Models\Lead::query()
+            ->where('tenant_id', $tenantId)
+            ->where('phone', $normalizedTo)
+            ->first();
+        if ($lead) {
+            \App\Models\LeadTimelineItem::query()->create([
+                'tenant_id' => $tenantId,
+                'lead_id' => $lead->id,
+                'event_type' => 'message',
+                'related_id' => $message->id,
+                'related_type' => 'message',
+                'title' => 'WhatsApp Debug Message Sent',
+                'body' => $bodyText,
+                'metadata' => [
+                    'channel' => 'whatsapp',
+                    'direction' => 'outbound',
+                    'status' => $status,
+                    'template_key' => $template->template_name,
+                    'is_debug_test' => true,
+                    'error' => $errorMessage,
+                ],
+                'occurred_at' => now(),
+            ]);
+        }
+
+        return response()->json([
+            'success' => $result['ok'] ?? false,
+            'message' => $message,
+            'debug_result' => $result,
+        ]);
+    }
+
+    public function whatsappDebugDeliveryInspector(Request $request): JsonResponse
+    {
+        $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+
+        $messages = Message::query()
+            ->where('tenant_id', $tenantId)
+            ->where('direction', 'outbound')
+            ->where(function($q) {
+                $q->whereJsonContains('metadata->channel', 'whatsapp')
+                  ->orWhereJsonContains('metadata->is_debug_test', true);
+            })
+            ->with('thread')
+            ->latest()
+            ->limit(100)
+            ->get()
+            ->map(function ($msg) {
+                $errors = data_get($msg->metadata, 'meta_errors', []);
+                $errCode = null;
+                $errTitle = null;
+                if (!empty($errors)) {
+                    $errCode = data_get($errors[0], 'code');
+                    $errTitle = data_get($errors[0], 'title');
+                }
+
+                return [
+                    'id' => $msg->id,
+                    'recipient' => (string) ($msg->thread?->counterparty_number ?? ''),
+                    'body' => $msg->body,
+                    'status' => $msg->status,
+                    'created_at' => $msg->created_at?->toISOString(),
+                    'delivered_at' => $msg->delivered_at?->toISOString(),
+                    'read_at' => $msg->read_at?->toISOString(),
+                    'error_code' => $errCode,
+                    'error_title' => $errTitle,
+                    'metadata' => $msg->metadata,
+                ];
+            });
+
+        $allMessages = Message::query()
+            ->where('tenant_id', $tenantId)
+            ->where('direction', 'outbound')
+            ->where(function($q) {
+                $q->whereJsonContains('metadata->channel', 'whatsapp')
+                  ->orWhereJsonContains('metadata->is_debug_test', true);
+            })
+            ->with('thread')
+            ->get();
+
+        $stats = $allMessages
+            ->groupBy(function ($msg) {
+                return (string) ($msg->thread?->counterparty_number ?? 'unknown');
+            })
+            ->map(function ($msgs, $number) {
+                $total = $msgs->count();
+                $delivered = $msgs->filter(fn($m) => in_array($m->status, ['delivered', 'read']))->count();
+                $read = $msgs->filter(fn($m) => $m->status === 'read')->count();
+                $failed = $msgs->filter(fn($m) => $m->status === 'failed' || $m->status === 'undelivered')->count();
+                $held = $msgs->filter(fn($m) => $m->status === 'held_for_quality_assessment')->count();
+
+                $errors = [];
+                foreach ($msgs as $msg) {
+                    $metaErrors = data_get($msg->metadata, 'meta_errors', []);
+                    foreach ($metaErrors as $err) {
+                        $code = data_get($err, 'code');
+                        if ($code) {
+                            $errors[$code] = ($errors[$code] ?? 0) + 1;
+                        }
+                    }
+                }
+
+                return [
+                    'number' => $number,
+                    'total_messages' => $total,
+                    'delivered_count' => $delivered,
+                    'read_count' => $read,
+                    'failed_count' => $failed,
+                    'held_count' => $held,
+                    'delivery_rate' => $total > 0 ? round(($delivered / $total) * 100, 1) : 0,
+                    'error_codes' => $errors,
+                    'is_working' => $delivered > 0,
+                ];
+            })
+            ->values();
+
+        return response()->json([
+            'data' => [
+                'messages' => $messages,
+                'comparison' => $stats,
+            ]
+        ]);
+    }
 }
+
