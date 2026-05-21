@@ -477,7 +477,7 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
     }
 
     $metadata = (array) ($call->metadata ?? []);
-    $dialMode = (string) ($metadata['dial_mode'] ?? 'missed_call');
+    $dialMode = (string) ($metadata['dial_mode'] ?? 'normal');
     $expected = (string) ($metadata['twiml_token'] ?? '');
     if ($expected !== '' && ! hash_equals($expected, $token)) {
         return response('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>', 200, ['Content-Type' => 'text/xml']);

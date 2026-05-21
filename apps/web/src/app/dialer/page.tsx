@@ -192,9 +192,9 @@ export default function DialerPage() {
       const customerCall = await createCall({
         to,
         agent_id: selectedAgentId,
-        metadata: { dial_mode: "missed_call", missed_call_target: "customer" },
+        metadata: { dial_mode: "normal" },
       });
-      recordAction("call.submit_succeeded", { call_id: customerCall.id, to: customerCall.to_number, mode: "missed_call" });
+      recordAction("call.submit_succeeded", { call_id: customerCall.id, to: customerCall.to_number, mode: "normal" });
 
       let customerDispatched = customerCall;
       try {
@@ -205,35 +205,18 @@ export default function DialerPage() {
         recordAction("call.dispatch_now_failed", { call_id: customerCall.id, message: dispatchError instanceof Error ? dispatchError.message : "unknown_error" });
       }
 
-      const agentDestination = normalizePhone(selectedAgent?.destination_number ?? "");
-      const agentCall = await createCall({
-        to: agentDestination,
-        agent_id: selectedAgentId,
-        metadata: { dial_mode: "missed_call", missed_call_target: "agent" },
-      });
-      recordAction("call.submit_succeeded", { call_id: agentCall.id, to: agentCall.to_number, mode: "missed_call" });
-
-      try {
-        await dispatchCallNow(agentCall.id);
-        recordAction("call.dispatch_now_succeeded", { call_id: agentCall.id, to: agentCall.to_number });
-      } catch (dispatchError) {
-        captureErrorStack(dispatchError);
-        recordAction("call.dispatch_now_failed", { call_id: agentCall.id, message: dispatchError instanceof Error ? dispatchError.message : "unknown_error" });
-      }
-
       setActiveCall({
         callId: customerDispatched.id,
-        relatedCallIds: [customerDispatched.id, agentCall.id],
+        relatedCallIds: [customerDispatched.id],
         status: customerDispatched.status,
         muted: customerDispatched.controls?.muted ?? false,
         onHold: customerDispatched.controls?.on_hold ?? false,
       });
       setCallStartedAt(Date.now());
-      setMessage(`Missed calls started to ${customerCall.to_number} and ${agentCall.to_number}.`);
+      setMessage(`Outbound call started to ${customerCall.to_number}.`);
       setMessageTone("success");
       setEventLog((prev) => [
-        { at: new Date().toLocaleTimeString(), text: `Missed call to ${customerCall.to_number}` },
-        { at: new Date().toLocaleTimeString(), text: `Missed call to ${agentCall.to_number}` },
+        { at: new Date().toLocaleTimeString(), text: `Outbound call to ${customerCall.to_number}` },
         ...prev,
       ].slice(0, 20));
       setToNumber("");
@@ -460,7 +443,7 @@ export default function DialerPage() {
                 disabled={submitting || ending || hasActiveDialerCall || !selectedAgentId || !selectedAgent?.default_number?.phone_number || !selectedAgent?.destination_number}
                 className="w-full"
               >
-                {submitting ? "Sending Missed Calls..." : hasActiveDialerCall ? "Call Active" : ending ? "Ending..." : "Send Missed Calls"}
+                {submitting ? "Initiating Call..." : hasActiveDialerCall ? "Call Active" : ending ? "Ending..." : "Start Call"}
               </UiButton>
             </Box>
           </Box>

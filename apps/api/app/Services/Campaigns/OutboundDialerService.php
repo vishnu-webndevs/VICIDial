@@ -57,7 +57,7 @@ class OutboundDialerService
                     'queue_item_id' => $queueItem->id,
                     'lead_id' => $lead->id,
                     'agent_id' => $agentId,
-                    'dial_mode' => 'missed_call',
+                    'dial_mode' => 'normal',
                     'twiml_token' => Str::random(40),
                     'controls' => ['muted' => false, 'on_hold' => false],
                 ],

@@ -70,7 +70,7 @@ class CallController extends Controller
 
         $requestMetadata = (array) ($validated['metadata'] ?? []);
         if (! array_key_exists('dial_mode', $requestMetadata) || ! is_string($requestMetadata['dial_mode']) || $requestMetadata['dial_mode'] === '') {
-            $requestMetadata['dial_mode'] = 'missed_call';
+            $requestMetadata['dial_mode'] = 'normal';
         }
 
         $provider = null;
@@ -201,7 +201,7 @@ class CallController extends Controller
 
         $requestMetadata = (array) ($validated['metadata'] ?? []);
         if (! array_key_exists('dial_mode', $requestMetadata) || ! is_string($requestMetadata['dial_mode']) || $requestMetadata['dial_mode'] === '') {
-            $requestMetadata['dial_mode'] = 'missed_call';
+            $requestMetadata['dial_mode'] = 'normal';
         }
 
         $provider = null;
@@ -385,7 +385,7 @@ class CallController extends Controller
             $call->save();
         }
         if (! array_key_exists('dial_mode', $metadata) || ! is_string($metadata['dial_mode']) || $metadata['dial_mode'] === '') {
-            $metadata['dial_mode'] = 'missed_call';
+            $metadata['dial_mode'] = 'normal';
             $call->metadata = $metadata;
             $call->save();
         }
