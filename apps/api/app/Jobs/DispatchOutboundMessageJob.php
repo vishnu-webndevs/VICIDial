@@ -488,6 +488,20 @@ class DispatchOutboundMessageJob implements ShouldQueue
             $run->last_tick_at = now();
 
             if ($run->queued_items === 0 && $run->status === 'running') {
+                try {
+                    $this->logEvent('info', 'Campaign run completing.', [
+                        'tenant_id' => $tenantId,
+                        'campaign_id' => $campaignId ?: (string) $run->campaign_id,
+                        'campaign_run_id' => $run->id,
+                        'pending_items' => 0,
+                        'processing_items' => 0,
+                        'dialed_items' => 0,
+                        'completed_items' => (int) $run->completed_items,
+                        'failed_items' => (int) $run->failed_items,
+                    ]);
+                } catch (\Throwable) {
+                }
+
                 $run->status = 'completed';
                 $run->stopped_at = now();
             }

@@ -47,6 +47,10 @@ class CampaignRunnerService
             return;
         }
 
+        if (in_array($campaign->type, ['sms', 'whatsapp', 'outreach'], true)) {
+            return;
+        }
+
         $this->writeCallCampaignLog('info', 'Call campaign tick hit.', [
             'tenant_id' => $campaign->tenant_id,
             'campaign_id' => $campaign->id,
@@ -654,19 +658,41 @@ class CampaignRunnerService
         $stats = DialQueueItem::query()
             ->where('campaign_run_id', $run->id)
             ->selectRaw('COUNT(*) as total')
-            ->selectRaw("SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as queued")
-            ->selectRaw("SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed")
-            ->selectRaw("SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed")
+            ->selectRaw("SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending_count")
+            ->selectRaw("SUM(CASE WHEN status = 'processing' THEN 1 ELSE 0 END) as processing_count")
+            ->selectRaw("SUM(CASE WHEN status = 'dialed' THEN 1 ELSE 0 END) as dialed_count")
+            ->selectRaw("SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_count")
+            ->selectRaw("SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed_count")
             ->first();
 
+        $pending = (int) ($stats->pending_count ?? 0);
+        $processing = (int) ($stats->processing_count ?? 0);
+        $dialed = (int) ($stats->dialed_count ?? 0);
+        $completed = (int) ($stats->completed_count ?? 0);
+        $failed = (int) ($stats->failed_count ?? 0);
+
         $run->total_items = (int) ($stats->total ?? 0);
-        $run->queued_items = (int) ($stats->queued ?? 0);
-        $run->completed_items = (int) ($stats->completed ?? 0);
-        $run->failed_items = (int) ($stats->failed ?? 0);
+        $run->queued_items = $pending;
+        $run->completed_items = $completed;
+        $run->failed_items = $failed;
         $run->last_tick_at = now();
         $run->save();
 
-        if ($run->queued_items === 0 && $run->status === 'running') {
+        if ($pending === 0 && $processing === 0 && $dialed === 0 && $run->status === 'running') {
+            try {
+                Log::info('Campaign run completing.', [
+                    'tenant_id' => (string) ($run->tenant_id ?? ''),
+                    'campaign_id' => (string) $run->campaign_id,
+                    'campaign_run_id' => (string) $run->id,
+                    'pending_items' => $pending,
+                    'processing_items' => $processing,
+                    'dialed_items' => $dialed,
+                    'completed_items' => $completed,
+                    'failed_items' => $failed,
+                ]);
+            } catch (\Throwable) {
+            }
+
             $run->status = 'completed';
             $run->stopped_at = now();
             $run->save();

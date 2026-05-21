@@ -71,7 +71,7 @@ class CampaignRunnerTest extends TestCase
 
         $this->assertSame('paused', $run->status);
         $this->assertSame('paused', $campaign->status);
-        $this->assertSame('no_available_agents', $run->metadata['pause_reason'] ?? null);
+        $this->assertSame('no_agents_mapped', $run->metadata['pause_reason'] ?? null);
     }
 
     public function test_window_enforcement_pauses_campaign_when_outside_allowed_hours(): void
