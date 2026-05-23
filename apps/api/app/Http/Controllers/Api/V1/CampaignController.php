@@ -232,7 +232,7 @@ class CampaignController extends Controller
             }
         }
 
-        $settings = (array) ($campaign->settings ?? []);
+        $settings = $validated['settings'] ?? (array) ($campaign->settings ?? []);
         if ($request->has('dial_mode')) {
             $settings['dial_mode'] = $request->input('dial_mode');
         }
