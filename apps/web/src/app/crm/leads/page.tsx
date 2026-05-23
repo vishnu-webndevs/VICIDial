@@ -60,6 +60,21 @@ const countryDialOptions: CountryDialOption[] = [
 const DEFAULT_COUNTRY = "US";
 const PHONE_E164_REGEX = /^\+[1-9]\d{7,14}$/;
 
+const countryPhoneLength: Record<string, number | number[]> = {
+  US: 10,
+  CA: 10,
+  GB: [10, 11],
+  AU: 9,
+  IN: 10,
+  PH: 10,
+  AE: 9,
+  SA: 9,
+  DE: [10, 11],
+  FR: 9,
+  ES: 9,
+  BR: [10, 11],
+};
+
 type LeadFormState = {
   id?: string;
   full_name: string;
@@ -178,6 +193,22 @@ export default function LeadsPage() {
     setMessage("");
     setMessageTone("neutral");
     const localDigits = form.phone_local.replace(/\D+/g, "");
+    
+    // Country-specific length validation
+    const expectedLength = countryPhoneLength[form.phone_country];
+    if (expectedLength) {
+      const isValidLength = Array.isArray(expectedLength) 
+        ? expectedLength.includes(localDigits.length) 
+        : localDigits.length === expectedLength;
+        
+      if (!isValidLength) {
+        const expectedText = Array.isArray(expectedLength) ? expectedLength.join(" or ") : expectedLength;
+        setMessage(`Phone number for ${getCountryOption(form.phone_country).label} must be exactly ${expectedText} digits.`);
+        setMessageTone("error");
+        return;
+      }
+    }
+
     const dialCode = getCountryOption(form.phone_country).dialCode;
     const normalizedPhone = `${dialCode}${localDigits}`;
     if (!PHONE_E164_REGEX.test(normalizedPhone)) {
@@ -384,9 +415,15 @@ export default function LeadsPage() {
                   required
                   size="medium"
                   value={form.phone_local}
-                  onChange={(event) => setForm((prev) => ({ ...prev, phone_local: event.target.value }))}
+                  onChange={(event) => {
+                    const numericValue = event.target.value.replace(/\D/g, "");
+                    const allowedLength = countryPhoneLength[form.phone_country];
+                    const maxLength = allowedLength ? (Array.isArray(allowedLength) ? Math.max(...allowedLength) : allowedLength) : 15;
+                    if (numericValue.length > maxLength) return;
+                    setForm((prev) => ({ ...prev, phone_local: numericValue }));
+                  }}
                   placeholder="Phone number"
-                  helperText="Country code is selected separately."
+                  helperText="Country code is selected separately. Only numbers are allowed."
                 />
                 <TextField
                   size="medium"
