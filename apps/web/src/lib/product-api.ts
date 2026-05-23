@@ -1098,6 +1098,26 @@ export async function sendInboxThreadMessage(threadId: string, body: string): Pr
   return response.data;
 }
 
+export async function deleteInboxThread(threadId: string): Promise<boolean> {
+  const { token, tenantId } = getTenantContext();
+  const response = await apiRequest<{ success: boolean }>(`/inbox/threads/${threadId}`, {
+    method: "DELETE",
+    token,
+    tenantId,
+  });
+  return response.success;
+}
+
+export async function clearInboxThreadMessages(threadId: string): Promise<boolean> {
+  const { token, tenantId } = getTenantContext();
+  const response = await apiRequest<{ success: boolean }>(`/inbox/threads/${threadId}/messages`, {
+    method: "DELETE",
+    token,
+    tenantId,
+  });
+  return response.success;
+}
+
 export async function listInboxThreadMessages(threadId: string, params: { per_page?: number; page?: number } = {}): Promise<{
   data: any[];
   total: number;

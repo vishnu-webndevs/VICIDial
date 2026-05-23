@@ -382,6 +382,10 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:tenant.update');
         Route::get('/inbox/threads/{threadId}/messages', [CorePhaseOneController::class, 'threadsMessagesIndex'])
             ->middleware('permission:tenant.view');
+        Route::delete('/inbox/threads/{threadId}', [CorePhaseOneController::class, 'threadDestroy'])
+            ->middleware('permission:tenant.update');
+        Route::delete('/inbox/threads/{threadId}/messages', [CorePhaseOneController::class, 'threadClearMessages'])
+            ->middleware('permission:tenant.update');
         Route::get('/inbox/sla-policy', [CorePhaseOneController::class, 'inboxSlaPolicyShow'])
             ->middleware('permission:tenant.view');
         Route::post('/inbox/sla-policy', [CorePhaseOneController::class, 'inboxSlaPolicyUpsert'])

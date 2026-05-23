@@ -2,10 +2,10 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Box, MenuItem, MuiButton, Paper, TextField, Typography } from "@/ui";
-import { Avatar, IconButton, Divider } from "@mui/material";
+import { Avatar, IconButton, Divider, Menu } from "@mui/material";
 import { AppShell, LoadingState, StatusBadge } from "@/components/app-shell";
 import { ToastMessage } from "@/components/ui-primitives";
-import { listInboxThreads, listTeamMembers, sendInboxThreadMessage, updateInboxThread, listInboxThreadMessages } from "@/lib/product-api";
+import { listInboxThreads, listTeamMembers, sendInboxThreadMessage, updateInboxThread, listInboxThreadMessages, deleteInboxThread, clearInboxThreadMessages } from "@/lib/product-api";
 import type { MessageThread, TeamMember } from "@/types/product";
 
 export default function ConversationsPage() {
@@ -23,6 +23,8 @@ export default function ConversationsPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [messageToast, setMessageToast] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "error">("neutral");
+  
+  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -199,6 +201,39 @@ export default function ConversationsPage() {
     }
   }
 
+  async function handleClearChat() {
+    setMenuAnchorEl(null);
+    if (!selectedThreadId) return;
+    if (!window.confirm("Are you sure you want to clear this chat? All messages will be deleted, but the chat will remain in your list.")) return;
+    try {
+      await clearInboxThreadMessages(selectedThreadId);
+      setMessages([]);
+      setMessageToast("Chat cleared successfully.");
+      setMessageTone("success");
+      void loadThreads();
+    } catch (err) {
+      setMessageToast(err instanceof Error ? err.message : "Failed to clear chat.");
+      setMessageTone("error");
+    }
+  }
+
+  async function handleDeleteChat() {
+    setMenuAnchorEl(null);
+    if (!selectedThreadId) return;
+    if (!window.confirm("Are you sure you want to delete this chat? This action cannot be undone.")) return;
+    try {
+      await deleteInboxThread(selectedThreadId);
+      setSelectedThreadId("");
+      setMessages([]);
+      setMessageToast("Chat deleted successfully.");
+      setMessageTone("success");
+      void loadThreads();
+    } catch (err) {
+      setMessageToast(err instanceof Error ? err.message : "Failed to delete chat.");
+      setMessageTone("error");
+    }
+  }
+
   const selectedThread = useMemo(
     () => threads.find((item) => item.id === selectedThreadId) ?? null,
     [threads, selectedThreadId]
@@ -328,6 +363,19 @@ export default function ConversationsPage() {
                 </Box>
                 <Box sx={{ display: 'flex', gap: 1 }}>
                     <StatusBadge label={selectedThread.priority ?? 'normal'} />
+                    <IconButton onClick={(e) => setMenuAnchorEl(e.currentTarget)}>
+                      <i className="bx bx-dots-vertical-rounded" />
+                    </IconButton>
+                    <Menu
+                      anchorEl={menuAnchorEl}
+                      open={Boolean(menuAnchorEl)}
+                      onClose={() => setMenuAnchorEl(null)}
+                      transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+                      anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+                    >
+                      <MenuItem onClick={handleClearChat}>Clear Chat</MenuItem>
+                      <MenuItem onClick={handleDeleteChat} sx={{ color: 'error.main' }}>Delete Chat</MenuItem>
+                    </Menu>
                 </Box>
               </Box>
 

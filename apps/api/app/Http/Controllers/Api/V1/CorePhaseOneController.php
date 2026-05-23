@@ -585,6 +585,57 @@ class CorePhaseOneController extends Controller
         ]);
     }
 
+    public function threadDestroy(Request $request, string $threadId): JsonResponse
+    {
+        if ($disabled = $this->ensureEnabled('phase1_sms_inbox')) {
+            return $disabled;
+        }
+
+        $tenant = $request->attributes->get('tenant');
+        $thread = MessageThread::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('id', $threadId)
+            ->firstOrFail();
+
+        // Delete all messages in the thread
+        \App\Models\Message::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('thread_id', $thread->id)
+            ->delete();
+
+        // Delete the thread itself
+        $thread->delete();
+
+        return response()->json([
+            'success' => true,
+        ]);
+    }
+
+    public function threadClearMessages(Request $request, string $threadId): JsonResponse
+    {
+        if ($disabled = $this->ensureEnabled('phase1_sms_inbox')) {
+            return $disabled;
+        }
+
+        $tenant = $request->attributes->get('tenant');
+        $thread = MessageThread::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('id', $threadId)
+            ->firstOrFail();
+
+        // Delete all messages in the thread
+        \App\Models\Message::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('thread_id', $thread->id)
+            ->delete();
+
+        // Optionally, update the thread's last_message_at or keep it as is.
+        $thread->update(['last_message_at' => null]);
+
+        return response()->json([
+            'success' => true,
+        ]);
+    }
     public function threadsSendMessage(Request $request, string $threadId): JsonResponse
     {
         if ($disabled = $this->ensureEnabled('phase1_sms_inbox')) {
