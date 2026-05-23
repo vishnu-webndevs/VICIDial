@@ -52,4 +52,9 @@ class MessageThread extends Model
     {
         return $this->belongsTo(Contact::class);
     }
+
+    public function lead(): BelongsTo
+    {
+        return $this->belongsTo(Lead::class);
+    }
 }

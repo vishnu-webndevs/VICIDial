@@ -349,6 +349,10 @@ export type MessageThread = {
   project_id?: string | null;
   assigned_user_id?: string | null;
   lead_id?: string | null;
+  lead?: {
+    id: string;
+    full_name: string;
+  } | null;
   subject?: string | null;
   status?: string;
   priority?: "low" | "normal" | "high" | "urgent" | string;

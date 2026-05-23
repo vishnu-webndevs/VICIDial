@@ -270,7 +270,7 @@ export default function ConversationsPage() {
                   <Box sx={{ flex: 1, overflow: 'hidden' }}>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: selectedThreadId === thread.id ? 600 : 500 }} noWrap>
-                          {thread.contact?.display_name || thread.counterparty_number}
+                          {thread.contact?.display_name || thread.lead?.full_name || thread.counterparty_number}
                       </Typography>
                       <Typography variant="caption" sx={{ color: 'text.secondary', whiteSpace: 'nowrap', ml: 1 }}>
                           {thread.last_message_at ? new Date(thread.last_message_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : ''}
@@ -319,7 +319,9 @@ export default function ConversationsPage() {
                     <i className="bx bx-user" />
                 </Avatar>
                 <Box sx={{ flex: 1 }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>{selectedThread.contact?.display_name || selectedThread.counterparty_number}</Typography>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#111b21', mb: 0.5 }}>
+                  {selectedThread.contact?.display_name || selectedThread.lead?.full_name || selectedThread.counterparty_number}
+                </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     Status: {selectedThread.status?.toUpperCase() ?? 'OPEN'} | Channel: {selectedThread.channel.toUpperCase()}
                   </Typography>
