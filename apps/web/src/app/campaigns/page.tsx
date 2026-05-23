@@ -26,7 +26,7 @@ import { getTenantContext } from "@/lib/tenant-context";
 import { listAgents, listCampaigns, listMessageTemplates, listMetaTemplates, listProviderAccounts, pauseCampaign, startCampaign, syncMetaTemplates } from "@/lib/product-api";
 import type { AgentEntity, Campaign, CampaignStatusPayload, LeadList, MessageTemplate, MetaWhatsappTemplate } from "@/types/product";
 
-type PopupState = "new-campaign" | "command-center" | null;
+type PopupState = "new-campaign" | "command-center" | "auto-dialer-setup" | null;
 type CampaignTab = "all" | "active" | "paused" | "draft";
 
 type CampaignStats = {
@@ -114,6 +114,8 @@ export default function CampaignsPage() {
   const [commandAgents, setCommandAgents] = useState<CampaignStatusPayload["agents"]>([]);
   const [commandLoading, setCommandLoading] = useState(false);
   const [startingCampaignId, setStartingCampaignId] = useState<string | null>(null);
+  const [autoDialerCampaign, setAutoDialerCampaign] = useState<Campaign | null>(null);
+  const [autoDialerPrompt, setAutoDialerPrompt] = useState("");
 
   const fetchLeadLists = useCallback(async (): Promise<LeadList[]> => {
     const { token, tenantId } = getTenantContext();
@@ -434,6 +436,39 @@ export default function CampaignsPage() {
     }
   }
 
+  function openAutoDialerPopup(campaign: Campaign) {
+    setAutoDialerCampaign(campaign);
+    setAutoDialerPrompt((campaign.settings?.tts_prompt as string) || "Agar aap real estate me invest karna chahte ho to press 1.");
+    setPopup("auto-dialer-setup");
+  }
+
+  async function onStartAutoDialer() {
+    if (!autoDialerCampaign) return;
+    try {
+      setMessage(`Starting Auto Dialer for "${autoDialerCampaign.name}"...`);
+      setMessageTone("neutral");
+      
+      const { token, tenantId } = getTenantContext();
+      const formData = new FormData();
+      formData.append("_method", "PATCH");
+      formData.append("dial_mode", "auto_dialer");
+      formData.append("tts_prompt", autoDialerPrompt);
+      
+      await apiRequest(`/campaigns/${autoDialerCampaign.id}`, {
+        method: "POST",
+        token,
+        tenantId,
+        body: formData,
+      });
+
+      await onStartCampaign(autoDialerCampaign);
+      setPopup(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to start auto dialer.");
+      setMessageTone("error");
+    }
+  }
+
   const hasRunningCampaign = campaigns.some((item) => ACTIVE_STATUSES.includes(item.status));
 
   return (
@@ -562,18 +597,34 @@ export default function CampaignsPage() {
                             Edit
                           </MuiButton>
                           {!isThisCampaignActive ? (
-                            <MuiButton
-                              size="medium"
-                              variant="contained"
-                              color="success"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void onStartCampaign(campaign);
-                              }}
-                              disabled={startingCampaignId === campaign.id}
-                            >
-                              {startingCampaignId === campaign.id ? "Starting..." : "Start"}
-                            </MuiButton>
+                            <>
+                              {campaign.type === "outbound_call" || campaign.type === "auto" || campaign.type === "manual" ? (
+                                <MuiButton
+                                  size="medium"
+                                  variant="outlined"
+                                  color="secondary"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openAutoDialerPopup(campaign);
+                                  }}
+                                  disabled={Boolean(startingCampaignId)}
+                                >
+                                  Auto Dialer
+                                </MuiButton>
+                              ) : null}
+                              <MuiButton
+                                size="medium"
+                                variant="contained"
+                                color="success"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void onStartCampaign(campaign);
+                                }}
+                                disabled={startingCampaignId === campaign.id}
+                              >
+                                {startingCampaignId === campaign.id ? "Starting..." : "Start"}
+                              </MuiButton>
+                            </>
                           ) : (
                             <MuiButton
                               size="medium"
@@ -1065,8 +1116,46 @@ export default function CampaignsPage() {
             >
               Pause Campaign
             </MuiButton>
+            <MuiButton
+              variant="contained"
+              color="success"
+              onClick={() => { setAutoDialerCampaign(commandCampaign); setPopup("auto-dialer-setup"); }}
+            >
+              Auto Dialer
+            </MuiButton>
           </Box>
         )}
+      </Modal>
+
+      <Modal
+        open={popup === "auto-dialer-setup"}
+        onClose={() => {
+          setPopup(null);
+          setAutoDialerCampaign(null);
+        }}
+        title="Start Auto Dialer"
+      >
+        <Box sx={{ display: "grid", gap: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            Auto Dialer will automatically connect calls and play a Text-To-Speech prompt. 
+            If the customer presses 1, their status will be updated to Interested.
+          </Typography>
+          <Box>
+            <Typography variant="caption" color="text.secondary">TTS Prompt (Played when answered)</Typography>
+            <TextField
+              fullWidth
+              multiline
+              rows={3}
+              value={autoDialerPrompt}
+              onChange={(e) => setAutoDialerPrompt(e.target.value)}
+              placeholder="Agar aap real estate me invest karna chahte ho to press 1."
+            />
+          </Box>
+          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 1 }}>
+            <MuiButton variant="outlined" onClick={() => setPopup(null)}>Cancel</MuiButton>
+            <MuiButton variant="contained" color="success" onClick={() => void onStartAutoDialer()}>Start Auto Dialer</MuiButton>
+          </Box>
+        </Box>
       </Modal>
     </AppShell>
   );

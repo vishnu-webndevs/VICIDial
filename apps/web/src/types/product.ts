@@ -109,6 +109,7 @@ export type Campaign = {
   message_template_key?: string | null;
   message_use_meta_template?: boolean;
   message_meta_template_id?: string | null;
+  settings?: Record<string, unknown> | null;
   updated_at: string;
 };
 
@@ -341,6 +342,10 @@ export type MessageThread = {
   channel: "sms" | "whatsapp";
   counterparty_number: string;
   contact_id?: string | null;
+  contact?: {
+    id: string;
+    display_name: string;
+  } | null;
   project_id?: string | null;
   assigned_user_id?: string | null;
   lead_id?: string | null;

@@ -495,6 +495,23 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
         return response($twiml, 200, ['Content-Type' => 'text/xml']);
     }
 
+    if ($dialMode === 'auto_dialer') {
+        $prompt = (string) ($metadata['tts_prompt'] ?? 'Press 1 if you are interested.');
+        $actionUrl = url('/api/webhooks/twilio/gather-result?call_session_id=' . $callSessionId);
+        $twiml = implode('', [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<Response>',
+            '<Gather numDigits="1" action="' . htmlspecialchars($actionUrl, ENT_QUOTES) . '" method="POST">',
+            '<Say voice="alice">' . htmlspecialchars($prompt, ENT_QUOTES) . '</Say>',
+            '</Gather>',
+            '<Say voice="alice">No input received. Goodbye.</Say>',
+            '<Hangup/>',
+            '</Response>',
+        ]);
+
+        return response($twiml, 200, ['Content-Type' => 'text/xml']);
+    }
+
     $agentId = (string) ($metadata['agent_id'] ?? '');
     if ($agentId === '') {
         $twiml = '<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">No agent is assigned for this call.</Say><Hangup/></Response>';
@@ -548,6 +565,7 @@ Route::get('/webhooks/vonage/ncco/outbound', function (\Illuminate\Http\Request 
 Route::post('/webhooks/twilio/voice', [TwilioVoiceWebhookController::class, 'inbound']);
 Route::post('/webhooks/twilio/voice/voicemail', [TwilioVoiceWebhookController::class, 'voicemail']);
 Route::post('/webhooks/twilio/voice/transfer', [TwilioVoiceWebhookController::class, 'transfer']);
+Route::post('/webhooks/twilio/gather-result', [TwilioVoiceWebhookController::class, 'gatherResult']);
 Route::post('/webhooks/twilio', [ProviderWebhookController::class, 'twilio']);
 Route::post('/webhooks/vonage', [ProviderWebhookController::class, 'vonage']);
 Route::match(['GET', 'POST'], '/webhooks/teams/approvals/{id}/respond', [CorePhaseOneController::class, 'teamsApprovalWebhookRespond']);

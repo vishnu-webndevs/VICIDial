@@ -435,4 +435,34 @@ class TwilioVoiceWebhookController extends Controller
 
         return $pattern === $destination;
     }
+
+    public function gatherResult(Request $request): Response
+    {
+        $payload = $request->all();
+        $callSessionId = (string) $request->query('call_session_id', '');
+        
+        $callSession = CallSession::query()->where('id', $callSessionId)->first();
+        if (! $callSession) {
+            return $this->twimlResponse($this->wrapTwiml('<Hangup/>'));
+        }
+
+        $digits = trim((string) ($payload['Digits'] ?? ''));
+        $leadId = (string) ($callSession->metadata['lead_id'] ?? '');
+
+        if ($leadId !== '') {
+            $lead = \App\Models\Lead::query()->where('id', $leadId)->first();
+            if ($lead) {
+                if ($digits === '1') {
+                    $lead->status = 'qualified';
+                    $lead->last_disposition = array_merge((array) $lead->last_disposition, ['reason' => 'Interested']);
+                } else {
+                    $lead->status = 'follow_up';
+                    $lead->last_disposition = array_merge((array) $lead->last_disposition, ['reason' => 'Call ended without key press']);
+                }
+                $lead->save();
+            }
+        }
+
+        return $this->twimlResponse($this->wrapTwiml('<Say voice="alice">Thank you. Goodbye.</Say><Hangup/>'));
+    }
 }

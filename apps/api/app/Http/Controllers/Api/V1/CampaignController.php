@@ -232,6 +232,15 @@ class CampaignController extends Controller
             }
         }
 
+        $settings = (array) ($campaign->settings ?? []);
+        if ($request->has('dial_mode')) {
+            $settings['dial_mode'] = $request->input('dial_mode');
+        }
+        if ($request->has('tts_prompt')) {
+            $settings['tts_prompt'] = $request->input('tts_prompt');
+        }
+        $validated['settings'] = $settings;
+
         $resolvedType = (string) ($validated['type'] ?? $campaign->type);
         $isMessageCampaign = in_array($resolvedType, ['sms', 'whatsapp', 'outreach'], true);
         $isMessageUpdate = $isMessageCampaign

@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\Mail;
 
 class CampaignRunnerService
 {
-    private const RETRYABLE_STATUSES = ['failed', 'busy', 'no_answer', 'timeout', 'rejected', 'canceled'];
+    private const RETRYABLE_STATUSES = ['failed', 'busy', 'no_answer', 'timeout', 'canceled'];
     private const STALE_LIVE_CALL_SECONDS = 600;
 
     public function __construct(
