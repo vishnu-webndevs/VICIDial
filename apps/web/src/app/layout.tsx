@@ -5,6 +5,10 @@ import { ThemeProvider } from "@/ui/theme/ThemeProvider";
 export const metadata: Metadata = {
   title: "WND Dialer",
   description: "Multi-tenant dialer platform",
+  robots: {
+    index: false,
+    follow: false,
+  },
 };
 
 export default function RootLayout({

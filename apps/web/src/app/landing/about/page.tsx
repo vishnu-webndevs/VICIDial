@@ -2,9 +2,16 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "About",
+  title: "About | WND Dialer",
   description:
     "Learn about WND Dialer — our mission, values, and the team building the next generation of outbound calling software.",
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: "/landing/about",
+  },
 };
 
 const values = [

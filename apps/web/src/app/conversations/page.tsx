@@ -8,6 +8,7 @@ import { ToastMessage } from "@/components/ui-primitives";
 import { listInboxThreads, listTeamMembers, sendInboxThreadMessage, updateInboxThread, listInboxThreadMessages, deleteInboxThread, clearInboxThreadMessages } from "@/lib/product-api";
 import { playNotificationSoundDebounced } from "@/lib/notificationSound";
 import { useSearchParams } from "next/navigation";
+import type { MessageThread, TeamMember } from "@/types/product";
 
 export default function ConversationsPage() {
   const searchParams = useSearchParams();

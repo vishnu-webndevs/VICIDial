@@ -9,6 +9,7 @@ use App\Http\Middleware\ResolveTenantContext;
 use App\Http\Middleware\AttachRequestId;
 use App\Http\Middleware\ApiRequestTelemetry;
 use App\Http\Middleware\SecurityHeaders;
+use App\Http\Middleware\SanitizeInputs;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -32,6 +33,7 @@ return Application::configure(basePath: dirname(__DIR__))
             AttachRequestId::class,
             ApiRequestTelemetry::class,
             SecurityHeaders::class,
+            SanitizeInputs::class,
         ]);
 
         $middleware->alias([

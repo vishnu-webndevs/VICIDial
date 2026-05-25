@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /$
+Allow: /landing$
+Allow: /landing/about$
+Allow: /landing/contact$
+Allow: /landing/pricing$
+Allow: /demo$
+Allow: /login$
+Allow: /register$
+Allow: /forgot-password$
+Allow: /reset-password$
+Disallow: /*?
+Disallow: /
