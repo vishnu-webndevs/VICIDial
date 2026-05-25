@@ -40,3 +40,10 @@ apps/web/test-results/
 **/*.log
 **/node_modules/
 **/.claude/
+
+# Ignore test directories and script files
+apps/api/tests/
+apps/web/e2e/
+apps/api/test_meta_payload.php
+apps/web/scripts/test-how-to-use-cross-browser.mjs
+

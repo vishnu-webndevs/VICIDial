@@ -40,3 +40,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Ignore E2E tests and test scripts
+/e2e
+/scripts/test-how-to-use-cross-browser.mjs
+
