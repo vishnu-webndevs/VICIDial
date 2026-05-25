@@ -7,13 +7,19 @@ import { AppShell, LoadingState, StatusBadge } from "@/components/app-shell";
 import { ToastMessage } from "@/components/ui-primitives";
 import { listInboxThreads, listTeamMembers, sendInboxThreadMessage, updateInboxThread, listInboxThreadMessages, deleteInboxThread, clearInboxThreadMessages } from "@/lib/product-api";
 import { playNotificationSoundDebounced } from "@/lib/notificationSound";
-import type { MessageThread, TeamMember } from "@/types/product";
+import { useSearchParams } from "next/navigation";
 
 export default function ConversationsPage() {
-  const [channel, setChannel] = useState<"sms" | "whatsapp">("whatsapp");
+  const searchParams = useSearchParams();
+  const queryThreadId = searchParams.get("thread_id") ?? "";
+  const queryChannel = searchParams.get("channel") ?? "";
+
+  const [channel, setChannel] = useState<"sms" | "whatsapp">(() => {
+    return (queryChannel === "sms" || queryChannel === "whatsapp") ? queryChannel : "whatsapp";
+  });
   const [threads, setThreads] = useState<MessageThread[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [selectedThreadId, setSelectedThreadId] = useState("");
+  const [selectedThreadId, setSelectedThreadId] = useState(queryThreadId);
   const [outboundBody, setOutboundBody] = useState("");
   
   const [loading, setLoading] = useState(true);
@@ -28,6 +34,7 @@ export default function ConversationsPage() {
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isInitialLoad = useRef(true);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -44,8 +51,23 @@ export default function ConversationsPage() {
     try {
       const response = await listInboxThreads(channel, { per_page: 100 });
       setThreads(response.data);
-      if (!selectedThreadId && response.data.length > 0) {
-        setSelectedThreadId(response.data[0].id);
+      
+      if (isInitialLoad.current && queryThreadId) {
+        isInitialLoad.current = false;
+        const hasQueryThread = response.data.some(t => t.id === queryThreadId);
+        if (hasQueryThread) {
+          setSelectedThreadId(queryThreadId);
+          return;
+        }
+      }
+      
+      if (response.data.length > 0) {
+        const currentThreadInNewList = response.data.some(t => t.id === selectedThreadId);
+        if (!currentThreadInNewList) {
+          setSelectedThreadId(response.data[0].id);
+        }
+      } else {
+        setSelectedThreadId("");
       }
     } catch (err) {
       setMessageToast(err instanceof Error ? err.message : "Failed to load inbox threads.");
@@ -53,10 +75,9 @@ export default function ConversationsPage() {
     } finally {
       setLoading(false);
     }
-  }, [channel, selectedThreadId]);
+  }, [channel, queryThreadId, selectedThreadId]);
 
   useEffect(() => {
-    setSelectedThreadId("");
     setOutboundBody("");
     void loadThreads();
   }, [channel]);

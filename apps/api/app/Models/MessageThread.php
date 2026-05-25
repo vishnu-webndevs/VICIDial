@@ -55,6 +55,6 @@ class MessageThread extends Model
 
     public function lead(): BelongsTo
     {
-        return $this->belongsTo(Lead::class);
+        return $this->belongsTo(Lead::class, 'counterparty_number', 'phone');
     }
 }

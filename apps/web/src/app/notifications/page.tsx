@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { AppShell, EmptyState, ErrorState, LoadingState, SectionCard } from "@/components/app-shell";
 import { apiRequest } from "@/lib/api";
 import { Box, Button, MuiButton, Paper, Stack, Typography } from "@/ui";
+import { useRouter } from "next/navigation";
 
 type Notification = {
   id: string;
@@ -12,9 +13,16 @@ type Notification = {
   type: string;
   read_at: string | null;
   created_at: string;
+  metadata?: {
+    thread_id?: string;
+    message_id?: string;
+    channel?: string;
+    from?: string;
+  } | null;
 };
 
 export default function NotificationsPage() {
+  const router = useRouter();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
@@ -49,6 +57,17 @@ export default function NotificationsPage() {
       await loadNotifications(false);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to mark notification as read.");
+    }
+  }
+
+  async function handleNotificationClick(item: Notification) {
+    if (!item.read_at) {
+      await markRead(item.id);
+    }
+    const threadId = item.metadata?.thread_id;
+    const channel = item.metadata?.channel;
+    if (threadId && channel) {
+      router.push(`/conversations?thread_id=${threadId}&channel=${channel}`);
     }
   }
 
@@ -111,7 +130,22 @@ export default function NotificationsPage() {
         <Stack spacing={2} sx={{ mt: 3 }}>
           {loading ? <LoadingState label="Loading notifications..." /> : null}
           {notifications.map((item) => (
-            <Paper key={item.id} variant="outlined" sx={{ p: 3 }}>
+            <Paper 
+              key={item.id} 
+              variant="outlined" 
+              onClick={() => void handleNotificationClick(item)}
+              sx={{ 
+                p: 3, 
+                cursor: 'pointer',
+                transition: 'all 0.2s ease-in-out',
+                bgcolor: item.read_at ? '#ffffff' : 'rgba(105, 108, 255, 0.03)',
+                '&:hover': {
+                  borderColor: 'rgba(105, 108, 255, 0.4)',
+                  boxShadow: '0 2px 12px rgba(105, 108, 255, 0.08)',
+                  bgcolor: item.read_at ? 'rgba(105, 108, 255, 0.01)' : 'rgba(105, 108, 255, 0.05)',
+                }
+              }}
+            >
               <Stack direction="row" justifyContent="space-between" alignItems="flex-start" spacing={2}>
                 <Typography variant="subtitle2">{item.title}</Typography>
                 <Typography variant="caption" color="text.secondary">
@@ -128,7 +162,10 @@ export default function NotificationsPage() {
                   <Button
                     type="button"
                     size="medium"
-                    onClick={() => void markRead(item.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void markRead(item.id);
+                    }}
                   >
                     Mark Read
                   </Button>
