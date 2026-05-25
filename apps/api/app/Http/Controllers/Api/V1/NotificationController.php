@@ -53,4 +53,18 @@ class NotificationController extends Controller
 
         return response()->json(['data' => $notification]);
     }
+
+    public function markAllRead(Request $request): JsonResponse
+    {
+        $tenant = $request->attributes->get('tenant');
+        $userId = $request->user()?->id;
+
+        Notification::query()
+            ->where('tenant_id', $tenant->id)
+            ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', $userId))
+            ->whereNull('read_at')
+            ->update(['read_at' => now()]);
+
+        return response()->json(['success' => true]);
+    }
 }

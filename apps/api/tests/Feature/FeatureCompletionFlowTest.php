@@ -151,6 +151,19 @@ class FeatureCompletionFlowTest extends TestCase
             'title' => 'Quota Warning',
             'message' => 'Usage crossed 80%.',
         ]);
+        Notification::query()->create([
+            'tenant_id' => $tenantId,
+            'user_id' => $userId,
+            'type' => 'system',
+            'title' => 'Another Warning',
+            'message' => 'Limit reached.',
+        ]);
+
+        $countBefore = Notification::query()
+            ->where('tenant_id', $tenantId)
+            ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', $userId))
+            ->whereNull('read_at')
+            ->count();
 
         $this->get('/api/v1/calls/export?limit=100', [
             'Authorization' => "Bearer {$token}",
@@ -168,7 +181,8 @@ class FeatureCompletionFlowTest extends TestCase
         $notificationResponse = $this->getJson('/api/v1/notifications?unread_only=1', [
             'Authorization' => "Bearer {$token}",
             'X-Tenant-Id' => $tenantId,
-        ])->assertOk();
+        ])->assertOk()
+            ->assertJsonCount($countBefore, 'data');
 
         $notification = collect($notificationResponse->json('data'))
             ->first(fn (array $item) => ($item['title'] ?? '') === 'Quota Warning');
@@ -179,5 +193,19 @@ class FeatureCompletionFlowTest extends TestCase
             'X-Tenant-Id' => $tenantId,
         ])->assertOk()
             ->assertJsonPath('data.read_at', fn ($value) => ! empty($value));
+
+        // Mark all remaining as read
+        $this->patchJson('/api/v1/notifications/read-all', [], [
+            'Authorization' => "Bearer {$token}",
+            'X-Tenant-Id' => $tenantId,
+        ])->assertOk()
+            ->assertJsonPath('success', true);
+
+        // Assert unread count is now 0
+        $this->getJson('/api/v1/notifications?unread_only=1', [
+            'Authorization' => "Bearer {$token}",
+            'X-Tenant-Id' => $tenantId,
+        ])->assertOk()
+            ->assertJsonCount(0, 'data');
     }
 }

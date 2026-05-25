@@ -333,6 +333,8 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
 
         Route::get('/notifications', [NotificationController::class, 'index'])
             ->middleware('permission:tenant.view');
+        Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])
+            ->middleware('permission:tenant.view');
         Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead'])
             ->middleware('permission:tenant.view');
 

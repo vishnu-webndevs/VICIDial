@@ -52,6 +52,24 @@ export default function NotificationsPage() {
     }
   }
 
+  async function markAllAsRead() {
+    setLoading(true);
+    try {
+      const token = localStorage.getItem("wnd_token");
+      const tenantId = localStorage.getItem("wnd_tenant_id");
+      await apiRequest(`/notifications/read-all`, {
+        method: "PATCH",
+        token,
+        tenantId,
+      });
+      await loadNotifications(false);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to mark all notifications as read.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     void loadNotifications(false);
   }, []);
@@ -59,23 +77,36 @@ export default function NotificationsPage() {
   return (
     <AppShell requiredPermissions={["tenant.view"]}>
       <SectionCard title="Notification Center" subtitle="View tenant activity notifications and mark read.">
-        <Stack direction="row" spacing={1.5}>
-          <MuiButton
-            type="button"
-            variant="outlined"
-            onClick={() => void loadNotifications(false)}
-            disabled={loading}
-          >
-            All
-          </MuiButton>
-          <MuiButton
-            type="button"
-            variant="outlined"
-            onClick={() => void loadNotifications(true)}
-            disabled={loading}
-          >
-            Unread
-          </MuiButton>
+        <Stack direction="row" spacing={1.5} justifyContent="space-between" alignItems="center">
+          <Stack direction="row" spacing={1.5}>
+            <MuiButton
+              type="button"
+              variant="outlined"
+              onClick={() => void loadNotifications(false)}
+              disabled={loading}
+            >
+              All
+            </MuiButton>
+            <MuiButton
+              type="button"
+              variant="outlined"
+              onClick={() => void loadNotifications(true)}
+              disabled={loading}
+            >
+              Unread
+            </MuiButton>
+          </Stack>
+          {notifications.some((n) => !n.read_at) && (
+            <MuiButton
+              type="button"
+              variant="contained"
+              color="primary"
+              onClick={() => void markAllAsRead()}
+              disabled={loading}
+            >
+              Mark all as read
+            </MuiButton>
+          )}
         </Stack>
         <Stack spacing={2} sx={{ mt: 3 }}>
           {loading ? <LoadingState label="Loading notifications..." /> : null}
