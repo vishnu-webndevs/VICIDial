@@ -6,6 +6,7 @@ import { Avatar, IconButton, Divider, Menu } from "@mui/material";
 import { AppShell, LoadingState, StatusBadge } from "@/components/app-shell";
 import { ToastMessage } from "@/components/ui-primitives";
 import { listInboxThreads, listTeamMembers, sendInboxThreadMessage, updateInboxThread, listInboxThreadMessages, deleteInboxThread, clearInboxThreadMessages } from "@/lib/product-api";
+import { playNotificationSoundDebounced } from "@/lib/notificationSound";
 import type { MessageThread, TeamMember } from "@/types/product";
 
 export default function ConversationsPage() {
@@ -138,6 +139,17 @@ export default function ConversationsPage() {
             // Check if we got a new message at the end
             const hadNewMessage = res.data.length > prev.length;
             if (hadNewMessage) {
+              // Check if the new message is inbound (user reply)
+              const latestMsg = res.data[res.data.length - 1];
+              if (latestMsg && latestMsg.direction === 'inbound') {
+                playNotificationSoundDebounced();
+                setMessageToast(`New message received: ${(latestMsg.body || '').slice(0, 80)}`);
+                setMessageTone('neutral');
+                // Flash document title
+                const originalTitle = document.title;
+                document.title = '🔔 New Message!';
+                setTimeout(() => { document.title = originalTitle; }, 3000);
+              }
               setTimeout(scrollToBottom, 100);
             }
             return res.data;

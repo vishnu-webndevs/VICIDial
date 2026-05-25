@@ -165,15 +165,21 @@ class AgentController extends Controller
         $tenant = $request->attributes->get('tenant');
         $validated = $request->validate([
             'agent_id' => ['required', 'uuid'],
-            'provider_account_id' => ['required', 'uuid'],
+            'provider_account_id' => ['nullable', 'uuid'],
             'provider_phone_number_id' => ['required', 'uuid'],
             'status' => ['nullable', 'in:active,inactive'],
         ]);
 
         $agent = $this->resolveAgent($tenant->id, $validated['agent_id']);
+        $number = ProviderPhoneNumber::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('id', $validated['provider_phone_number_id'])
+            ->firstOrFail();
+
+        $providerAccountId = $validated['provider_account_id'] ?? $number->provider_account_id;
         $provider = ProviderAccount::query()
             ->where('tenant_id', $tenant->id)
-            ->where('id', $validated['provider_account_id'])
+            ->where('id', $providerAccountId)
             ->where('status', 'active')
             ->first();
         if (! $provider) {
@@ -184,10 +190,6 @@ class AgentController extends Controller
                 ],
             ], 422);
         }
-        $number = ProviderPhoneNumber::query()
-            ->where('tenant_id', $tenant->id)
-            ->where('id', $validated['provider_phone_number_id'])
-            ->firstOrFail();
         if ($number->provider_account_id !== $provider->id) {
             return response()->json([
                 'error' => [

@@ -9,6 +9,14 @@ class SmsService
 {
     public function send(string $to, string $body, ?string $statusCallbackUrl = null, ?array $providerCredentials = null): array
     {
+        if (app(\App\Support\IntegrationMode::class)->isSandbox()) {
+            return [
+                'ok' => true,
+                'provider_message_id' => 'sms_mock_'.Str::lower(Str::random(20)),
+                'status' => 'queued',
+            ];
+        }
+
         $credentials = $providerCredentials ?? [];
         $sid = (string) ($credentials['account_sid'] ?? config('services.twilio.sid', ''));
         $token = (string) ($credentials['auth_token'] ?? config('services.twilio.token', ''));

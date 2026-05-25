@@ -83,6 +83,10 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (\Throwable $exception, Request $request) {
+            if ($exception instanceof \Illuminate\Http\Exceptions\HttpResponseException) {
+                return $exception->getResponse();
+            }
+
             if (! $request->is('api/*') && ! $request->expectsJson()) {
                 return null;
             }

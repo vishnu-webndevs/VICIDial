@@ -60,7 +60,7 @@ class MessagingTest extends TestCase
         ], [
             'Authorization' => "Bearer {$token}",
             'X-Tenant-Id' => $tenantId,
-        ])->assertCreated()
+        ])->dump()->assertCreated()
             ->assertJsonPath('data.direction', 'outbound');
 
         $this->postJson('/api/v1/webhooks/twilio/sms', [

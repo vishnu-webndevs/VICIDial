@@ -2,6 +2,7 @@
 
 import {
   AppBar,
+  Badge,
   Box,
   Divider,
   IconButton,
@@ -19,6 +20,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { apiRequest } from "@/lib/api";
+import { useNotifications } from "@/hooks/useNotifications";
 import {
   clearSession,
   getSessionStorageState,
@@ -37,6 +39,7 @@ export function Navbar({
   onToggleMode: () => void;
 }) {
   const router = useRouter();
+  const { unreadCount } = useNotifications();
   const [searchFocused, setSearchFocused] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -277,14 +280,37 @@ export function Navbar({
 
             {/* Notification bell */}
             <IconButton
+              onClick={() => router.push("/notifications")}
               sx={{
                 color: "#697a8d",
+                position: "relative",
                 "&:hover": {
                   bgcolor: "rgba(67, 89, 113, 0.04)",
                 },
+                ...(unreadCount > 0 ? {
+                  animation: "bellPulse 2s ease-in-out infinite",
+                  "@keyframes bellPulse": {
+                    "0%, 100%": { transform: "scale(1)" },
+                    "50%": { transform: "scale(1.1)" },
+                  },
+                } : {}),
               }}
             >
-              <i className="bx bx-bell" style={{ fontSize: "1.375rem" }} />
+              <Badge
+                badgeContent={unreadCount}
+                color="error"
+                max={99}
+                sx={{
+                  "& .MuiBadge-badge": {
+                    fontSize: "0.65rem",
+                    minWidth: 18,
+                    height: 18,
+                    fontWeight: 700,
+                  },
+                }}
+              >
+                <i className="bx bx-bell" style={{ fontSize: "1.375rem" }} />
+              </Badge>
             </IconButton>
 
             {/* User avatar */}

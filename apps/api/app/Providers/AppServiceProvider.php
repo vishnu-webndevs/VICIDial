@@ -61,9 +61,66 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api', function (Request $request): Limit {
             $ip = (string) $request->ip();
             $tenant = $request->attributes->get('tenant');
-            $tenantId = is_object($tenant) && isset($tenant->id) ? (string) $tenant->id : 'public';
+            $tenantId = is_object($tenant) && isset($tenant->id) ? (string) $tenant->id : (string) $request->header('X-Tenant-Id', '');
 
-            return Limit::perMinute(180)->by($tenantId.'|'.$ip);
+            if ($tenantId !== '') {
+                $meter = \App\Models\UsageMeter::query()
+                    ->where('tenant_id', $tenantId)
+                    ->where('meter_type', 'api_requests')
+                    ->first();
+
+                if ($meter) {
+                    if ($meter->period_end && now()->greaterThan($meter->period_end)) {
+                        $meter->period_start = now()->startOfDay();
+                        $meter->period_end = now()->addMonthNoOverflow()->endOfDay();
+                        $meter->consumed_units = 0;
+                        $meter->save();
+                    }
+
+                    $limit = (int) $meter->limit_units;
+                    $consumed = (int) $meter->consumed_units;
+
+                    // Sync database consumed units with Laravel cache-based rate limiter
+                    $rateLimiter = app(\Illuminate\Cache\RateLimiter::class);
+                    $cacheKey = md5('api'.$tenantId);
+                    $currentAttempts = $rateLimiter->attempts($cacheKey);
+
+                    if ($currentAttempts < $consumed) {
+                        for ($i = $currentAttempts; $i < $consumed; $i++) {
+                            $rateLimiter->hit($cacheKey, 60);
+                        }
+                    }
+
+                    if ($consumed >= $limit) {
+                        return Limit::perMinute($limit)
+                            ->by($tenantId)
+                            ->response(function (Request $request, array $headers) {
+                                return response()->json([
+                                    'error' => [
+                                        'code' => 'BILLING_USAGE_LIMIT_EXCEEDED',
+                                        'message' => 'API request quota exceeded. Please upgrade your plan.',
+                                    ],
+                                ], 429, $headers);
+                            });
+                    }
+
+                    $meter->consumed_units = $consumed + 1;
+                    $meter->save();
+
+                    \App\Models\UsageEvent::query()->create([
+                        'tenant_id' => $tenantId,
+                        'subscription_id' => $meter->subscription_id,
+                        'meter_type' => 'api_requests',
+                        'quantity' => 1,
+                        'source_type' => 'api_request',
+                        'occurred_at' => now(),
+                    ]);
+
+                    return Limit::perMinute($limit)->by($tenantId);
+                }
+            }
+
+            return Limit::perMinute(180)->by($tenantId !== '' ? $tenantId.'|'.$ip : 'public|'.$ip);
         });
 
         RateLimiter::for('provider.twilio', function (Request $request): Limit {

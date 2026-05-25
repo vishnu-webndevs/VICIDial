@@ -10,6 +10,14 @@ class WhatsAppService
 {
     public function send(string $to, string|array $bodyOrPayload, ?string $statusCallbackUrl = null, ?array $providerCredentials = null): array
     {
+        if (app(\App\Support\IntegrationMode::class)->isSandbox()) {
+            return [
+                'ok' => true,
+                'provider_message_id' => 'wa_mock_'.Str::lower(Str::random(20)),
+                'status' => 'queued',
+            ];
+        }
+
         $credentials = $providerCredentials ?? [];
         $metaToken = (string) ($credentials['meta_access_token'] ?? '');
         $metaPhoneNumberId = (string) ($credentials['phone_number_id'] ?? '');

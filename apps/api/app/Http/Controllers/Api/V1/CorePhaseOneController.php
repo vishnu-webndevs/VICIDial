@@ -17,6 +17,7 @@ use App\Models\Message;
 use App\Models\MessageTemplate;
 use App\Models\MessageThread;
 use App\Models\MessagingOptOut;
+use App\Models\Notification;
 use App\Models\Project;
 use App\Models\ProjectAssignment;
 use App\Models\ReportSnapshot;
@@ -738,40 +739,62 @@ class CorePhaseOneController extends Controller
         $errorMessage = null;
         $statusCode = null;
 
-        $providerTypes = $thread->channel === 'whatsapp' ? ['meta_whatsapp', 'twilio'] : ['twilio'];
-        $provider = \App\Models\ProviderAccount::query()
-                ->where('tenant_id', $tenant->id)
-                ->whereIn('provider_type', $providerTypes)
-                ->where('status', 'active')
-                // Prefer meta_whatsapp over twilio for whatsapp channels
-                ->orderByRaw("CASE WHEN provider_type = 'meta_whatsapp' THEN 1 ELSE 2 END")
-                ->latest('created_at')
-                ->first();
-
-        if (! $provider) {
-            return response()->json([
-                'success' => false,
-                'error' => [
-                    'code' => 'PROVIDER_REQUIRED',
-                    'message' => 'No active Twilio provider is configured for messaging.',
-                ],
-            ], 422);
+        $isPart3Enabled = false;
+        $integrationMode = app(\App\Support\IntegrationMode::class);
+        if ($integrationMode->isSandbox()) {
+            $isPart3Enabled = true;
+        } else {
+            $part3Config = config('services.part3', []);
+            $isPart3Enabled = (bool) ($part3Config['enabled'] ?? false)
+                && (bool) ($part3Config['messaging'][$thread->channel]['enabled'] ?? false);
         }
 
-        $providerCredentials = (array) ($provider->credentials_encrypted ?? []);
-        $statusCallbackUrl = rtrim((string) config('app.url'), '/').'/api/v1/webhooks/twilio/message-status';
-        $result = $thread->channel === 'sms'
-            ? app(\App\Services\Messaging\SmsService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials)
-            : app(\App\Services\Messaging\WhatsAppService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials);
-
-        if (($result['ok'] ?? false) !== true) {
-            $errorMessage = (string) ($result['error'] ?? 'Message delivery failed.');
-            $statusCode = $result['status_code'] ?? null;
-            $status = 'failed';
+        if ($isPart3Enabled) {
+            $adapterResult = $this->part3AdapterManager->adapter()->sendOutboundMessage($thread->channel, [
+                'tenant_id' => $tenant->id,
+                'to' => $thread->counterparty_number,
+                'body' => $body,
+                'media' => $validated['media'] ?? [],
+            ]);
+            $providerMessageId = (string) ($adapterResult['provider_message_id'] ?? '');
+            $status = (string) ($adapterResult['status'] ?? 'queued');
+            $mode = (string) ($adapterResult['mode'] ?? 'live');
         } else {
-            $providerMessageId = (string) ($result['provider_message_id'] ?? '');
-            $status = (string) ($result['status'] ?? 'queued');
-            $mode = 'live';
+            $providerTypes = $thread->channel === 'whatsapp' ? ['meta_whatsapp', 'twilio'] : ['twilio'];
+            $provider = \App\Models\ProviderAccount::query()
+                    ->where('tenant_id', $tenant->id)
+                    ->whereIn('provider_type', $providerTypes)
+                    ->where('status', 'active')
+                    // Prefer meta_whatsapp over twilio for whatsapp channels
+                    ->orderByRaw("CASE WHEN provider_type = 'meta_whatsapp' THEN 1 ELSE 2 END")
+                    ->latest('created_at')
+                    ->first();
+
+            if (! $provider) {
+                return response()->json([
+                    'success' => false,
+                    'error' => [
+                        'code' => 'PROVIDER_REQUIRED',
+                        'message' => 'No active Twilio provider is configured for messaging.',
+                    ],
+                ], 422);
+            }
+
+            $providerCredentials = (array) ($provider->credentials_encrypted ?? []);
+            $statusCallbackUrl = rtrim((string) config('app.url'), '/').'/api/v1/webhooks/twilio/message-status';
+            $result = $thread->channel === 'sms'
+                ? app(\App\Services\Messaging\SmsService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials)
+                : app(\App\Services\Messaging\WhatsAppService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials);
+
+            if (($result['ok'] ?? false) !== true) {
+                $errorMessage = (string) ($result['error'] ?? 'Message delivery failed.');
+                $statusCode = $result['status_code'] ?? null;
+                $status = 'failed';
+            } else {
+                $providerMessageId = (string) ($result['provider_message_id'] ?? '');
+                $status = (string) ($result['status'] ?? 'queued');
+                $mode = 'live';
+            }
         }
 
         $message = Message::query()->create([
@@ -2040,6 +2063,14 @@ class CorePhaseOneController extends Controller
             ]);
         }
 
+        $this->createInboundMessageNotification(
+            tenantId: (string) $validated['tenant_id'],
+            thread: $thread,
+            message: $message,
+            channel: $channel,
+            from: (string) $validated['from']
+        );
+
         return response()->json(['success' => true, 'data' => $message], 201);
     }
 
@@ -2381,6 +2412,38 @@ class CorePhaseOneController extends Controller
                 'comparison' => $stats,
             ]
         ]);
+    }
+
+    private function createInboundMessageNotification(
+        string $tenantId,
+        MessageThread $thread,
+        Message $message,
+        string $channel,
+        string $from
+    ): void {
+        try {
+            $displayName = $thread->contact?->display_name
+                ?? $thread->lead?->full_name
+                ?? $from;
+            $channelLabel = $channel === 'whatsapp' ? 'WhatsApp' : 'SMS';
+            $bodyPreview = Str::limit((string) $message->body, 100, '...');
+
+            Notification::query()->create([
+                'tenant_id' => $tenantId,
+                'user_id' => null,
+                'type' => 'conversation_reply',
+                'title' => "New {$channelLabel} message from {$displayName}",
+                'message' => $bodyPreview,
+                'metadata' => [
+                    'thread_id' => $thread->id,
+                    'message_id' => $message->id,
+                    'channel' => $channel,
+                    'from' => $from,
+                ],
+            ]);
+        } catch (\Throwable) {
+            // Silently ignore notification creation failures to avoid disrupting the inbound message flow.
+        }
     }
 }
 

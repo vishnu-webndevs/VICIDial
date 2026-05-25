@@ -9,6 +9,7 @@ use App\Models\Message;
 use App\Models\MessageAttachment;
 use App\Models\MessageThread;
 use App\Models\MessagingOptOut;
+use App\Models\Notification;
 use App\Models\MessageTemplate;
 use App\Models\LeadList;
 use App\Models\ProviderAccount;
@@ -457,6 +458,14 @@ class MessagingController extends Controller
             );
         }
 
+        $this->createInboundMessageNotification(
+            tenantId: $tenantId,
+            thread: $thread,
+            message: $message,
+            channel: 'whatsapp',
+            from: $normalizedFrom
+        );
+
         return true;
     }
 
@@ -862,6 +871,14 @@ class MessagingController extends Controller
             );
         }
 
+        $this->createInboundMessageNotification(
+            tenantId: $provider->tenant_id,
+            thread: $thread,
+            message: $message,
+            channel: $channel,
+            from: $from
+        );
+
         return response()->json(['received' => true], 200);
     }
 
@@ -1040,5 +1057,41 @@ class MessagingController extends Controller
             'first_response_minutes' => 60,
             'resolution_minutes' => 1440,
         ], $policy);
+    }
+
+    private function createInboundMessageNotification(
+        string $tenantId,
+        MessageThread $thread,
+        Message $message,
+        string $channel,
+        string $from
+    ): void {
+        try {
+            $displayName = $thread->contact?->display_name
+                ?? $thread->lead?->full_name
+                ?? $from;
+            $channelLabel = $channel === 'whatsapp' ? 'WhatsApp' : 'SMS';
+            $bodyPreview = Str::limit((string) $message->body, 100, '...');
+
+            Notification::query()->create([
+                'tenant_id' => $tenantId,
+                'user_id' => null,
+                'type' => 'conversation_reply',
+                'title' => "New {$channelLabel} message from {$displayName}",
+                'message' => $bodyPreview,
+                'metadata' => [
+                    'thread_id' => $thread->id,
+                    'message_id' => $message->id,
+                    'channel' => $channel,
+                    'from' => $from,
+                ],
+            ]);
+        } catch (\Throwable $e) {
+            $this->writeMessageLog('warning', 'Failed to create inbound message notification.', [
+                'tenant_id' => $tenantId,
+                'thread_id' => $thread->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
     }
 }
