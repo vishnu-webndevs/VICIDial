@@ -19,6 +19,7 @@ import { AppShell, SectionCard, StatusBadge } from "@/components/app-shell";
 import { EmptyPanel, SkeletonLines, ToastMessage } from "@/components/ui-primitives";
 import { apiRequest } from "@/lib/api";
 import {
+  deleteLead,
   getLeadImportJob,
   importLeadsFromFile,
   listLeads,
@@ -707,37 +708,65 @@ export default function LeadsPage() {
                       <Typography variant="caption">{lead.notes.join("\n") || "No notes"}</Typography>
                     </TableCell>
                     <TableCell sx={{ verticalAlign: "top" }}>
-                      <MuiButton
-                        type="button"
-                        size="small"
-                        variant="outlined"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          const parsedPhone = parsePhoneForForm(lead.phone, defaultLeadCountry);
-                          setForm({
-                            id: lead.id,
-                            full_name: lead.full_name,
-                            phone_country: parsedPhone.phone_country,
-                            phone_local: parsedPhone.phone_local,
-                            email: lead.email ?? "",
-                            company: lead.company ?? "",
-                            status: lead.status,
-                            owner_agent: lead.owner_agent,
-                            next_follow_up_at: lead.next_follow_up_at
-                              ? new Date(lead.next_follow_up_at).toISOString().slice(0, 16)
-                              : "",
-                            tags: lead.tags.join(", "),
-                            notes: lead.notes.join("\n"),
-                          });
+                      <Stack spacing={0.75}>
+                        <MuiButton
+                          type="button"
+                          size="small"
+                          variant="outlined"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            const parsedPhone = parsePhoneForForm(lead.phone, defaultLeadCountry);
+                            setForm({
+                              id: lead.id,
+                              full_name: lead.full_name,
+                              phone_country: parsedPhone.phone_country,
+                              phone_local: parsedPhone.phone_local,
+                              email: lead.email ?? "",
+                              company: lead.company ?? "",
+                              status: lead.status,
+                              owner_agent: lead.owner_agent,
+                              next_follow_up_at: lead.next_follow_up_at
+                                ? new Date(lead.next_follow_up_at).toISOString().slice(0, 16)
+                                : "",
+                              tags: lead.tags.join(", "),
+                              notes: lead.notes.join("\n"),
+                            });
 
-                          window.requestAnimationFrame(() => {
-                            leadFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                          });
-                        }}
-                        fullWidth
-                      >
-                        Edit
-                      </MuiButton>
+                            window.requestAnimationFrame(() => {
+                              leadFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                            });
+                          }}
+                          fullWidth
+                        >
+                          Edit
+                        </MuiButton>
+                        <MuiButton
+                          type="button"
+                          size="small"
+                          variant="outlined"
+                          color="error"
+                          onClick={async (event) => {
+                            event.stopPropagation();
+                            if (window.confirm(`Are you sure you want to delete lead "${lead.full_name}"?`)) {
+                              try {
+                                await deleteLead(lead.id);
+                                setMessage("Lead deleted successfully.");
+                                setMessageTone("success");
+                                if (selectedLeadId === lead.id) {
+                                  setSelectedLeadId("");
+                                }
+                                await load();
+                              } catch (err) {
+                                setMessage(err instanceof Error ? err.message : "Failed to delete lead.");
+                                setMessageTone("error");
+                              }
+                            }
+                          }}
+                          fullWidth
+                        >
+                          Delete
+                        </MuiButton>
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 ))}

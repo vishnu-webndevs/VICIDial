@@ -888,6 +888,25 @@ export async function saveLead(input: LeadInput, leadId?: string): Promise<Lead>
   return updatedLead;
 }
 
+export async function deleteLead(leadId: string): Promise<void> {
+  const { token, tenantId } = getTenantContext();
+  try {
+    await apiRequest<void>(`/leads/${leadId}`, {
+      method: "DELETE",
+      token,
+      tenantId,
+    });
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      throw error;
+    }
+  }
+
+  const leads = readTenantStore<Lead[]>("leads", []);
+  const nextLeads = leads.filter((lead) => lead.id !== leadId);
+  writeTenantStore("leads", nextLeads);
+}
+
 export async function importLeads(rows: Array<{ full_name: string; phone: string; email?: string }>): Promise<Lead[]> {
   const csv = rows
     .map((row) => [row.full_name, row.phone, row.email ?? ""].join(","))

@@ -156,6 +156,19 @@ class LeadController extends Controller
         return response()->json(['data' => $lead]);
     }
 
+    public function destroy(Request $request, string $id): JsonResponse
+    {
+        $tenant = $request->attributes->get('tenant');
+        $lead = Lead::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('id', $id)
+            ->firstOrFail();
+
+        $lead->delete();
+
+        return response()->json(['success' => true]);
+    }
+
     public function import(Request $request): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');
