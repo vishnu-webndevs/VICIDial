@@ -364,6 +364,14 @@ export type MessageThread = {
   sla_first_response_breached_at?: string | null;
   sla_resolution_breached_at?: string | null;
   metadata?: Record<string, unknown>;
+  latest_message?: {
+    id: string;
+    direction: "inbound" | "outbound";
+    status?: string | null;
+    body?: string | null;
+    media?: any[] | null;
+    sent_at: string;
+  } | null;
 };
 
 export type TeamMember = {

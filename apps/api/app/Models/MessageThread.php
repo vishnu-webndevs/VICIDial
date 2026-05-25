@@ -48,6 +48,11 @@ class MessageThread extends Model
         return $this->hasMany(Message::class, 'thread_id');
     }
 
+    public function latestMessage(): HasOne
+    {
+        return $this->hasOne(Message::class, 'thread_id')->latestOfMany('sent_at');
+    }
+
     public function contact(): BelongsTo
     {
         return $this->belongsTo(Contact::class);

@@ -137,7 +137,9 @@ function ConversationsContent() {
         try {
           const response = await listInboxThreads(channel, { per_page: 100 });
           setThreads(prev => {
-            if (JSON.stringify(prev.map(t => ({ id: t.id, last_message_at: t.last_message_at }))) !== JSON.stringify(response.data.map(t => ({ id: t.id, last_message_at: t.last_message_at })))) {
+            const prevSign = JSON.stringify(prev.map(t => ({ id: t.id, last_message_at: t.last_message_at, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
+            const nextSign = JSON.stringify(response.data.map(t => ({ id: t.id, last_message_at: t.last_message_at, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
+            if (prevSign !== nextSign) {
               return response.data;
             }
             return prev;
@@ -182,8 +184,8 @@ function ConversationsContent() {
         // Poll threads list
         const response = await listInboxThreads(channel, { per_page: 100 });
         setThreads(prev => {
-          const prevSign = JSON.stringify(prev.map(t => ({ id: t.id, last_message_at: t.last_message_at, status: t.status })));
-          const nextSign = JSON.stringify(response.data.map(t => ({ id: t.id, last_message_at: t.last_message_at, status: t.status })));
+          const prevSign = JSON.stringify(prev.map(t => ({ id: t.id, last_message_at: t.last_message_at, status: t.status, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
+          const nextSign = JSON.stringify(response.data.map(t => ({ id: t.id, last_message_at: t.last_message_at, status: t.status, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
           if (prevSign !== nextSign) {
             return response.data;
           }
@@ -346,11 +348,55 @@ function ConversationsContent() {
                       </Typography>
                     </Box>
                     <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <Typography variant="body2" sx={{ color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-                        {thread.lead_id ? `Lead: ${thread.lead_id.substring(0, 8)}...` : 'New interaction'}
-                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, color: 'text.secondary' }}>
+                        {thread.latest_message ? (
+                          <>
+                            {thread.latest_message.direction === 'outbound' && (
+                              <i
+                                className={`bx ${thread.latest_message.status === 'read' || thread.latest_message.status === 'delivered'
+                                    ? 'bx-check-double'
+                                    : thread.latest_message.status === 'sending'
+                                      ? 'bx-time-five'
+                                      : 'bx-check'
+                                  }`}
+                                style={{
+                                  fontSize: '1.1rem',
+                                  marginRight: 4,
+                                  flexShrink: 0,
+                                  color: thread.latest_message.status === 'read' ? '#53bdeb' : 'rgba(17,27,33,0.4)',
+                                }}
+                              />
+                            )}
+                            <Typography
+                              variant="body2"
+                              sx={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                color: 'inherit',
+                                fontSize: '0.875rem',
+                              }}
+                            >
+                              {thread.latest_message.body || (thread.latest_message.media && thread.latest_message.media.length > 0 ? '📷 Attachment' : '')}
+                            </Typography>
+                          </>
+                        ) : (
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              color: 'inherit',
+                              fontSize: '0.875rem',
+                            }}
+                          >
+                            {thread.lead_id ? `Lead: ${thread.lead_id.substring(0, 8)}...` : 'New interaction'}
+                          </Typography>
+                        )}
+                      </Box>
                       {thread.status === 'open' && (
-                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#00a884', ml: 1 }} />
+                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#00a884', ml: 1, flexShrink: 0 }} />
                       )}
                     </Box>
                   </Box>

@@ -529,7 +529,7 @@ class CorePhaseOneController extends Controller
         }
 
         $threads = MessageThread::query()
-            ->with(['contact', 'lead'])
+            ->with(['contact', 'lead', 'latestMessage'])
             ->where('tenant_id', $tenant->id)
             ->where('channel', $channel)
             ->when($request->filled('status'), fn ($q) => $q->where('status', (string) $request->input('status')))
