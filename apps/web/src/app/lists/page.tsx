@@ -200,14 +200,9 @@ export default function ListsPage() {
             <LoadingState label="Loading lists and leads..." />
           ) : !selectedListId ? (
             <EmptyPanel title="Select a list first" description="Choose a lead list to add or remove leads." />
-          ) : visibleLeads.length === 0 ? (
-            <EmptyPanel
-              title={mode === "remove" ? "No leads in this list" : "No leads available"}
-              description={mode === "remove" ? "This lead list has no leads attached yet." : "Create or import leads first to populate list membership."}
-            />
           ) : (
             <>
-              <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+              <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
                 <MuiButton
                   variant={mode === "add" ? "contained" : "outlined"}
                   onClick={() => {
@@ -228,56 +223,65 @@ export default function ListsPage() {
                 </MuiButton>
               </Stack>
 
-              <Paper variant="outlined" sx={{ overflowX: "auto" }}>
-                <Table size="medium" sx={{ minWidth: 920 }}>
-                  <TableHead>
-                    <TableRow sx={{ bgcolor: "action.hover" }}>
-                      <TableCell />
-                      <TableCell>Name</TableCell>
-                      <TableCell>Phone</TableCell>
-                      <TableCell>Status</TableCell>
-                      <TableCell>Owner</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {visibleLeads.map((lead) => {
-                      const selected = selectedLeadIds.includes(lead.id);
-                      return (
-                        <TableRow key={lead.id} hover onClick={() => {
-                          setSelectedLeadIds((prev) => selected ? prev.filter((id) => id !== lead.id) : [...prev, lead.id]);
-                        }} sx={{ cursor: "pointer" }}>
-                          <TableCell>{selected ? "x" : ""}</TableCell>
-                          <TableCell>{lead.full_name}</TableCell>
-                          <TableCell>{lead.phone}</TableCell>
-                          <TableCell>{lead.status}</TableCell>
-                          <TableCell>{lead.owner_agent}</TableCell>
+              {visibleLeads.length === 0 ? (
+                <EmptyPanel
+                  title={mode === "remove" ? "No leads in this list" : "No leads available"}
+                  description={mode === "remove" ? "This lead list has no leads attached yet." : "Create or import leads first to populate list membership."}
+                />
+              ) : (
+                <>
+                  <Paper variant="outlined" sx={{ overflowX: "auto" }}>
+                    <Table size="medium" sx={{ minWidth: 920 }}>
+                      <TableHead>
+                        <TableRow sx={{ bgcolor: "action.hover" }}>
+                          <TableCell />
+                          <TableCell>Name</TableCell>
+                          <TableCell>Phone</TableCell>
+                          <TableCell>Status</TableCell>
+                          <TableCell>Owner</TableCell>
                         </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </Paper>
-              <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-                {mode === "remove" ? (
-                  <MuiButton
-                    variant="contained"
-                    color="error"
-                    onClick={() => void onDetachLeads()}
-                    disabled={!selectedListId || selectedLeadIds.length === 0}
-                  >
-                    Remove {selectedLeadIds.length} Leads
-                  </MuiButton>
-                ) : (
-                  <MuiButton
-                    variant="contained"
-                    onClick={() => void onAttachLeads()}
-                    disabled={!selectedListId || selectedLeadIds.length === 0}
-                  >
-                    Attach {selectedLeadIds.length} Leads
-                  </MuiButton>
-                )}
-                <MuiButton variant="outlined" onClick={() => setSelectedLeadIds([])}>Clear</MuiButton>
-              </Stack>
+                      </TableHead>
+                      <TableBody>
+                        {visibleLeads.map((lead) => {
+                          const selected = selectedLeadIds.includes(lead.id);
+                          return (
+                            <TableRow key={lead.id} hover onClick={() => {
+                              setSelectedLeadIds((prev) => selected ? prev.filter((id) => id !== lead.id) : [...prev, lead.id]);
+                            }} sx={{ cursor: "pointer" }}>
+                              <TableCell>{selected ? "x" : ""}</TableCell>
+                              <TableCell>{lead.full_name}</TableCell>
+                              <TableCell>{lead.phone}</TableCell>
+                              <TableCell>{lead.status}</TableCell>
+                              <TableCell>{lead.owner_agent}</TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+                  </Paper>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+                    {mode === "remove" ? (
+                      <MuiButton
+                        variant="contained"
+                        color="error"
+                        onClick={() => void onDetachLeads()}
+                        disabled={!selectedListId || selectedLeadIds.length === 0}
+                      >
+                        Remove {selectedLeadIds.length} Leads
+                      </MuiButton>
+                    ) : (
+                      <MuiButton
+                        variant="contained"
+                        onClick={() => void onAttachLeads()}
+                        disabled={!selectedListId || selectedLeadIds.length === 0}
+                      >
+                        Attach {selectedLeadIds.length} Leads
+                      </MuiButton>
+                    )}
+                    <MuiButton variant="outlined" onClick={() => setSelectedLeadIds([])}>Clear</MuiButton>
+                  </Stack>
+                </>
+              )}
             </>
           )}
         </SectionCard>

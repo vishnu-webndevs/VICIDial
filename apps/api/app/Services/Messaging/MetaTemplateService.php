@@ -319,6 +319,13 @@ class MetaTemplateService
                 $value = (string) $parameters[$index - 1];
             }
 
+            if ($value === '' && $type === 'HEADER' && in_array($format, ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
+                $fallbackUrl = data_get($component, 'example.header_handle.0') ?: data_get($component, 'example.header_url.0');
+                if ($fallbackUrl && str_starts_with(strtolower($fallbackUrl), 'http')) {
+                    $value = $fallbackUrl;
+                }
+            }
+
             $value = (string)$value;
             
             if ($type === 'HEADER') {

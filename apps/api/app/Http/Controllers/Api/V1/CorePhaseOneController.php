@@ -530,6 +530,9 @@ class CorePhaseOneController extends Controller
 
         $threads = MessageThread::query()
             ->with(['contact', 'lead', 'latestMessage'])
+            ->withCount(['messages as unread_count' => function ($query) {
+                $query->where('direction', 'inbound')->whereNull('read_at');
+            }])
             ->where('tenant_id', $tenant->id)
             ->where('channel', $channel)
             ->when($request->filled('status'), fn ($q) => $q->where('status', (string) $request->input('status')))
@@ -858,7 +861,47 @@ class CorePhaseOneController extends Controller
         $thread->fill($validated);
         $thread->save();
 
+        $thread->loadCount(['messages as unread_count' => function ($query) {
+            $query->where('direction', 'inbound')->whereNull('read_at');
+        }]);
+
         return response()->json(['success' => true, 'data' => $thread]);
+    }
+
+    public function threadMarkRead(Request $request, string $threadId): JsonResponse
+    {
+        if ($disabled = $this->ensureEnabled('phase1_sms_inbox')) {
+            return $disabled;
+        }
+
+        $tenant = $request->attributes->get('tenant');
+        $userId = $request->user()?->id;
+
+        $thread = MessageThread::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('id', $threadId)
+            ->firstOrFail();
+
+        // 1. Mark all inbound messages as read
+        \App\Models\Message::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('thread_id', $thread->id)
+            ->where('direction', 'inbound')
+            ->whereNull('read_at')
+            ->update([
+                'read_at' => now(),
+                'status' => 'read'
+            ]);
+
+        // 2. Mark all notifications for this thread as read
+        Notification::query()
+            ->where('tenant_id', $tenant->id)
+            ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', $userId))
+            ->whereNull('read_at')
+            ->where('metadata->thread_id', $threadId)
+            ->update(['read_at' => now()]);
+
+        return response()->json(['success' => true]);
     }
 
     public function inboxSlaPolicyShow(Request $request): JsonResponse

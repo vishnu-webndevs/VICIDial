@@ -355,6 +355,7 @@ export type MessageThread = {
   } | null;
   subject?: string | null;
   status?: string;
+  unread_count?: number;
   priority?: "low" | "normal" | "high" | "urgent" | string;
   last_message_at?: string | null;
   first_inbound_at?: string | null;

@@ -5,7 +5,7 @@ import { Box, MenuItem, MuiButton, Paper, TextField, Typography } from "@/ui";
 import { Avatar, IconButton, Divider, Menu } from "@mui/material";
 import { AppShell, LoadingState, StatusBadge } from "@/components/app-shell";
 import { ToastMessage } from "@/components/ui-primitives";
-import { listInboxThreads, listTeamMembers, sendInboxThreadMessage, updateInboxThread, listInboxThreadMessages, deleteInboxThread, clearInboxThreadMessages } from "@/lib/product-api";
+import { listInboxThreads, listTeamMembers, sendInboxThreadMessage, updateInboxThread, listInboxThreadMessages, deleteInboxThread, clearInboxThreadMessages, markThreadNotificationsAsRead } from "@/lib/product-api";
 import { playNotificationSoundDebounced } from "@/lib/notificationSound";
 import { useSearchParams } from "next/navigation";
 import type { MessageThread, TeamMember } from "@/types/product";
@@ -116,6 +116,11 @@ function ConversationsContent() {
         if (mounted) {
           setMessages(res.data);
           scrollToBottom();
+          try {
+            await markThreadNotificationsAsRead(selectedThreadId);
+          } catch (e) {
+            // ignore
+          }
         }
       } catch (err) {
         if (mounted) {
@@ -137,8 +142,8 @@ function ConversationsContent() {
         try {
           const response = await listInboxThreads(channel, { per_page: 100 });
           setThreads(prev => {
-            const prevSign = JSON.stringify(prev.map(t => ({ id: t.id, last_message_at: t.last_message_at, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
-            const nextSign = JSON.stringify(response.data.map(t => ({ id: t.id, last_message_at: t.last_message_at, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
+            const prevSign = JSON.stringify(prev.map(t => ({ id: t.id, last_message_at: t.last_message_at, unread_count: t.unread_count, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
+            const nextSign = JSON.stringify(response.data.map(t => ({ id: t.id, last_message_at: t.last_message_at, unread_count: t.unread_count, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
             if (prevSign !== nextSign) {
               return response.data;
             }
@@ -174,6 +179,8 @@ function ConversationsContent() {
                 document.title = '🔔 New Message!';
                 setTimeout(() => { document.title = originalTitle; }, 3000);
               }
+              // Mark notifications for this thread as read immediately since it is open
+              void markThreadNotificationsAsRead(selectedThreadId);
               setTimeout(scrollToBottom, 100);
             }
             return res.data;
@@ -184,10 +191,13 @@ function ConversationsContent() {
         // Poll threads list
         const response = await listInboxThreads(channel, { per_page: 100 });
         setThreads(prev => {
-          const prevSign = JSON.stringify(prev.map(t => ({ id: t.id, last_message_at: t.last_message_at, status: t.status, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
-          const nextSign = JSON.stringify(response.data.map(t => ({ id: t.id, last_message_at: t.last_message_at, status: t.status, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
+          const sanitizedData = response.data.map(t => 
+            t.id === selectedThreadId ? { ...t, unread_count: 0 } : t
+          );
+          const prevSign = JSON.stringify(prev.map(t => ({ id: t.id, last_message_at: t.last_message_at, status: t.status, unread_count: t.unread_count, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
+          const nextSign = JSON.stringify(sanitizedData.map(t => ({ id: t.id, last_message_at: t.last_message_at, status: t.status, unread_count: t.unread_count, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
           if (prevSign !== nextSign) {
-            return response.data;
+            return sanitizedData;
           }
           return prev;
         });
@@ -324,7 +334,11 @@ function ConversationsContent() {
               threads.map(thread => (
                 <Box
                   key={thread.id}
-                  onClick={() => setSelectedThreadId(thread.id)}
+                  onClick={() => {
+                    setSelectedThreadId(thread.id);
+                    setThreads(prev => prev.map(t => t.id === thread.id ? { ...t, unread_count: 0 } : t));
+                    void markThreadNotificationsAsRead(thread.id);
+                  }}
                   sx={{
                     p: 2,
                     display: 'flex',
@@ -395,8 +409,26 @@ function ConversationsContent() {
                           </Typography>
                         )}
                       </Box>
-                      {thread.status === 'open' && (
-                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: '#00a884', ml: 1, flexShrink: 0 }} />
+                      {thread.unread_count !== undefined && thread.unread_count > 0 && (
+                        <Box
+                          sx={{
+                            minWidth: 18,
+                            height: 18,
+                            borderRadius: '50%',
+                            bgcolor: '#00a884',
+                            color: '#ffffff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.72rem',
+                            fontWeight: 'bold',
+                            px: 0.5,
+                            ml: 1,
+                            flexShrink: 0
+                          }}
+                        >
+                          {thread.unread_count}
+                        </Box>
                       )}
                     </Box>
                   </Box>

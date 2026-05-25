@@ -26,18 +26,20 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(true);
 
-  async function loadNotifications(unreadOnly = false) {
+  async function loadNotifications(onlyUnread = unreadOnly) {
     setLoading(true);
     setMessage("");
     try {
       const token = localStorage.getItem("wnd_token");
       const tenantId = localStorage.getItem("wnd_tenant_id");
       const response = await apiRequest<{ data: Notification[] }>(
-        `/notifications?per_page=50${unreadOnly ? "&unread_only=1" : ""}`,
+        `/notifications?per_page=50${onlyUnread ? "&unread_only=1" : ""}`,
         { token, tenantId }
       );
       setNotifications(response.data ?? []);
+      setUnreadOnly(onlyUnread);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to load notifications.");
     } finally {
@@ -54,7 +56,7 @@ export default function NotificationsPage() {
         token,
         tenantId,
       });
-      await loadNotifications(false);
+      await loadNotifications(unreadOnly);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to mark notification as read.");
     }
@@ -81,7 +83,7 @@ export default function NotificationsPage() {
         token,
         tenantId,
       });
-      await loadNotifications(false);
+      await loadNotifications(unreadOnly);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to mark all notifications as read.");
     } finally {
@@ -90,7 +92,7 @@ export default function NotificationsPage() {
   }
 
   useEffect(() => {
-    void loadNotifications(false);
+    void loadNotifications(true);
   }, []);
 
   return (
@@ -100,7 +102,7 @@ export default function NotificationsPage() {
           <Stack direction="row" spacing={1.5}>
             <MuiButton
               type="button"
-              variant="outlined"
+              variant={!unreadOnly ? "contained" : "outlined"}
               onClick={() => void loadNotifications(false)}
               disabled={loading}
             >
@@ -108,7 +110,7 @@ export default function NotificationsPage() {
             </MuiButton>
             <MuiButton
               type="button"
-              variant="outlined"
+              variant={unreadOnly ? "contained" : "outlined"}
               onClick={() => void loadNotifications(true)}
               disabled={loading}
             >

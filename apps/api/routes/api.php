@@ -380,6 +380,8 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:tenant.view');
         Route::patch('/inbox/threads/{threadId}', [CorePhaseOneController::class, 'threadUpdate'])
             ->middleware('permission:tenant.update');
+        Route::patch('/inbox/threads/{threadId}/read', [CorePhaseOneController::class, 'threadMarkRead'])
+            ->middleware('permission:tenant.update');
         Route::post('/inbox/threads/{threadId}/messages', [CorePhaseOneController::class, 'threadsSendMessage'])
             ->middleware('permission:tenant.update');
         Route::get('/inbox/threads/{threadId}/messages', [CorePhaseOneController::class, 'threadsMessagesIndex'])

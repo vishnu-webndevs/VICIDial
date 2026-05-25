@@ -1156,6 +1156,16 @@ export async function updateInboxThread(
   return response.data;
 }
 
+export async function markThreadNotificationsAsRead(threadId: string): Promise<boolean> {
+  const { token, tenantId } = getTenantContext();
+  const response = await apiRequest<{ success: boolean }>(`/inbox/threads/${threadId}/read`, {
+    method: "PATCH",
+    token,
+    tenantId,
+  });
+  return response.success;
+}
+
 export async function fetchInboxSlaPolicy(): Promise<{
   enabled: boolean;
   first_response_minutes: number;

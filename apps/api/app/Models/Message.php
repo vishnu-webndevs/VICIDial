@@ -23,6 +23,7 @@ class Message extends Model
         'metadata',
         'sent_at',
         'delivered_at',
+        'read_at',
     ];
 
     protected function casts(): array
@@ -32,6 +33,7 @@ class Message extends Model
             'metadata' => 'array',
             'sent_at' => 'datetime',
             'delivered_at' => 'datetime',
+            'read_at' => 'datetime',
         ];
     }
 
