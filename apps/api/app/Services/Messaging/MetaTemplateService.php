@@ -160,6 +160,45 @@ class MetaTemplateService
             if (! is_array($component)) {
                 return [];
             }
+            
+            if (isset($component['type']) && strtoupper($component['type']) === 'HEADER') {
+                $format = strtoupper($component['format'] ?? '');
+                if (in_array($format, ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
+                    $urlRaw = data_get($component, 'example.header_url');
+                    $url = is_array($urlRaw) ? ($urlRaw[0] ?? null) : (is_string($urlRaw) ? $urlRaw : null);
+                    
+                    if ($url && str_contains($url, 'scontent.whatsapp.net')) {
+                        try {
+                            $response = \Illuminate\Support\Facades\Http::get($url);
+                            if ($response->successful()) {
+                                $ext = 'jpg';
+                                if ($format === 'VIDEO') $ext = 'mp4';
+                                if ($format === 'DOCUMENT') $ext = 'pdf';
+                                
+                                $path = parse_url($url, PHP_URL_PATH);
+                                if ($path) {
+                                    $pathExt = pathinfo($path, PATHINFO_EXTENSION);
+                                    if ($pathExt) $ext = $pathExt;
+                                }
+
+                                $filename = 'meta_templates/' . md5($url) . '.' . $ext;
+                                \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $response->body());
+                                
+                                $localUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($filename);
+                                
+                                if (is_array($urlRaw)) {
+                                    $component['example']['header_url'][0] = $localUrl;
+                                } else {
+                                    $component['example']['header_url'] = $localUrl;
+                                }
+                            }
+                        } catch (\Throwable $e) {
+                            \Illuminate\Support\Facades\Log::warning('Failed to download meta template image', ['url' => $url, 'error' => $e->getMessage()]);
+                        }
+                    }
+                }
+            }
+            
             return $component;
         }, $components));
     }
