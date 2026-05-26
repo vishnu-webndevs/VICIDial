@@ -167,33 +167,41 @@ class MetaTemplateService
                     $urlRaw = data_get($component, 'example.header_url');
                     $url = is_array($urlRaw) ? ($urlRaw[0] ?? null) : (is_string($urlRaw) ? $urlRaw : null);
                     
+                    $handleRaw = data_get($component, 'example.header_handle');
+                    $handleStr = is_array($handleRaw) ? ($handleRaw[0] ?? null) : (is_string($handleRaw) ? $handleRaw : null);
+                    
+                    // Sometimes the actual scontent URL is placed in header_handle by Meta.
+                    $targetUrl = null;
                     if ($url && str_contains($url, 'scontent.whatsapp.net')) {
+                        $targetUrl = $url;
+                    } elseif ($handleStr && str_contains($handleStr, 'scontent.whatsapp.net')) {
+                        $targetUrl = $handleStr;
+                    }
+                    
+                    if ($targetUrl) {
                         try {
-                            $response = \Illuminate\Support\Facades\Http::get($url);
+                            $response = \Illuminate\Support\Facades\Http::get($targetUrl);
                             if ($response->successful()) {
                                 $ext = 'jpg';
                                 if ($format === 'VIDEO') $ext = 'mp4';
                                 if ($format === 'DOCUMENT') $ext = 'pdf';
                                 
-                                $path = parse_url($url, PHP_URL_PATH);
+                                $path = parse_url($targetUrl, PHP_URL_PATH);
                                 if ($path) {
                                     $pathExt = pathinfo($path, PATHINFO_EXTENSION);
                                     if ($pathExt) $ext = $pathExt;
                                 }
 
-                                $filename = 'meta_templates/' . md5($url) . '.' . $ext;
+                                $filename = 'meta_templates/' . md5($targetUrl) . '.' . $ext;
                                 \Illuminate\Support\Facades\Storage::disk('public')->put($filename, $response->body());
                                 
                                 $localUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($filename);
                                 
-                                if (is_array($urlRaw)) {
-                                    $component['example']['header_url'][0] = $localUrl;
-                                } else {
-                                    $component['example']['header_url'] = $localUrl;
-                                }
+                                $component['example']['header_url'] = [$localUrl];
+                                $component['example']['header_handle'] = [$localUrl];
                             }
                         } catch (\Throwable $e) {
-                            \Illuminate\Support\Facades\Log::warning('Failed to download meta template image', ['url' => $url, 'error' => $e->getMessage()]);
+                            \Illuminate\Support\Facades\Log::warning('Failed to download meta template image', ['url' => $targetUrl, 'error' => $e->getMessage()]);
                         }
                     }
                 }
