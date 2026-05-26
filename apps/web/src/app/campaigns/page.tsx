@@ -323,9 +323,7 @@ export default function CampaignsPage() {
         if (campaignForm.message_media_file) {
           formData.append("message_media_file", campaignForm.message_media_file);
         }
-        if (campaignForm.message_media_url.trim()) {
-          formData.append("message_media_url", campaignForm.message_media_url.trim());
-        }
+        formData.append("message_media_url", campaignForm.message_media_url.trim());
       }
 
       const createOrUpdateResponse = await apiRequest<{ data: Campaign }>(editingCampaignId ? `/campaigns/${editingCampaignId}` : "/campaigns", {
