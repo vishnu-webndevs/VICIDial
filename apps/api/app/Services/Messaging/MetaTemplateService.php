@@ -338,10 +338,7 @@ class MetaTemplateService
             if ($isMediaHeader) {
                 $possibleKeys = [
                     'campaign_media_url',
-                    "header_var_{$index}",
-                    "var_{$index}",
-                    $index,
-                    (string) $index,
+                    "header_var_{$index}"
                 ];
             } else {
                 $possibleKeys = [
