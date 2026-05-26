@@ -274,12 +274,16 @@ class CampaignController extends Controller
                     $mediaUrl = 'https://' . substr($mediaUrl, 7);
                 }
                 $settings['message_media_url'] = $mediaUrl;
-            } elseif (array_key_exists('message_media_url', $validated) && !empty($validated['message_media_url'])) {
-                $mediaUrl = $validated['message_media_url'];
-                if ($mediaUrl && str_starts_with($mediaUrl, 'http://')) {
-                    $mediaUrl = 'https://' . substr($mediaUrl, 7);
+            } elseif (array_key_exists('message_media_url', $validated)) {
+                $mediaUrl = trim((string) ($validated['message_media_url'] ?? ''));
+                if ($mediaUrl !== '') {
+                    if (str_starts_with($mediaUrl, 'http://')) {
+                        $mediaUrl = 'https://' . substr($mediaUrl, 7);
+                    }
+                    $settings['message_media_url'] = $mediaUrl;
+                } else {
+                    $settings['message_media_url'] = null;
                 }
-                $settings['message_media_url'] = $mediaUrl;
             }
 
             if (array_key_exists('preferred_provider_account_id', $validated)) {
