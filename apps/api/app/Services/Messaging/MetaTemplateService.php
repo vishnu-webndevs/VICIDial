@@ -321,7 +321,7 @@ class MetaTemplateService
 
             if ($value === '' && $type === 'HEADER' && in_array($format, ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
                 $fallbackUrl = data_get($component, 'example.header_handle.0') ?: data_get($component, 'example.header_url.0');
-                if ($fallbackUrl && str_starts_with(strtolower($fallbackUrl), 'http')) {
+                if ($fallbackUrl) {
                     $value = $fallbackUrl;
                 }
             }
@@ -329,25 +329,35 @@ class MetaTemplateService
             $value = (string)$value;
             
             if ($type === 'HEADER') {
+                if (str_starts_with(strtolower($value), 'http://')) {
+                    $value = 'https://' . substr($value, 7);
+                }
                 $isUrl = str_starts_with(strtolower($value), 'http');
+                $isHandle = ! $isUrl && $value !== '';
                 
-                if ($format === 'IMAGE' && $isUrl) {
-                    $result[] = ['type' => 'image', 'image' => ['link' => $value]];
+                if ($format === 'IMAGE' && ($isUrl || $isHandle)) {
+                    $mediaObj = $isUrl ? ['link' => $value] : ['handle' => $value];
+                    $result[] = ['type' => 'image', 'image' => $mediaObj];
                     continue;
                 }
-                if ($format === 'VIDEO' && $isUrl) {
-                    $result[] = ['type' => 'video', 'video' => ['link' => $value]];
+                if ($format === 'VIDEO' && ($isUrl || $isHandle)) {
+                    $mediaObj = $isUrl ? ['link' => $value] : ['handle' => $value];
+                    $result[] = ['type' => 'video', 'video' => $mediaObj];
                     continue;
                 }
-                if ($format === 'DOCUMENT' && $isUrl) {
+                if ($format === 'DOCUMENT' && ($isUrl || $isHandle)) {
+                    $mediaObj = $isUrl ? ['link' => $value] : ['handle' => $value];
+                    if ($isUrl) {
+                        $mediaObj['filename'] = 'Document';
+                    }
                     $result[] = [
                         'type' => 'document',
-                        'document' => ['link' => $value, 'filename' => 'Document'],
+                        'document' => $mediaObj,
                     ];
                     continue;
                 }
                 
-                // If it's a media format but NOT a URL, we can't send it as a media link
+                // If it's a media format but empty, skip it
                 if (in_array($format, ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
                     continue; 
                 }

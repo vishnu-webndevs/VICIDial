@@ -132,8 +132,14 @@ class CampaignController extends Controller
                 $file = $request->file('message_media_file');
                 $path = $file->store('campaigns/media', 'public');
                 $mediaUrl = asset('storage/' . $path);
+                if ($mediaUrl && str_starts_with($mediaUrl, 'http://')) {
+                    $mediaUrl = 'https://' . substr($mediaUrl, 7);
+                }
             } elseif (!empty($validated['message_media_url'])) {
                 $mediaUrl = $validated['message_media_url'];
+                if ($mediaUrl && str_starts_with($mediaUrl, 'http://')) {
+                    $mediaUrl = 'https://' . substr($mediaUrl, 7);
+                }
             }
 
             $settings = array_merge($settings, [
@@ -263,9 +269,17 @@ class CampaignController extends Controller
             if ($request->hasFile('message_media_file')) {
                 $file = $request->file('message_media_file');
                 $path = $file->store('campaigns/media', 'public');
-                $settings['message_media_url'] = asset('storage/' . $path);
+                $mediaUrl = asset('storage/' . $path);
+                if ($mediaUrl && str_starts_with($mediaUrl, 'http://')) {
+                    $mediaUrl = 'https://' . substr($mediaUrl, 7);
+                }
+                $settings['message_media_url'] = $mediaUrl;
             } elseif (array_key_exists('message_media_url', $validated) && !empty($validated['message_media_url'])) {
-                $settings['message_media_url'] = $validated['message_media_url'];
+                $mediaUrl = $validated['message_media_url'];
+                if ($mediaUrl && str_starts_with($mediaUrl, 'http://')) {
+                    $mediaUrl = 'https://' . substr($mediaUrl, 7);
+                }
+                $settings['message_media_url'] = $mediaUrl;
             }
 
             if (array_key_exists('preferred_provider_account_id', $validated)) {
