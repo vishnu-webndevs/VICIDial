@@ -174,11 +174,12 @@ export default function CampaignsPage() {
       if (template && Array.isArray(template.components)) {
         const header = template.components.find((c: any) => String(c.type).toUpperCase() === 'HEADER' && ['IMAGE', 'VIDEO'].includes(String(c.format).toUpperCase()));
         if (header) {
+          const localUrl = header.example?.local_header_url;
           const urlRaw = header.example?.header_url;
           const url = Array.isArray(urlRaw) ? urlRaw[0] : (typeof urlRaw === 'string' ? urlRaw : null);
           const handleRaw = header.example?.header_handle;
           const handle = Array.isArray(handleRaw) ? handleRaw[0] : (typeof handleRaw === 'string' ? handleRaw : null);
-          const finalUrl = url || handle;
+          const finalUrl = localUrl || url || handle;
           if (finalUrl && String(finalUrl).startsWith('http')) return finalUrl;
         }
       }

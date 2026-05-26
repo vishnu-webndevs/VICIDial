@@ -197,8 +197,9 @@ class MetaTemplateService
                                 
                                 $localUrl = \Illuminate\Support\Facades\Storage::disk('public')->url($filename);
                                 
-                                $component['example']['header_url'] = [$localUrl];
-                                $component['example']['header_handle'] = [$localUrl];
+                                $component['example']['local_header_url'] = $localUrl;
+                                // DO NOT overwrite the original header_url or header_handle, 
+                                // as we need them intact for the fallback payload!
                             }
                         } catch (\Throwable $e) {
                             \Illuminate\Support\Facades\Log::warning('Failed to download meta template image', ['url' => $targetUrl, 'error' => $e->getMessage()]);
