@@ -39,7 +39,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   return (
     <CacheProvider value={emotionCache}>
-      <CssVarsProvider theme={theme} defaultMode={mode}>
+      <CssVarsProvider theme={theme} defaultMode="light">
         <CssBaseline />
         {children}
       </CssVarsProvider>
