@@ -28,6 +28,7 @@ apps/api/storage/*.key
 apps/api/storage/pail/
 
 apps/web/.next/
+apps/web/docs/
 apps/web/out/
 apps/web/build/
 apps/web/coverage/
@@ -40,6 +41,7 @@ apps/web/test-results/
 **/*.log
 **/node_modules/
 **/.claude/
+**/.md
 
 # Ignore test directories and script files
 apps/api/tests/
