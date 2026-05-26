@@ -67,7 +67,7 @@ class CampaignController extends Controller
             'message_meta_template_id' => ['nullable', 'string'],
             'message_channel' => ['nullable', 'in:sms,whatsapp'],
             'message_media_file' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
-            'message_media_url' => ['nullable', 'url', 'max:2000'],
+            'message_media_url' => ['nullable', 'string', 'max:2000'],
         ]);
 
         $type = in_array((string) $validated['type'], ['auto', 'manual'], true) ? 'outbound_call' : (string) $validated['type'];
@@ -204,7 +204,7 @@ class CampaignController extends Controller
             'message_meta_template_id' => ['sometimes', 'nullable', 'string'],
             'message_channel' => ['sometimes', 'nullable', 'in:sms,whatsapp'],
             'message_media_file' => ['sometimes', 'nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
-            'message_media_url' => ['sometimes', 'nullable', 'url', 'max:2000'],
+            'message_media_url' => ['sometimes', 'nullable', 'string', 'max:2000'],
         ]);
 
         if (array_key_exists('type', $validated) && in_array((string) $validated['type'], ['auto', 'manual'], true)) {
@@ -255,6 +255,8 @@ class CampaignController extends Controller
                 || array_key_exists('message_variables', $validated)
                 || array_key_exists('preferred_provider_account_id', $validated)
                 || array_key_exists('message_channel', $validated)
+                || array_key_exists('message_media_url', $validated)
+                || $request->hasFile('message_media_file')
                 || array_key_exists('type', $validated));
 
         if ($isMessageUpdate) {
@@ -315,7 +317,7 @@ class CampaignController extends Controller
             $validated['settings'] = $settings;
         }
 
-        unset($validated['message_content'], $validated['message_template_key'], $validated['message_variables']);
+        unset($validated['message_content'], $validated['message_template_key'], $validated['message_variables'], $validated['message_media_url'], $validated['message_media_file']);
         $campaign->fill($validated);
         $campaign->save();
 
