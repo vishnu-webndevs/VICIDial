@@ -3,8 +3,7 @@ WORKDIR /app
 COPY composer.json composer.lock ./
 RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --no-scripts
 
-
-FROM php:8.2-fpm-alpine
+FROM php:8.2-cli-alpine
 WORKDIR /var/www/html
 
 RUN apk add --no-cache \
@@ -17,8 +16,6 @@ RUN apk add --no-cache \
         oniguruma-dev \
         openssl \
         zip \
-        nginx \
-        supervisor \
     && docker-php-ext-install \
         intl \
         mbstring \
@@ -29,16 +26,9 @@ RUN apk add --no-cache \
 COPY --from=vendor /app/vendor ./vendor
 COPY . .
 
-# Setup config files
-COPY docker/nginx.conf /etc/nginx/http.d/default.conf
-COPY docker/supervisord.conf /etc/supervisord.conf
-COPY docker/php-fpm.conf /usr/local/etc/php-fpm.d/zz-docker.conf
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
 RUN mkdir -p storage bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache public
 
+# Recreating storage structure in CMD because mounted volumes might be empty
 EXPOSE 8088
-
-CMD ["/usr/local/bin/entrypoint.sh"]
+CMD ["sh", "-lc", "mkdir -p storage/framework/views storage/framework/cache storage/framework/sessions storage/logs storage/app/public && chown -R www-data:www-data storage bootstrap/cache && php artisan storage:link || true; php artisan queue:work --daemon --sleep=1 --tries=3 --timeout=120 & exec php artisan serve --host=0.0.0.0 --port=${PORT:-8088}"]
