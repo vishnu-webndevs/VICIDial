@@ -286,26 +286,34 @@ class MetaTemplateService
             $possibleKeys = [];
             
             // For media headers, the uploaded campaign image/file has highest priority
-            if ($type === 'HEADER' && in_array($format, ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
-                $possibleKeys[] = 'campaign_media_url';
+            $isMediaHeader = $type === 'HEADER' && in_array($format, ['IMAGE', 'VIDEO', 'DOCUMENT']);
+            
+            if ($isMediaHeader) {
+                $possibleKeys = [
+                    'campaign_media_url',
+                    "header_var_{$index}",
+                    "var_{$index}",
+                    $index,
+                    (string) $index,
+                ];
+            } else {
+                $possibleKeys = [
+                    $index,
+                    (string) $index,
+                    "var_{$index}",
+                    "header_var_{$index}",
+                    "body_var_{$index}",
+                    "button_var_{$index}",
+                    // Common field fallbacks based on index (if not mapped)
+                    $index === 1 ? 'first_name' : null,
+                    $index === 1 ? 'full_name' : null,
+                    $index === 2 ? 'company_name' : null,
+                    $index === 2 ? 'company' : null,
+                ];
+                // Add all keys from parameters as possible keys if they are strings (only for non-media)
+                $possibleKeys = array_merge($possibleKeys, array_keys($parameters));
             }
-
-            $possibleKeys = array_merge($possibleKeys, [
-                $index,
-                (string) $index,
-                "var_{$index}",
-                "header_var_{$index}",
-                "body_var_{$index}",
-                "button_var_{$index}",
-                // Common field fallbacks based on index (if not mapped)
-                $index === 1 ? 'first_name' : null,
-                $index === 1 ? 'full_name' : null,
-                $index === 2 ? 'company_name' : null,
-                $index === 2 ? 'company' : null,
-            ]);
-
-            // Add all keys from parameters as possible keys if they are strings
-            $possibleKeys = array_merge($possibleKeys, array_keys($parameters));
+            
             $possibleKeys = array_filter(array_unique($possibleKeys));
 
             foreach ($possibleKeys as $key) {
@@ -333,7 +341,8 @@ class MetaTemplateService
                     $value = 'https://' . substr($value, 7);
                 }
                 $isUrl = str_starts_with(strtolower($value), 'http');
-                $isHandle = ! $isUrl && $value !== '';
+                // Ensure handles look like handles (e.g. 4/..., or base64) to avoid accidental text fallbacks
+                $isHandle = ! $isUrl && $value !== '' && (str_contains($value, '/') || strlen($value) > 20);
                 
                 if ($format === 'IMAGE' && ($isUrl || $isHandle)) {
                     $mediaObj = $isUrl ? ['link' => $value] : ['handle' => $value];
