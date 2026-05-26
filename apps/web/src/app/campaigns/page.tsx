@@ -170,18 +170,9 @@ export default function CampaignsPage() {
       return campaignForm.message_media_url;
     }
     if (campaignForm.message_use_meta_template && campaignForm.message_meta_template_id) {
-      const template = metaTemplates.find((t) => t.id === campaignForm.message_meta_template_id);
-      if (template && Array.isArray(template.components)) {
-        const header = template.components.find((c: any) => String(c.type).toUpperCase() === 'HEADER' && ['IMAGE', 'VIDEO'].includes(String(c.format).toUpperCase()));
-        if (header) {
-          const localUrl = header.example?.local_header_url;
-          const urlRaw = header.example?.header_url;
-          const url = Array.isArray(urlRaw) ? urlRaw[0] : (typeof urlRaw === 'string' ? urlRaw : null);
-          const handleRaw = header.example?.header_handle;
-          const handle = Array.isArray(handleRaw) ? handleRaw[0] : (typeof handleRaw === 'string' ? handleRaw : null);
-          const finalUrl = localUrl || url || handle;
-          if (finalUrl && String(finalUrl).startsWith('http')) return finalUrl;
-        }
+      const template = metaTemplates.find((t) => t.id === campaignForm.message_meta_template_id) as any;
+      if (template && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(template.header_type)) {
+        return template.header_content || null;
       }
     }
     return null;

@@ -121,11 +121,157 @@ class MetaTemplateService
         }
     }
 
+    public function createTemplate(ProviderAccount $provider, array $data): array
+    {
+        $credentials = (array) ($provider->credentials_encrypted ?? []);
+        $token = trim((string) ($credentials['meta_access_token'] ?? ''));
+        $wabaId = trim((string) ($credentials['whatsapp_business_account_id'] ?? ''));
+
+        if ($token === '' || $wabaId === '') {
+            return ['ok' => false, 'error' => 'Missing Meta WhatsApp access token or WABA ID.'];
+        }
+
+        $components = [];
+
+        // Header
+        if (!empty($data['header_type']) && $data['header_type'] !== 'NONE') {
+            $header = ['type' => 'HEADER', 'format' => $data['header_type']];
+            if ($data['header_type'] === 'TEXT') {
+                $header['text'] = $data['header_content'];
+            } else if (in_array($data['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
+                // In a production app with Meta Resumable Uploads, you'd upload and get a handle.
+                // For this implementation, we use an example URL array if a URL is provided.
+                if (!empty($data['header_content'])) {
+                    $header['example'] = ['header_handle' => [$data['header_content']]];
+                }
+            }
+            $components[] = $header;
+        }
+
+        // Body
+        $body = ['type' => 'BODY', 'text' => $data['body']];
+        
+        // Find variables {{1}}, {{2}} in body
+        preg_match_all('/\{\{(\d+)\}\}/', $data['body'], $matches);
+        if (!empty($matches[1])) {
+            $maxVar = max(array_map('intval', $matches[1]));
+            $examples = array_fill(0, $maxVar, 'test_variable');
+            $body['example'] = ['body_text' => [$examples]];
+        }
+        $components[] = $body;
+
+        // Footer
+        if (!empty($data['footer'])) {
+            $components[] = ['type' => 'FOOTER', 'text' => $data['footer']];
+        }
+
+        // Buttons
+        if (!empty($data['buttons']) && is_array($data['buttons'])) {
+            $formattedButtons = [];
+            foreach ($data['buttons'] as $btn) {
+                $formattedBtn = [
+                    'type' => $btn['type'], // QUICK_REPLY, URL, PHONE_NUMBER
+                    'text' => $btn['text']
+                ];
+                if ($btn['type'] === 'URL') {
+                    $formattedBtn['url'] = $btn['url'];
+                    if (str_contains($btn['url'], '{{1}}')) {
+                        $formattedBtn['example'] = [$btn['url'] . '?example=1'];
+                    }
+                } else if ($btn['type'] === 'PHONE_NUMBER') {
+                    $formattedBtn['phone_number'] = $btn['phone_number'];
+                }
+                $formattedButtons[] = $formattedBtn;
+            }
+            if (!empty($formattedButtons)) {
+                $components[] = ['type' => 'BUTTONS', 'buttons' => $formattedButtons];
+            }
+        }
+
+        $payload = [
+            'name' => $data['name'],
+            'language' => $data['language'],
+            'category' => $data['category'],
+            'components' => $components,
+        ];
+
+        try {
+            $response = Http::timeout(20)
+                ->withToken($token)
+                ->acceptJson()
+                ->post("https://graph.facebook.com/v20.0/{$wabaId}/message_templates", $payload);
+
+            if (!$response->successful()) {
+                return [
+                    'ok' => false,
+                    'error' => (string) ($response->json('error.message') ?? 'Failed to create template in Meta.'),
+                    'details' => $response->json(),
+                ];
+            }
+
+            // Sync down immediately to ensure we get the ID and exact status from Meta
+            $metaTemplate = $response->json();
+            
+            // Wait, POST response returns { "id": "..." } and maybe status. We need to fetch the full template or build it.
+            // Actually, best is to just fetch it using Graph API by ID.
+            $templateId = $metaTemplate['id'];
+            $fetchResponse = Http::timeout(20)
+                ->withToken($token)
+                ->acceptJson()
+                ->get("https://graph.facebook.com/v20.0/{$templateId}");
+                
+            if ($fetchResponse->successful()) {
+                $metaTemplate = $fetchResponse->json();
+            } else {
+                // Mock if fetch fails immediately
+                $metaTemplate['name'] = $data['name'];
+                $metaTemplate['language'] = $data['language'];
+                $metaTemplate['category'] = $data['category'];
+                $metaTemplate['components'] = $components;
+                $metaTemplate['status'] = 'PENDING_REVIEW';
+            }
+
+            $record = $this->writeTemplate($provider, $metaTemplate);
+            if (!empty($data['created_by'])) {
+                $record->update(['created_by' => $data['created_by']]);
+            }
+
+            return ['ok' => true, 'template' => $record];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+
     private function writeTemplate(ProviderAccount $provider, array $metaTemplate): MetaWhatsappTemplate
     {
         $components = $this->normalizeComponents($metaTemplate['components'] ?? []);
         $status = trim((string) ($metaTemplate['status'] ?? '')) ?: 'PENDING_REVIEW';
         $language = trim((string) ($metaTemplate['language'] ?? 'en'));
+
+        $headerType = 'NONE';
+        $headerContent = null;
+        $body = null;
+        $footer = null;
+        $buttons = null;
+
+        foreach ($components as $c) {
+            $type = strtoupper($c['type'] ?? '');
+            if ($type === 'HEADER') {
+                $format = strtoupper($c['format'] ?? '');
+                $headerType = $format;
+                if ($format === 'TEXT') {
+                    $headerContent = $c['text'] ?? null;
+                } else if (in_array($format, ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
+                    $headerContent = $c['example']['local_header_url'] ?? $c['example']['header_url'][0] ?? $c['example']['header_handle'][0] ?? null;
+                }
+            } else if ($type === 'BODY') {
+                $body = $c['text'] ?? null;
+            } else if ($type === 'FOOTER') {
+                $footer = $c['text'] ?? null;
+            } else if ($type === 'BUTTONS') {
+                $buttons = $c['buttons'] ?? null;
+            }
+        }
 
         $record = MetaWhatsappTemplate::query()->updateOrCreate(
             [
@@ -138,6 +284,12 @@ class MetaTemplateService
                 'category' => trim((string) ($metaTemplate['category'] ?? '')),
                 'language' => $language,
                 'status' => $status,
+                'rejection_reason' => trim((string) ($metaTemplate['rejected_reason'] ?? '')),
+                'header_type' => $headerType,
+                'header_content' => $headerContent,
+                'body' => $body,
+                'footer' => $footer,
+                'buttons' => $buttons ? json_encode($buttons) : null,
                 'components' => $components,
                 'has_header' => $this->hasComponentType($components, 'HEADER'),
                 'has_body' => $this->hasComponentType($components, 'BODY'),

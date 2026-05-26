@@ -42,6 +42,44 @@ export async function listMetaTemplates(params: { provider_account_id?: string }
   return response.data.templates ?? [];
 }
 
+export async function createMetaTemplate(payload: {
+  name: string;
+  category: string;
+  language: string;
+  header_type?: string | null;
+  header_content?: string | null;
+  header_file?: File | null;
+  body: string;
+  footer?: string | null;
+  buttons?: any[] | null;
+  provider_account_id?: string;
+}): Promise<MetaWhatsappTemplate> {
+  const { token, tenantId } = getTenantContext();
+  
+  let body: any = payload;
+  if (payload.header_file) {
+    const formData = new FormData();
+    formData.append("name", payload.name);
+    formData.append("category", payload.category);
+    formData.append("language", payload.language);
+    if (payload.header_type) formData.append("header_type", payload.header_type);
+    formData.append("body", payload.body);
+    if (payload.footer) formData.append("footer", payload.footer);
+    if (payload.buttons) formData.append("buttons", JSON.stringify(payload.buttons));
+    if (payload.provider_account_id) formData.append("provider_account_id", payload.provider_account_id);
+    formData.append("header_file", payload.header_file);
+    body = formData;
+  }
+
+  const response = await apiRequest<{ data: { template: MetaWhatsappTemplate } }>("/meta-templates", {
+    method: "POST",
+    token,
+    tenantId,
+    body,
+  });
+  return response.data.template;
+}
+
 export async function syncMetaTemplates(providerAccountId?: string): Promise<{ ok: boolean; count: number }> {
   const { token, tenantId } = getTenantContext();
   const response = await apiRequest<{ data: { sync: { ok: boolean; count: number } } }>("/meta-templates/sync", {

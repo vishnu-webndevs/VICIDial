@@ -273,6 +273,8 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
         // Short routes for Meta Templates
         Route::get('/meta-templates', [MetaTemplateController::class, 'index'])
             ->middleware('permission:tenant.view');
+        Route::post('/meta-templates', [MetaTemplateController::class, 'store'])
+            ->middleware('permission:tenant.update');
         Route::post('/meta-templates/sync', [MetaTemplateController::class, 'sync'])
             ->middleware('permission:tenant.update');
 

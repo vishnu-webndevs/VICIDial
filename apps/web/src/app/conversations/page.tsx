@@ -29,12 +29,16 @@ function ConversationsContent() {
   const [sending, setSending] = useState(false);
 
   const [messages, setMessages] = useState<any[]>([]);
+  const [messagesPage, setMessagesPage] = useState(1);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [loadingOlder, setLoadingOlder] = useState(false);
   const [messageToast, setMessageToast] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "error">("neutral");
 
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const isInitialLoad = useRef(true);
 
   const scrollToBottom = () => {
@@ -50,7 +54,7 @@ function ConversationsContent() {
   const loadThreads = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await listInboxThreads(channel, { per_page: 100 });
+      const response = await listInboxThreads(channel, { per_page: 50 });
       setThreads(response.data);
 
       if (isInitialLoad.current && queryThreadId) {
@@ -88,7 +92,7 @@ function ConversationsContent() {
     void (async () => {
       setLoadingMembers(true);
       try {
-        const result = await listTeamMembers({ per_page: 200 });
+        const result = await listTeamMembers({ per_page: 100 });
         if (mounted) {
           setTeamMembers(result.data ?? []);
         }
@@ -106,15 +110,19 @@ function ConversationsContent() {
   useEffect(() => {
     if (!selectedThreadId) {
       setMessages([]);
+      setMessagesPage(1);
+      setHasMoreMessages(true);
       return;
     }
     let mounted = true;
     void (async () => {
       setLoadingMessages(true);
+      setMessagesPage(1);
       try {
-        const res = await listInboxThreadMessages(selectedThreadId, { per_page: 200 });
+        const res = await listInboxThreadMessages(selectedThreadId, { per_page: 10, page: 1 });
         if (mounted) {
           setMessages(res.data);
+          setHasMoreMessages(res.data.length === 10);
           scrollToBottom();
           try {
             await markThreadNotificationsAsRead(selectedThreadId);
@@ -140,7 +148,7 @@ function ConversationsContent() {
       // If no thread is selected, we still poll threads list silently
       const threadsInterval = setInterval(async () => {
         try {
-          const response = await listInboxThreads(channel, { per_page: 100 });
+          const response = await listInboxThreads(channel, { per_page: 50 });
           setThreads(prev => {
             const prevSign = JSON.stringify(prev.map(t => ({ id: t.id, last_message_at: t.last_message_at, unread_count: t.unread_count, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
             const nextSign = JSON.stringify(response.data.map(t => ({ id: t.id, last_message_at: t.last_message_at, unread_count: t.unread_count, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
@@ -152,14 +160,14 @@ function ConversationsContent() {
         } catch (err) {
           // ignore
         }
-      }, 5000);
+      }, 15000);
       return () => clearInterval(threadsInterval);
     }
 
     const interval = setInterval(async () => {
       try {
-        // Poll messages silently
-        const res = await listInboxThreadMessages(selectedThreadId, { per_page: 200 });
+        // Poll messages silently (always page 1 to get latest)
+        const res = await listInboxThreadMessages(selectedThreadId, { per_page: 10, page: 1 });
         setMessages(prev => {
           // Only update if message list changed (e.g. new messages, or status changes)
           const prevSign = JSON.stringify(prev.map(m => ({ id: m.id, status: m.status })));
@@ -183,13 +191,23 @@ function ConversationsContent() {
               void markThreadNotificationsAsRead(selectedThreadId);
               setTimeout(scrollToBottom, 100);
             }
+            // We need to merge them carefully. For now, since we prepend older messages, 
+            // if prev > res.data, we might be on page 2+. Just append new messages to the end.
+            if (prev.length >= 10) {
+              const updatedPrev = prev.map(pMsg => {
+                const updatedMsg = res.data.find(nm => nm.id === pMsg.id);
+                return updatedMsg ? updatedMsg : pMsg;
+              });
+              const newMessages = res.data.filter(nm => !prev.some(pm => pm.id === nm.id));
+              return [...updatedPrev, ...newMessages];
+            }
             return res.data;
           }
           return prev;
         });
 
         // Poll threads list
-        const response = await listInboxThreads(channel, { per_page: 100 });
+        const response = await listInboxThreads(channel, { per_page: 50 });
         setThreads(prev => {
           const sanitizedData = response.data.map(t => 
             t.id === selectedThreadId ? { ...t, unread_count: 0 } : t
@@ -204,7 +222,7 @@ function ConversationsContent() {
       } catch (err) {
         // ignore
       }
-    }, 3500); // 3.5 seconds polling for fast real-time feel!
+    }, 7000); // 7 seconds polling
 
     return () => clearInterval(interval);
   }, [selectedThreadId, channel]);
@@ -230,7 +248,7 @@ function ConversationsContent() {
     try {
       await sendInboxThreadMessage(selectedThreadId, bodyToSend);
       // Reload messages to get actual DB record
-      const res = await listInboxThreadMessages(selectedThreadId, { per_page: 200 });
+      const res = await listInboxThreadMessages(selectedThreadId, { per_page: 50 });
       setMessages(res.data);
       scrollToBottom();
 
@@ -284,6 +302,43 @@ function ConversationsContent() {
     () => threads.find((item) => item.id === selectedThreadId) ?? null,
     [threads, selectedThreadId]
   );
+
+  const loadOlderMessages = async () => {
+    if (loadingOlder || !hasMoreMessages || !selectedThreadId) return;
+    setLoadingOlder(true);
+    
+    const container = scrollContainerRef.current;
+    const oldScrollHeight = container ? container.scrollHeight : 0;
+
+    try {
+      const nextPage = messagesPage + 1;
+      const res = await listInboxThreadMessages(selectedThreadId, { per_page: 10, page: nextPage });
+      setMessages(prev => {
+        const newMessages = res.data.filter(nm => !prev.some(pm => pm.id === nm.id));
+        return [...newMessages, ...prev]; // Prepend older messages
+      });
+      setMessagesPage(nextPage);
+      setHasMoreMessages(res.data.length === 10);
+      
+      // Preserve scroll position
+      setTimeout(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight - oldScrollHeight;
+        }
+      }, 0);
+    } catch (e) {
+      setMessageToast("Failed to load older messages.");
+      setMessageTone("error");
+    } finally {
+      setLoadingOlder(false);
+    }
+  };
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    if (e.currentTarget.scrollTop === 0) {
+      void loadOlderMessages();
+    }
+  };
 
   return (
     <AppShell requiredPermissions={["call.view"]}>
@@ -492,7 +547,11 @@ function ConversationsContent() {
               </Box>
 
               {/* Chat Messages */}
-              <Box sx={{ flex: 1, overflowY: 'auto', p: { xs: 2, md: 4 }, display: 'flex', flexDirection: 'column', gap: 1.5, zIndex: 1 }}>
+              <Box 
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                sx={{ flex: 1, overflowY: 'auto', p: { xs: 2, md: 4 }, display: 'flex', flexDirection: 'column', gap: 1.5, zIndex: 1 }}
+              >
                 {loadingMessages ? (
                   <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}><LoadingState /></Box>
                 ) : messages.length === 0 ? (
@@ -503,7 +562,13 @@ function ConversationsContent() {
                     </Box>
                   </Box>
                 ) : (
-                  messages.map((msg, index) => {
+                  <>
+                    {loadingOlder && (
+                      <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
+                        <i className="bx bx-loader-alt bx-spin" style={{ color: '#00a884', fontSize: 24 }} />
+                      </Box>
+                    )}
+                    {messages.map((msg, index) => {
                     const isOutbound = msg.direction === 'outbound';
                     const showDate = index === 0 || new Date(msg.sent_at).toDateString() !== new Date(messages[index - 1].sent_at).toDateString();
 
@@ -559,7 +624,8 @@ function ConversationsContent() {
                         </Box>
                       </Box>
                     );
-                  })
+                  })}
+                  </>
                 )}
                 <div ref={messagesEndRef} />
               </Box>

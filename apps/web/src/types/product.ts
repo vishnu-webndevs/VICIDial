@@ -138,6 +138,12 @@ export type MetaWhatsappTemplate = {
   has_header: boolean;
   has_body: boolean;
   has_footer: boolean;
+  header_type?: string | null;
+  header_content?: string | null;
+  body?: string | null;
+  footer?: string | null;
+  buttons?: any | null;
+  rejection_reason?: string | null;
   components?: any[];
   synced_at?: string | null;
 };

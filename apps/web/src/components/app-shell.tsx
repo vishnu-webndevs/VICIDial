@@ -195,16 +195,17 @@ export function SectionCard({
   );
 }
 
-export function StatusBadge({ label }: { label: string }) {
+export function StatusBadge({ label, color: overrideColor }: { label: string; color?: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" }) {
   const normalized = label.toLowerCase();
-  const color =
-    normalized === "completed" || normalized === "connected" || normalized === "active"
+  const color = overrideColor || (
+    normalized === "completed" || normalized === "connected" || normalized === "active" || normalized === "approved"
       ? "success"
       : normalized === "failed" || normalized === "error" || normalized === "rejected"
       ? "error"
-      : normalized === "ringing" || normalized === "queued" || normalized === "scheduled"
+      : normalized === "ringing" || normalized === "queued" || normalized === "scheduled" || normalized === "pending"
       ? "warning"
-      : "default";
+      : "default"
+  );
 
   return <Chip component="span" label={label} color={color} size="medium" />;
 }
