@@ -162,6 +162,31 @@ export default function CampaignsPage() {
     return campaignForm.type === "outbound_call" || campaignForm.type === "auto" || campaignForm.type === "manual";
   }, [campaignForm.type]);
 
+  const previewImageUrl = useMemo(() => {
+    if (campaignForm.message_media_file) {
+      return URL.createObjectURL(campaignForm.message_media_file);
+    }
+    if (campaignForm.message_media_url) {
+      return campaignForm.message_media_url;
+    }
+    if (campaignForm.message_use_meta_template && campaignForm.message_meta_template_id) {
+      const template = metaTemplates.find((t) => t.id === campaignForm.message_meta_template_id);
+      if (template && Array.isArray(template.components)) {
+        const header = template.components.find((c: any) => String(c.type).toUpperCase() === 'HEADER' && ['IMAGE', 'VIDEO'].includes(String(c.format).toUpperCase()));
+        if (header) {
+          const urlRaw = header.example?.header_url;
+          const url = Array.isArray(urlRaw) ? urlRaw[0] : (typeof urlRaw === 'string' ? urlRaw : null);
+          const handleRaw = header.example?.header_handle;
+          const handle = Array.isArray(handleRaw) ? handleRaw[0] : (typeof handleRaw === 'string' ? handleRaw : null);
+          const finalUrl = url || handle;
+          if (finalUrl && String(finalUrl).startsWith('http')) return finalUrl;
+        }
+      }
+    }
+    return null;
+  }, [campaignForm.message_media_file, campaignForm.message_media_url, campaignForm.message_use_meta_template, campaignForm.message_meta_template_id, metaTemplates]);
+
+
   const resolvedMessageChannel = useMemo<"sms" | "whatsapp">(() => {
     if (campaignForm.type === "sms") return "sms";
     if (campaignForm.type === "whatsapp") return "whatsapp";
@@ -953,6 +978,27 @@ export default function CampaignsPage() {
                                 <Typography variant="caption" color="primary" sx={{ display: "block" }}>
                                   Selected: {campaignForm.message_media_file.name}
                                 </Typography>
+                              )}
+                              
+                              {previewImageUrl && (
+                                <Box sx={{ mt: 1, textAlign: 'center' }}>
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+                                    Media Preview
+                                  </Typography>
+                                  {previewImageUrl.toLowerCase().endsWith('.mp4') ? (
+                                    <video 
+                                      src={previewImageUrl} 
+                                      controls 
+                                      style={{ maxHeight: 200, maxWidth: '100%', borderRadius: 8, border: '1px solid #ddd' }} 
+                                    />
+                                  ) : (
+                                    <img 
+                                      src={previewImageUrl} 
+                                      alt="Preview" 
+                                      style={{ maxHeight: 200, maxWidth: '100%', objectFit: 'contain', borderRadius: 8, border: '1px solid #ddd' }} 
+                                    />
+                                  )}
+                                </Box>
                               )}
                             </Box>
                           </Box>
