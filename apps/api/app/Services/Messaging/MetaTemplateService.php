@@ -327,10 +327,16 @@ class MetaTemplateService
                 $value = (string) $parameters[$index - 1];
             }
 
-            if ($value === '' && $type === 'HEADER' && in_array($format, ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
-                $fallbackUrl = data_get($component, 'example.header_handle.0') ?: data_get($component, 'example.header_url.0');
-                if ($fallbackUrl) {
-                    $value = $fallbackUrl;
+            if ($value === '' && $isMediaHeader) {
+                $handleRaw = data_get($component, 'example.header_handle');
+                $fallbackHandle = is_array($handleRaw) ? ($handleRaw[0] ?? null) : (is_string($handleRaw) ? $handleRaw : null);
+                
+                $urlRaw = data_get($component, 'example.header_url');
+                $fallbackUrl = is_array($urlRaw) ? ($urlRaw[0] ?? null) : (is_string($urlRaw) ? $urlRaw : null);
+                
+                $fallbackValue = $fallbackHandle ?: $fallbackUrl;
+                if ($fallbackValue) {
+                    $value = $fallbackValue;
                 }
             }
 
