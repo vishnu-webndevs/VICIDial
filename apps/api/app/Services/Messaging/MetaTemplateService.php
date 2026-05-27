@@ -69,10 +69,13 @@ class MetaTemplateService
             $metaTemplates = $response->json('data', []);
             $result['templates_fetched'] = count($metaTemplates);
             $syncLog->templates_fetched = $result['templates_fetched'];
+            
+            $syncedTemplateIds = [];
 
             foreach ($metaTemplates as $metaTemplate) {
                 try {
                     $record = $this->writeTemplate($provider, $metaTemplate);
+                    $syncedTemplateIds[] = $record->id;
                     if ($record->wasRecentlyCreated) {
                         $result['templates_synced']++;
                     } else {
@@ -92,6 +95,11 @@ class MetaTemplateService
                     ];
                 }
             }
+
+            // Delete templates that exist locally but were not returned by Meta
+            $provider->whatsAppTemplates()
+                ->whereNotIn('id', $syncedTemplateIds)
+                ->delete();
 
             $syncLog->status = 'completed';
             $syncLog->templates_synced = $result['templates_synced'];
