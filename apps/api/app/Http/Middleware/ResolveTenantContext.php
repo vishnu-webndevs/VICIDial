@@ -47,8 +47,12 @@ class ResolveTenantContext
                     'team_unit_id' => null,
                 ]);
 
-                // Dispatch asynchronous billing usage logging
-                dispatch(new \App\Jobs\IncrementBillingUsage((string) $tenant->id));
+                // Dispatch asynchronous billing usage logging (wrapped in try-catch for robustness)
+                try {
+                    dispatch(new \App\Jobs\IncrementBillingUsage((string) $tenant->id));
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::warning('Failed to dispatch IncrementBillingUsage: ' . $e->getMessage());
+                }
 
                 return $next($request);
             }
@@ -63,8 +67,14 @@ class ResolveTenantContext
                 'team_unit_id' => $membership->team_unit_id,
             ]);
 
-            // Dispatch asynchronous billing usage logging
-            dispatch(new \App\Jobs\IncrementBillingUsage((string) $membership->tenant->id));
+            // Dispatch asynchronous billing usage logging (wrapped in try-catch for robustness)
+            try {
+                if ($membership->tenant) {
+                    dispatch(new \App\Jobs\IncrementBillingUsage((string) $membership->tenant->id));
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Failed to dispatch IncrementBillingUsage: ' . $e->getMessage());
+            }
 
             return $next($request);
         }
