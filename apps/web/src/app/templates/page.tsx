@@ -203,7 +203,7 @@ export default function TemplatesPage() {
       name: item.template_name,
       category: item.category ?? "MARKETING",
       language: item.language ?? "en",
-      header_type: item.header_type ?? "NONE",
+      header_type: (item.header_type as "NONE" | "TEXT" | "IMAGE" | "VIDEO" | "DOCUMENT") ?? "NONE",
       header_content: item.header_content ?? "",
       header_file: null,
       body: item.body ?? "",
