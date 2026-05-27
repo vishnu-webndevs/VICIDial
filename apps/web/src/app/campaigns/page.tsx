@@ -907,7 +907,7 @@ export default function CampaignsPage() {
                               sx={{ flexGrow: 1 }}
                             >
                               <MenuItem value="">Choose a template...</MenuItem>
-                              {metaTemplates.map((t) => (
+                              {metaTemplates.filter(t => t.status === 'APPROVED').map((t) => (
                                 <MenuItem key={t.id} value={t.id}>
                                   {t.template_name} ({t.language})
                                 </MenuItem>
