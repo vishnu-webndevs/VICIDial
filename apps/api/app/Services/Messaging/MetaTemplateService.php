@@ -139,13 +139,68 @@ class MetaTemplateService
             if ($data['header_type'] === 'TEXT') {
                 $header['text'] = $data['header_content'];
             } else if (in_array($data['header_type'], ['IMAGE', 'VIDEO', 'DOCUMENT'])) {
-                // In a production app with Meta Resumable Uploads, you'd upload and get a handle.
-                // For this implementation, we use an example URL array if a URL is provided.
                 if (!empty($data['header_content'])) {
-                    if (str_starts_with(strtolower($data['header_content']), 'http')) {
-                        $header['example'] = ['header_url' => [$data['header_content']]];
+                    $url = $data['header_content'];
+                    $handle = null;
+                    
+                    try {
+                        $debugToken = Http::get("https://graph.facebook.com/debug_token", [
+                            'input_token' => $token,
+                            'access_token' => $token,
+                        ]);
+                        $appId = $debugToken->json('data.app_id');
+                        
+                        if ($appId) {
+                            $path = parse_url($url, PHP_URL_PATH);
+                            $localPath = $path ? str_replace('/storage/', '', $path) : null;
+                            
+                            $mediaContent = null;
+                            $mimeType = null;
+                            
+                            if ($localPath && \Illuminate\Support\Facades\Storage::disk('public')->exists($localPath)) {
+                                $mediaContent = \Illuminate\Support\Facades\Storage::disk('public')->get($localPath);
+                                $mimeType = \Illuminate\Support\Facades\Storage::disk('public')->mimeType($localPath);
+                            } else {
+                                $mediaResponse = Http::get($url);
+                                if ($mediaResponse->successful()) {
+                                    $mediaContent = $mediaResponse->body();
+                                    $mimeType = $mediaResponse->header('Content-Type');
+                                }
+                            }
+                            
+                            if ($mediaContent) {
+                                if (!$mimeType || $mimeType === 'application/octet-stream' || str_contains($mimeType, 'text/html')) {
+                                    if ($data['header_type'] === 'IMAGE') $mimeType = 'image/jpeg';
+                                    else if ($data['header_type'] === 'VIDEO') $mimeType = 'video/mp4';
+                                    else if ($data['header_type'] === 'DOCUMENT') $mimeType = 'application/pdf';
+                                }
+                                
+                                $sessionRes = Http::withToken($token)->post("https://graph.facebook.com/v20.0/{$appId}/uploads", [
+                                    'file_length' => strlen($mediaContent),
+                                    'file_type' => $mimeType,
+                                ]);
+                                
+                                $uploadSessionId = $sessionRes->json('id');
+                                if ($uploadSessionId) {
+                                    $uploadRes = Http::withToken($token)
+                                        ->withHeaders(['file_offset' => 0])
+                                        ->withBody($mediaContent, $mimeType)
+                                        ->post("https://graph.facebook.com/v20.0/{$uploadSessionId}");
+                                        
+                                    $handle = $uploadRes->json('h');
+                                }
+                            }
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning('Failed to upload example media to Meta Resumable API', ['error' => $e->getMessage()]);
+                    }
+                    
+                    if ($handle) {
+                        $header['example'] = ['header_handle' => [$handle]];
+                    } else if (str_starts_with(strtolower($url), 'http')) {
+                        $header['example'] = ['header_url' => [$url]];
                     } else {
-                        $header['example'] = ['header_handle' => [$data['header_content']]];
+                        $header['example'] = ['header_handle' => [$url]];
                     }
                 }
             }
