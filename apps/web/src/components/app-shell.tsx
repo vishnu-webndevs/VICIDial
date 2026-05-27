@@ -64,27 +64,45 @@ export function AppShell({
     };
 
     const hydrateSession = async (redirectOnError: boolean) => {
+      const MAX_RETRIES = 3;
+      let lastError: unknown = null;
+
       try {
-        const profile = await fetchSessionProfile();
-        setSessionCache(profile);
-        applyProfile(profile);
-      } catch (error) {
-        if (cancelled) {
-          return;
+        for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+          if (cancelled) return;
+          try {
+            const profile = await fetchSessionProfile();
+            setSessionCache(profile);
+            applyProfile(profile);
+            return; // success — exit early (finally will run)
+          } catch (error) {
+            lastError = error;
+            if (cancelled) return;
+
+            const isAuthError =
+              (error instanceof ApiError ||
+                (error && typeof error === "object" && "status" in error)) &&
+              (error as any).status === 401;
+
+            if (isAuthError) {
+              clearSession();
+              if (redirectOnError) {
+                router.replace("/login");
+              }
+              return; // auth errors are definitive — don't retry
+            }
+
+            // Transient network error — retry with backoff
+            if (attempt < MAX_RETRIES) {
+              const delayMs = 500 * Math.pow(2, attempt); // 500, 1000, 2000
+              await new Promise((r) => setTimeout(r, delayMs));
+            }
+          }
         }
 
-        const isAuthError =
-          (error instanceof ApiError ||
-            (error && typeof error === "object" && "status" in error)) &&
-          (error as any).status === 401;
-
-        if (isAuthError) {
-          clearSession();
-          if (redirectOnError) {
-            router.replace("/login");
-          }
-        } else {
-          console.error("Session hydration failed (non-auth error):", error);
+        // All retries exhausted
+        if (!cancelled) {
+          console.error("Session hydration failed after retries:", lastError);
         }
       } finally {
         if (!cancelled) {
