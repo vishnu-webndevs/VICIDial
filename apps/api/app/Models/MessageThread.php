@@ -49,7 +49,7 @@ class MessageThread extends Model
         return $this->hasMany(Message::class, 'thread_id');
     }
 
-    public function latestMessage(): HasOne
+    public function latestMessage(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
         return $this->hasOne(Message::class, 'thread_id')->latestOfMany('sent_at');
     }

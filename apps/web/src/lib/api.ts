@@ -1,4 +1,5 @@
 import { API_BASE_URL } from "@/lib/runtime-config";
+import { clearSession } from "@/lib/auth-session";
 
 export class ApiError extends Error {
   status: number;
@@ -6,6 +7,7 @@ export class ApiError extends Error {
     super(message);
     this.status = status;
     this.name = "ApiError";
+    Object.setPrototypeOf(this, ApiError.prototype);
   }
 }
 
@@ -73,6 +75,12 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
+    if (response.status === 401) {
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        clearSession();
+        window.location.href = "/login";
+      }
+    }
     const usageLimitErrorCode = typeof responseBody?.error === "string" ? responseBody.error : null;
     const message =
       responseBody?.error?.message ??

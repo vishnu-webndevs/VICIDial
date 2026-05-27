@@ -64,35 +64,30 @@ class AppServiceProvider extends ServiceProvider
             $tenantId = is_object($tenant) && isset($tenant->id) ? (string) $tenant->id : (string) $request->header('X-Tenant-Id', '');
 
             if ($tenantId !== '') {
-                $meter = \App\Models\UsageMeter::query()
-                    ->where('tenant_id', $tenantId)
-                    ->where('meter_type', 'api_requests')
-                    ->first();
+                // Cache the billing limit check for 10 seconds to group parallel browser API calls
+                $meterData = cache()->remember("usage_meter_cache:{$tenantId}", 10, function () use ($tenantId) {
+                    $meter = \App\Models\UsageMeter::query()
+                        ->where('tenant_id', $tenantId)
+                        ->where('meter_type', 'api_requests')
+                        ->first();
+                    return $meter ? [
+                        'limit_units' => (int) $meter->limit_units,
+                        'consumed_units' => (int) $meter->consumed_units
+                    ] : null;
+                });
 
-                if ($meter) {
-                    if ($meter->period_end && now()->greaterThan($meter->period_end)) {
-                        $meter->period_start = now()->startOfDay();
-                        $meter->period_end = now()->addMonthNoOverflow()->endOfDay();
-                        $meter->consumed_units = 0;
-                        $meter->save();
-                    }
+                if ($meterData) {
+                    $limit = $meterData['limit_units'];
+                    $cacheKey = "usage_meter_count:{$tenantId}";
 
-                    $limit = (int) $meter->limit_units;
-                    $consumed = (int) $meter->consumed_units;
+                    // Atomically initialize the cached count with the DB base count if not already present in cache.
+                    cache()->add($cacheKey, $meterData['consumed_units'], 10);
 
-                    // Sync database consumed units with Laravel cache-based rate limiter
-                    $rateLimiter = app(\Illuminate\Cache\RateLimiter::class);
-                    $cacheKey = md5('api'.$tenantId);
-                    $currentAttempts = $rateLimiter->attempts($cacheKey);
+                    // Atomic increment to account for the current request instantly.
+                    $current = cache()->increment($cacheKey);
 
-                    if ($currentAttempts < $consumed) {
-                        for ($i = $currentAttempts; $i < $consumed; $i++) {
-                            $rateLimiter->hit($cacheKey, 60);
-                        }
-                    }
-
-                    if ($consumed >= $limit) {
-                        return Limit::perMinute($limit)
+                    if ($current > $limit) {
+                        return Limit::perMinute(0)
                             ->by($tenantId)
                             ->response(function (Request $request, array $headers) {
                                 return response()->json([
@@ -103,18 +98,6 @@ class AppServiceProvider extends ServiceProvider
                                 ], 429, $headers);
                             });
                     }
-
-                    $meter->consumed_units = $consumed + 1;
-                    $meter->save();
-
-                    \App\Models\UsageEvent::query()->create([
-                        'tenant_id' => $tenantId,
-                        'subscription_id' => $meter->subscription_id,
-                        'meter_type' => 'api_requests',
-                        'quantity' => 1,
-                        'source_type' => 'api_request',
-                        'occurred_at' => now(),
-                    ]);
 
                     return Limit::perMinute($limit)->by($tenantId);
                 }

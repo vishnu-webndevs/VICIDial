@@ -19,11 +19,15 @@ class ResolveTenantContext
         }
 
         $tenantId = (string) $request->header('X-Tenant-Id', '');
-        $memberships = Membership::query()
-            ->with(['tenant', 'role.permissions'])
-            ->where('user_id', $user->id)
-            ->where('status', 'active')
-            ->get();
+        
+        // Cache active memberships for 10 seconds to group parallel page load API calls.
+        $memberships = cache()->remember("user_memberships:{$user->id}", 10, function () use ($user) {
+            return Membership::query()
+                ->with(['tenant', 'role.permissions'])
+                ->where('user_id', $user->id)
+                ->where('status', 'active')
+                ->get();
+        });
 
         $request->attributes->set('tenant_ids', $memberships->pluck('tenant_id')->values()->all());
 
@@ -46,6 +50,9 @@ class ResolveTenantContext
                     'team_unit_id' => null,
                 ]);
 
+                // Dispatch asynchronous billing usage logging
+                dispatch(new \App\Jobs\IncrementBillingUsage((string) $tenant->id));
+
                 return $next($request);
             }
         }
@@ -58,6 +65,9 @@ class ResolveTenantContext
                 'agency_unit_id' => $membership->agency_unit_id,
                 'team_unit_id' => $membership->team_unit_id,
             ]);
+
+            // Dispatch asynchronous billing usage logging
+            dispatch(new \App\Jobs\IncrementBillingUsage((string) $membership->tenant->id));
 
             return $next($request);
         }
