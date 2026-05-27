@@ -1,5 +1,14 @@
 import { API_BASE_URL } from "@/lib/runtime-config";
 
+export class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.status = status;
+    this.name = "ApiError";
+  }
+}
+
 function validateApiBaseUrl(baseUrl: string): void {
   const normalized = baseUrl.toLowerCase();
   const isSandboxLike = normalized.includes("/sandbox/") || normalized.includes("/mock/");
@@ -60,7 +69,7 @@ export async function apiRequest<T>(
     : null;
 
   if (response.ok && response.status !== 204 && responseBody === null) {
-    throw new Error(`Invalid API response (expected JSON). status=${response.status}`);
+    throw new ApiError(`Invalid API response (expected JSON). status=${response.status}`, response.status);
   }
 
   if (!response.ok) {
@@ -71,9 +80,9 @@ export async function apiRequest<T>(
       `Request failed with status ${response.status}`;
     if (response.status === 403 && usageLimitErrorCode === "usage_limit_reached") {
       const featureKey = String(responseBody?.feature_key ?? "feature");
-      throw new Error(`Usage limit reached for ${featureKey}. Upgrade your plan to continue.`);
+      throw new ApiError(`Usage limit reached for ${featureKey}. Upgrade your plan to continue.`, response.status);
     }
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
 
   return responseBody as T;

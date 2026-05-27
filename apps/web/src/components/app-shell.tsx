@@ -13,6 +13,7 @@ import { PropsWithChildren, useEffect, useMemo, useState } from "react";
 import { DashboardLayout } from "@/ui";
 import { fetchSessionProfile } from "@/lib/product-api";
 import { LoadingGate } from "@/components/loading-state";
+import { ApiError } from "@/lib/api";
 import {
   clearSession,
   getSessionStorageState,
@@ -67,10 +68,20 @@ export function AppShell({
         const profile = await fetchSessionProfile();
         setSessionCache(profile);
         applyProfile(profile);
-      } catch {
-        clearSession();
-        if (!cancelled && redirectOnError) {
-          router.replace("/login");
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        const isAuthError = error instanceof ApiError && error.status === 401;
+
+        if (isAuthError) {
+          clearSession();
+          if (redirectOnError) {
+            router.replace("/login");
+          }
+        } else {
+          console.error("Session hydration failed (non-auth error):", error);
         }
       } finally {
         if (!cancelled) {
