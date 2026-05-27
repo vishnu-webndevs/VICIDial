@@ -691,13 +691,15 @@ class MetaTemplateService
             }
 
             if ($value === '' && $isMediaHeader) {
+                $localUrl = data_get($component, 'example.local_header_url');
+
                 $handleRaw = data_get($component, 'example.header_handle');
                 $fallbackHandle = is_array($handleRaw) ? ($handleRaw[0] ?? null) : (is_string($handleRaw) ? $handleRaw : null);
                 
                 $urlRaw = data_get($component, 'example.header_url');
                 $fallbackUrl = is_array($urlRaw) ? ($urlRaw[0] ?? null) : (is_string($urlRaw) ? $urlRaw : null);
                 
-                $fallbackValue = $fallbackHandle ?: $fallbackUrl;
+                $fallbackValue = $localUrl ?: $fallbackHandle ?: $fallbackUrl;
                 if ($fallbackValue) {
                     $value = $fallbackValue;
                 }
