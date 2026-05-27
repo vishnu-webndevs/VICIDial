@@ -14,7 +14,7 @@ class IncrementBillingUsage implements ShouldQueue
 
     public int $tries = 5;
     public int $backoff = 2; // Retry after 2 seconds on deadlock / failure
-    public ?string $queue = 'telemetry';
+    public $queue = 'telemetry';
 
     public function __construct(private readonly string $tenantId)
     {
