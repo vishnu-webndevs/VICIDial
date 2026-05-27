@@ -33,10 +33,6 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const theme = useMemo(() => createUiTheme(mode), [mode]);
 
-  if (!mounted) {
-    return children;
-  }
-
   return (
     <CacheProvider value={emotionCache}>
       <CssVarsProvider theme={theme} defaultMode="light">
