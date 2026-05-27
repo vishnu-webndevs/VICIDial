@@ -24,11 +24,11 @@ import { AppShell, EmptyState, LoadingState, SectionCard, StatusBadge } from "@/
 import { ToastMessage } from "@/components/ui-primitives";
 import { 
   createMessageTemplate, deleteMessageTemplate, listMessageTemplates, updateMessageTemplate,
-  createMetaTemplate, listMetaTemplates, syncMetaTemplates
+  createMetaTemplate, listMetaTemplates, syncMetaTemplates, updateMetaTemplate, deleteMetaTemplate
 } from "@/lib/product-api";
 import type { MessageTemplate, MetaWhatsappTemplate } from "@/types/product";
 
-type PopupState = "create_sms" | "edit_sms" | "create_whatsapp" | null;
+type PopupState = "create_sms" | "edit_sms" | "create_whatsapp" | "edit_whatsapp" | null;
 
 const SAMPLE_VARS: Record<string, string> = {
   first_name: "John",
@@ -63,6 +63,7 @@ export default function TemplatesPage() {
 
   const [popup, setPopup] = useState<PopupState>(null);
   const [editingSms, setEditingSms] = useState<MessageTemplate | null>(null);
+  const [editingMeta, setEditingMeta] = useState<MetaWhatsappTemplate | null>(null);
   
   const [smsForm, setSmsForm] = useState({ category: "", key: "", name: "", body: "", is_active: true });
   
@@ -181,6 +182,37 @@ export default function TemplatesPage() {
     }
   }
 
+  function openEditMeta(item: MetaWhatsappTemplate) {
+    setEditingMeta(item);
+    
+    // Parse buttons from component
+    let parsedButtons: any[] = [];
+    if (item.components && Array.isArray(item.components)) {
+      const buttonComponent = item.components.find((c: any) => c.type === "BUTTONS");
+      if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
+        parsedButtons = buttonComponent.buttons.map((b: any) => {
+          const btn: any = { type: b.type, text: b.text };
+          if (b.type === "URL") btn.url = b.url;
+          if (b.type === "PHONE_NUMBER") btn.phone_number = b.phone_number;
+          return btn;
+        });
+      }
+    }
+
+    setMetaForm({
+      name: item.template_name,
+      category: item.category ?? "MARKETING",
+      language: item.language ?? "en",
+      header_type: item.header_type ?? "NONE",
+      header_content: item.header_content ?? "",
+      header_file: null,
+      body: item.body ?? "",
+      footer: item.footer ?? "",
+      buttons: parsedButtons,
+    });
+    setPopup("edit_whatsapp");
+  }
+
   async function onSaveMeta() {
     if (!metaForm.name.trim() || !metaForm.body.trim()) {
       setToast({ tone: "error", message: "Name and body are required." });
@@ -193,7 +225,7 @@ export default function TemplatesPage() {
 
     setSaving(true);
     try {
-      await createMetaTemplate({
+      const payload = {
         name: metaForm.name.toLowerCase().replace(/[^a-z0-9_]/g, "_"),
         category: metaForm.category,
         language: metaForm.language,
@@ -203,12 +235,36 @@ export default function TemplatesPage() {
         body: metaForm.body,
         footer: metaForm.footer.trim() || null,
         buttons: metaForm.buttons.length > 0 ? metaForm.buttons : null,
-      });
-      setToast({ tone: "success", message: "Meta Template created successfully." });
+      };
+
+      if (popup === "edit_whatsapp" && editingMeta) {
+        await updateMetaTemplate(editingMeta.id, payload);
+        setToast({ tone: "success", message: "Meta Template updated successfully." });
+      } else {
+        await createMetaTemplate(payload);
+        setToast({ tone: "success", message: "Meta Template created successfully." });
+      }
+      
       setPopup(null);
+      setEditingMeta(null);
       await loadMeta();
     } catch (error) {
-      setToast({ tone: "error", message: error instanceof Error ? error.message : "Failed to create Meta template." });
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Failed to save Meta template." });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onDeleteMeta(item: MetaWhatsappTemplate) {
+    if (!window.confirm(`Are you sure you want to delete the Meta template "${item.template_name}"?`)) return;
+    
+    setSaving(true);
+    try {
+      await deleteMetaTemplate(item.id);
+      setToast({ tone: "success", message: "Meta Template deleted." });
+      await loadMeta();
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Failed to delete Meta template." });
     } finally {
       setSaving(false);
     }
@@ -353,6 +409,7 @@ export default function TemplatesPage() {
                   <TableCell>Language</TableCell>
                   <TableCell>Header</TableCell>
                   <TableCell>Meta Status</TableCell>
+                  <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -371,6 +428,16 @@ export default function TemplatesPage() {
                           />
                         </Box>
                       </Tooltip>
+                    </TableCell>
+                    <TableCell align="right">
+                      <Stack direction="row" spacing={1} justifyContent="flex-end">
+                        <MuiButton variant="outlined" size="medium" onClick={() => openEditMeta(item)} disabled={saving}>
+                          Edit
+                        </MuiButton>
+                        <MuiButton variant="outlined" color="error" size="medium" onClick={() => void onDeleteMeta(item)} disabled={saving}>
+                          Delete
+                        </MuiButton>
+                      </Stack>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -421,13 +488,13 @@ export default function TemplatesPage() {
 
       {/* WhatsApp Modal */}
       <Modal
-        open={popup === "create_whatsapp"}
-        onClose={() => setPopup(null)}
-        title="New Meta WhatsApp Template"
+        open={popup === "create_whatsapp" || popup === "edit_whatsapp"}
+        onClose={() => { setPopup(null); setEditingMeta(null); }}
+        title={popup === "edit_whatsapp" ? "Edit Meta WhatsApp Template" : "New Meta WhatsApp Template"}
       >
         <Box sx={{ display: "grid", gap: 1.5 }}>
           <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
-            <TextField size="medium" label="Name (e.g. seasonal_promo)" value={metaForm.name} onChange={(e) => setMetaForm((p) => ({ ...p, name: e.target.value }))} fullWidth />
+            <TextField size="medium" label="Name (e.g. seasonal_promo)" value={metaForm.name} onChange={(e) => setMetaForm((p) => ({ ...p, name: e.target.value }))} fullWidth disabled={popup === "edit_whatsapp"} />
             <TextField select size="medium" label="Category" value={metaForm.category} onChange={(e) => setMetaForm((p) => ({ ...p, category: e.target.value }))} fullWidth>
               <MenuItem value="MARKETING">Marketing</MenuItem>
               <MenuItem value="UTILITY">Utility</MenuItem>
@@ -436,7 +503,7 @@ export default function TemplatesPage() {
           </Stack>
 
           <Stack direction={{ xs: "column", md: "row" }} spacing={1}>
-            <TextField select size="medium" label="Language" value={metaForm.language} onChange={(e) => setMetaForm((p) => ({ ...p, language: e.target.value }))} fullWidth>
+            <TextField select size="medium" label="Language" value={metaForm.language} onChange={(e) => setMetaForm((p) => ({ ...p, language: e.target.value }))} fullWidth disabled={popup === "edit_whatsapp"}>
               <MenuItem value="en">English (en)</MenuItem>
               <MenuItem value="en_US">English (US)</MenuItem>
               <MenuItem value="es">Spanish (es)</MenuItem>
@@ -542,7 +609,7 @@ export default function TemplatesPage() {
           <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1 }}>
             <MuiButton variant="outlined" onClick={() => setPopup(null)} disabled={saving}>Cancel</MuiButton>
             <MuiButton variant="contained" onClick={() => void onSaveMeta()} disabled={saving}>
-              {saving ? "Submitting to Meta..." : "Create Template"}
+              {saving ? "Submitting to Meta..." : popup === "edit_whatsapp" ? "Update Template" : "Create Template"}
             </MuiButton>
           </Stack>
         </Box>

@@ -80,6 +80,60 @@ export async function createMetaTemplate(payload: {
   return response.data.template;
 }
 
+export async function updateMetaTemplate(templateId: string, payload: {
+  name: string;
+  category: string;
+  language: string;
+  header_type?: string | null;
+  header_content?: string | null;
+  header_file?: File | null;
+  body: string;
+  footer?: string | null;
+  buttons?: any[] | null;
+  provider_account_id?: string;
+}): Promise<MetaWhatsappTemplate> {
+  const { token, tenantId } = getTenantContext();
+  
+  let body: any = payload;
+  if (payload.header_file) {
+    const formData = new FormData();
+    formData.append("name", payload.name);
+    formData.append("category", payload.category);
+    formData.append("language", payload.language);
+    if (payload.header_type) formData.append("header_type", payload.header_type);
+    formData.append("body", payload.body);
+    if (payload.footer) formData.append("footer", payload.footer);
+    if (payload.buttons) formData.append("buttons", JSON.stringify(payload.buttons));
+    if (payload.provider_account_id) formData.append("provider_account_id", payload.provider_account_id);
+    formData.append("header_file", payload.header_file);
+    // Note: To send files via PUT in Laravel, it often requires POST with _method=PUT, but fetch/FormData with PUT works differently.
+    // We'll use _method=PUT to be safe with Laravel's FormData handling.
+    formData.append("_method", "PUT");
+    body = formData;
+  }
+
+  // If we added _method=PUT to FormData, we should send it as POST. Otherwise PUT.
+  const method = payload.header_file ? "POST" : "PUT";
+
+  const response = await apiRequest<{ data: { template: MetaWhatsappTemplate } }>(`/meta-templates/${templateId}`, {
+    method,
+    token,
+    tenantId,
+    body,
+  });
+  return response.data.template;
+}
+
+export async function deleteMetaTemplate(templateId: string): Promise<boolean> {
+  const { token, tenantId } = getTenantContext();
+  const response = await apiRequest<{ data: { success: boolean } }>(`/meta-templates/${templateId}`, {
+    method: "DELETE",
+    token,
+    tenantId,
+  });
+  return response.data.success;
+}
+
 export async function syncMetaTemplates(providerAccountId?: string): Promise<{ ok: boolean; count: number }> {
   const { token, tenantId } = getTenantContext();
   const response = await apiRequest<{ data: { sync: { ok: boolean; count: number } } }>("/meta-templates/sync", {

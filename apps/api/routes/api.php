@@ -277,6 +277,10 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:tenant.update');
         Route::post('/meta-templates/sync', [MetaTemplateController::class, 'sync'])
             ->middleware('permission:tenant.update');
+        Route::put('/meta-templates/{id}', [MetaTemplateController::class, 'update'])
+            ->middleware('permission:tenant.update');
+        Route::delete('/meta-templates/{id}', [MetaTemplateController::class, 'destroy'])
+            ->middleware('permission:tenant.update');
 
         Route::get('/message-attachments/{id}/download', [MessageAttachmentController::class, 'download'])
             ->middleware('permission:tenant.view');

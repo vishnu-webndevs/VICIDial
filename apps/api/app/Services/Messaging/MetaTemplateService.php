@@ -121,16 +121,8 @@ class MetaTemplateService
         }
     }
 
-    public function createTemplate(ProviderAccount $provider, array $data): array
+    private function buildComponents(ProviderAccount $provider, array $data, string $token): array
     {
-        $credentials = (array) ($provider->credentials_encrypted ?? []);
-        $token = trim((string) ($credentials['meta_access_token'] ?? ''));
-        $wabaId = trim((string) ($credentials['whatsapp_business_account_id'] ?? ''));
-
-        if ($token === '' || $wabaId === '') {
-            return ['ok' => false, 'error' => 'Missing Meta WhatsApp access token or WABA ID.'];
-        }
-
         $components = [];
 
         // Header
@@ -247,7 +239,23 @@ class MetaTemplateService
             }
         }
 
+        return $components;
+    }
+
+    public function createTemplate(ProviderAccount $provider, array $data): array
+    {
+        $credentials = (array) ($provider->credentials_encrypted ?? []);
+        $token = trim((string) ($credentials['meta_access_token'] ?? ''));
+        $wabaId = trim((string) ($credentials['whatsapp_business_account_id'] ?? ''));
+
+        if ($token === '' || $wabaId === '') {
+            return ['ok' => false, 'error' => 'Missing Meta WhatsApp access token or WABA ID.'];
+        }
+
+        $components = $this->buildComponents($provider, $data, $token);
+
         $payload = [
+
             'name' => $data['name'],
             'language' => $data['language'],
             'category' => $data['category'],
@@ -296,6 +304,97 @@ class MetaTemplateService
             }
 
             return ['ok' => true, 'template' => $record];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function editTemplate(ProviderAccount $provider, MetaWhatsappTemplate $template, array $data): array
+    {
+        $credentials = (array) ($provider->credentials_encrypted ?? []);
+        $token = trim((string) ($credentials['meta_access_token'] ?? ''));
+        $templateId = $template->meta_template_id;
+
+        if ($token === '' || empty($templateId)) {
+            return ['ok' => false, 'error' => 'Missing Meta WhatsApp access token or Meta Template ID.'];
+        }
+
+        $components = $this->buildComponents($provider, $data, $token);
+
+        // For editing, you don't send name and language, just components. Wait!
+        // Actually, Meta Graph API v20.0 `POST /{message_template_id}` allows editing components.
+        $payload = [
+            'components' => $components,
+        ];
+
+        try {
+            $response = Http::timeout(20)
+                ->withToken($token)
+                ->acceptJson()
+                ->post("https://graph.facebook.com/v20.0/{$templateId}", $payload);
+
+            if (!$response->successful()) {
+                return [
+                    'ok' => false,
+                    'error' => (string) ($response->json('error.message') ?? 'Failed to edit template in Meta.'),
+                    'details' => $response->json(),
+                ];
+            }
+
+            // Sync down immediately
+            $fetchResponse = Http::timeout(20)
+                ->withToken($token)
+                ->acceptJson()
+                ->get("https://graph.facebook.com/v20.0/{$templateId}");
+                
+            if ($fetchResponse->successful()) {
+                $metaTemplate = $fetchResponse->json();
+            } else {
+                $metaTemplate = [
+                    'id' => $templateId,
+                    'name' => $template->template_name,
+                    'language' => $template->language,
+                    'category' => $data['category'] ?? $template->category,
+                    'components' => $components,
+                    'status' => 'PENDING_REVIEW'
+                ];
+            }
+
+            $record = $this->writeTemplate($provider, $metaTemplate);
+
+            return ['ok' => true, 'template' => $record];
+        } catch (\Throwable $e) {
+            return ['ok' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    public function deleteTemplate(ProviderAccount $provider, string $templateName): array
+    {
+        $credentials = (array) ($provider->credentials_encrypted ?? []);
+        $token = trim((string) ($credentials['meta_access_token'] ?? ''));
+        $wabaId = trim((string) ($credentials['whatsapp_business_account_id'] ?? ''));
+
+        if ($token === '' || $wabaId === '') {
+            return ['ok' => false, 'error' => 'Missing Meta WhatsApp access token or WABA ID.'];
+        }
+
+        try {
+            $response = Http::timeout(20)
+                ->withToken($token)
+                ->acceptJson()
+                ->delete("https://graph.facebook.com/v20.0/{$wabaId}/message_templates", [
+                    'name' => $templateName,
+                ]);
+
+            if (!$response->successful()) {
+                return [
+                    'ok' => false,
+                    'error' => (string) ($response->json('error.message') ?? 'Failed to delete template from Meta.'),
+                    'details' => $response->json(),
+                ];
+            }
+
+            return ['ok' => true];
         } catch (\Throwable $e) {
             return ['ok' => false, 'error' => $e->getMessage()];
         }

@@ -201,4 +201,106 @@ class MetaTemplateController extends Controller
             ], 500);
         }
     }
+
+    public function update(Request $request, $id, MetaTemplateService $service): JsonResponse
+    {
+        try {
+            $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+            
+            $validated = $request->validate([
+                'name' => ['required', 'string', 'regex:/^[a-z0-9_]+$/'],
+                'category' => ['required', 'string', 'in:MARKETING,UTILITY,AUTHENTICATION'],
+                'language' => ['required', 'string'],
+                'header_type' => ['nullable', 'string', 'in:NONE,TEXT,IMAGE,VIDEO,DOCUMENT'],
+                'header_content' => ['nullable', 'string'],
+                'header_file' => ['nullable', 'file', 'max:10240'],
+                'body' => ['required', 'string'],
+                'footer' => ['nullable', 'string'],
+                'buttons' => ['nullable'],
+                'provider_account_id' => ['nullable', 'string'],
+            ]);
+
+            if ($request->hasFile('header_file')) {
+                $file = $request->file('header_file');
+                $path = $file->store('meta_templates', 'public');
+                $validated['header_content'] = \Illuminate\Support\Facades\Storage::disk('public')->url($path);
+            }
+
+            if (is_string($validated['buttons'] ?? null)) {
+                $validated['buttons'] = json_decode($validated['buttons'], true);
+            }
+
+            $providerQuery = ProviderAccount::query()
+                ->where('tenant_id', $tenantId)
+                ->where('provider_type', 'meta_whatsapp');
+
+            if (!empty($validated['provider_account_id'])) {
+                $providerQuery->where('id', $validated['provider_account_id']);
+            }
+
+            $provider = $providerQuery->latest('created_at')->first();
+            if (!$provider) {
+                return response()->json(['error' => ['code' => 'PROVIDER_NOT_FOUND', 'message' => 'Meta WhatsApp provider account not found.']], 404);
+            }
+
+            $template = $provider->whatsAppTemplates()->where('id', $id)->first();
+            if (!$template) {
+                return response()->json(['error' => ['code' => 'TEMPLATE_NOT_FOUND', 'message' => 'Template not found.']], 404);
+            }
+
+            $result = $service->editTemplate($provider, $template, $validated);
+
+            if (! ($result['ok'] ?? false)) {
+                Log::error('Meta API rejected template update', ['result' => $result]);
+                return response()->json([
+                    'error' => ['code' => 'UPDATE_FAILED', 'message' => $result['error'] ?? 'Unable to update meta template.'],
+                    'details' => $result,
+                ], 422);
+            }
+
+            return response()->json(['data' => ['template' => $result['template']]], 200);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['error' => ['code' => 'VALIDATION_ERROR', 'message' => 'Invalid template data.'], 'details' => $e->errors()], 422);
+        } catch (\Throwable $e) {
+            Log::error('Meta template update failed.', ['error' => $e->getMessage()]);
+            return response()->json(['error' => ['code' => 'UPDATE_EXCEPTION', 'message' => 'Unable to update meta template.'], 'details' => ['error' => $e->getMessage()]], 500);
+        }
+    }
+
+    public function destroy(Request $request, $id, MetaTemplateService $service): JsonResponse
+    {
+        try {
+            $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+
+            $providerQuery = ProviderAccount::query()
+                ->where('tenant_id', $tenantId)
+                ->where('provider_type', 'meta_whatsapp');
+
+            $provider = $providerQuery->latest('created_at')->first();
+            if (!$provider) {
+                return response()->json(['error' => ['code' => 'PROVIDER_NOT_FOUND', 'message' => 'Meta WhatsApp provider account not found.']], 404);
+            }
+
+            $template = $provider->whatsAppTemplates()->where('id', $id)->first();
+            if (!$template) {
+                return response()->json(['error' => ['code' => 'TEMPLATE_NOT_FOUND', 'message' => 'Template not found.']], 404);
+            }
+
+            $result = $service->deleteTemplate($provider, $template->template_name);
+
+            if (! ($result['ok'] ?? false)) {
+                return response()->json([
+                    'error' => ['code' => 'DELETE_FAILED', 'message' => $result['error'] ?? 'Unable to delete meta template.'],
+                    'details' => $result,
+                ], 422);
+            }
+
+            $template->delete();
+
+            return response()->json(['data' => ['success' => true]], 200);
+        } catch (\Throwable $e) {
+            Log::error('Meta template deletion failed.', ['error' => $e->getMessage()]);
+            return response()->json(['error' => ['code' => 'DELETE_EXCEPTION', 'message' => 'Unable to delete meta template.'], 'details' => ['error' => $e->getMessage()]], 500);
+        }
+    }
 }
