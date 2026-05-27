@@ -34,10 +34,6 @@ class IncrementBillingUsage implements ShouldQueue
                     $meter->period_end = now()->addMonthNoOverflow()->endOfDay();
                     $meter->consumed_units = 0;
                     $meter->save();
-
-                    // Forget cache keys to force fresh limits and starting count loading.
-                    cache()->forget("usage_meter_cache:{$this->tenantId}");
-                    cache()->forget("usage_meter_count:{$this->tenantId}");
                 }
 
                 $meter->increment('consumed_units');

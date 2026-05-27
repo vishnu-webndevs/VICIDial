@@ -64,29 +64,16 @@ class AppServiceProvider extends ServiceProvider
             $tenantId = is_object($tenant) && isset($tenant->id) ? (string) $tenant->id : (string) $request->header('X-Tenant-Id', '');
 
             if ($tenantId !== '') {
-                // Cache the billing limit check for 10 seconds to group parallel browser API calls
-                $meterData = cache()->remember("usage_meter_cache:{$tenantId}", 10, function () use ($tenantId) {
-                    $meter = \App\Models\UsageMeter::query()
-                        ->where('tenant_id', $tenantId)
-                        ->where('meter_type', 'api_requests')
-                        ->first();
-                    return $meter ? [
-                        'limit_units' => (int) $meter->limit_units,
-                        'consumed_units' => (int) $meter->consumed_units
-                    ] : null;
-                });
+                $meter = \App\Models\UsageMeter::query()
+                    ->where('tenant_id', $tenantId)
+                    ->where('meter_type', 'api_requests')
+                    ->first();
 
-                if ($meterData) {
-                    $limit = $meterData['limit_units'];
-                    $cacheKey = "usage_meter_count:{$tenantId}";
+                if ($meter) {
+                    $limit = (int) $meter->limit_units;
+                    $consumed = (int) $meter->consumed_units;
 
-                    // Atomically initialize the cached count with the DB base count if not already present in cache.
-                    cache()->add($cacheKey, $meterData['consumed_units'], 10);
-
-                    // Atomic increment to account for the current request instantly.
-                    $current = cache()->increment($cacheKey);
-
-                    if ($current > $limit) {
+                    if ($consumed >= $limit) {
                         return Limit::perMinute(0)
                             ->by($tenantId)
                             ->response(function (Request $request, array $headers) {

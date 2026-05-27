@@ -20,14 +20,11 @@ class ResolveTenantContext
 
         $tenantId = (string) $request->header('X-Tenant-Id', '');
         
-        // Cache active memberships for 10 seconds to group parallel page load API calls.
-        $memberships = cache()->remember("user_memberships:{$user->id}", 10, function () use ($user) {
-            return Membership::query()
-                ->with(['tenant', 'role.permissions'])
-                ->where('user_id', $user->id)
-                ->where('status', 'active')
-                ->get();
-        });
+        $memberships = Membership::query()
+            ->with(['tenant', 'role.permissions'])
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->get();
 
         $request->attributes->set('tenant_ids', $memberships->pluck('tenant_id')->values()->all());
 

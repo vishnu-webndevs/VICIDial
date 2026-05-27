@@ -146,23 +146,35 @@ class SchemaInspector
 {
     public static function hasTable(string $table): bool
     {
-        return cache()->remember('schema:table:'.$table, 86400, function () use ($table) {
-            try {
-                return \Illuminate\Support\Facades\DB::getSchemaBuilder()->hasTable($table);
-            } catch (\Throwable) {
-                return false;
-            }
-        });
+        static $cache = [];
+        $key = Str::lower('table:'.$table);
+        if (array_key_exists($key, $cache)) {
+            return $cache[$key];
+        }
+
+        try {
+            $cache[$key] = \Illuminate\Support\Facades\DB::getSchemaBuilder()->hasTable($table);
+        } catch (\Throwable) {
+            $cache[$key] = false;
+        }
+
+        return $cache[$key];
     }
 
     public static function hasColumn(string $table, string $column): bool
     {
-        return cache()->remember("schema:column:{$table}:{$column}", 86400, function () use ($table, $column) {
-            try {
-                return \Illuminate\Support\Facades\DB::getSchemaBuilder()->hasColumn($table, $column);
-            } catch (\Throwable) {
-                return false;
-            }
-        });
+        static $cache = [];
+        $key = Str::lower($table.'.'.$column);
+        if (array_key_exists($key, $cache)) {
+            return $cache[$key];
+        }
+
+        try {
+            $cache[$key] = \Illuminate\Support\Facades\DB::getSchemaBuilder()->hasColumn($table, $column);
+        } catch (\Throwable) {
+            $cache[$key] = false;
+        }
+
+        return $cache[$key];
     }
 }
