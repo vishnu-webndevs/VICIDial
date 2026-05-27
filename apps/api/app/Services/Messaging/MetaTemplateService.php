@@ -142,7 +142,11 @@ class MetaTemplateService
                 // In a production app with Meta Resumable Uploads, you'd upload and get a handle.
                 // For this implementation, we use an example URL array if a URL is provided.
                 if (!empty($data['header_content'])) {
-                    $header['example'] = ['header_handle' => [$data['header_content']]];
+                    if (str_starts_with(strtolower($data['header_content']), 'http')) {
+                        $header['example'] = ['header_url' => [$data['header_content']]];
+                    } else {
+                        $header['example'] = ['header_handle' => [$data['header_content']]];
+                    }
                 }
             }
             $components[] = $header;

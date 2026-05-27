@@ -119,6 +119,7 @@ class MetaTemplateController extends Controller
             $result = $service->createTemplate($provider, $validated);
 
             if (! ($result['ok'] ?? false)) {
+                Log::error('Meta API rejected template creation', ['result' => $result]);
                 return response()->json([
                     'error' => [
                         'code' => 'CREATE_FAILED',
