@@ -39,7 +39,7 @@ export default function LandingLayout({ children }: { children: React.ReactNode 
      * Force landing palette over global body defaults without inline style attrs.
      * Tailwind utility classes on children take over from here.
      */
-    <div className="min-h-screen !bg-white !text-slate-900">
+    <div className="min-h-screen !bg-white !text-slate-900" suppressHydrationWarning>
       <LandingNav />
       <main>{children}</main>
       <LandingFooter />

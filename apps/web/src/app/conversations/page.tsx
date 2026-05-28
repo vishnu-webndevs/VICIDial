@@ -338,9 +338,7 @@ function ConversationsContent() {
     if (e.currentTarget.scrollTop === 0) {
       void loadOlderMessages();
     }
-  };
-
-  return (
+  };  return (
     <AppShell requiredPermissions={["call.view"]}>
       {messageToast ? <ToastMessage tone={messageTone} message={messageToast} /> : null}
 
@@ -350,8 +348,8 @@ function ConversationsContent() {
         <Box sx={{ width: { xs: '100%', md: 380 }, display: { xs: selectedThreadId ? 'none' : 'flex', md: 'flex' }, flexDirection: 'column', borderRight: 1, borderColor: 'divider', bgcolor: '#ffffff' }}>
 
           {/* Header */}
-          <Box sx={{ p: 2, bgcolor: '#f0f2f5', display: 'flex', gap: 1, alignItems: 'center' }}>
-            <Avatar sx={{ bgcolor: channel === 'whatsapp' ? '#25D366' : '#696cff', width: 40, height: 40 }}>
+          <Box sx={{ p: 2, bgcolor: '#f8fafc', display: 'flex', gap: 1, alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Avatar sx={{ background: channel === 'whatsapp' ? 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)' : 'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)', width: 40, height: 40 }}>
               <i className={`bx ${channel === 'whatsapp' ? 'bxl-whatsapp' : 'bx-message-square-detail'}`} style={{ fontSize: 24 }} />
             </Avatar>
             <TextField
@@ -362,7 +360,7 @@ function ConversationsContent() {
               sx={{ flex: 1, '& .MuiOutlinedInput-root': { bgcolor: '#fff', borderRadius: 2 } }}
             >
               <MenuItem value="sms">SMS Inbox</MenuItem>
-              <MenuItem value="whatsapp">WhatsApp Inbox</MenuItem>
+              <MenuItem value="whatsapp">WND whatsapp</MenuItem>
             </TextField>
             <IconButton onClick={loadThreads} disabled={loading} size="small" sx={{ bgcolor: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
               <i className="bx bx-refresh" />
@@ -375,7 +373,7 @@ function ConversationsContent() {
               size="small"
               fullWidth
               placeholder="Search or start new chat"
-              sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#f0f2f5', borderRadius: 2 } }}
+              sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#f8fafc', borderRadius: 2 } }}
             />
           </Box>
 
@@ -396,12 +394,15 @@ function ConversationsContent() {
                   }}
                   sx={{
                     p: 2,
+                    pl: selectedThreadId === thread.id ? 1.5 : 2,
                     display: 'flex',
                     gap: 2,
                     cursor: 'pointer',
-                    bgcolor: selectedThreadId === thread.id ? '#f0f2f5' : 'transparent',
-                    '&:hover': { bgcolor: '#f5f6f6' },
-                    borderBottom: '1px solid #f0f2f5'
+                    bgcolor: selectedThreadId === thread.id ? '#eef2ff' : 'transparent',
+                    borderLeft: selectedThreadId === thread.id ? '4px solid #6366f1' : '4px solid transparent',
+                    '&:hover': { bgcolor: '#f8fafc' },
+                    borderBottom: '1px solid #f1f5f9',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   <Avatar sx={{ bgcolor: '#dfe3e8', color: '#5c6c75' }}>
@@ -432,7 +433,7 @@ function ConversationsContent() {
                                   fontSize: '1.1rem',
                                   marginRight: 4,
                                   flexShrink: 0,
-                                  color: thread.latest_message.status === 'read' ? '#53bdeb' : 'rgba(17,27,33,0.4)',
+                                  color: thread.latest_message.status === 'read' ? '#6366f1' : 'rgba(17,27,33,0.4)',
                                 }}
                               />
                             )}
@@ -470,7 +471,7 @@ function ConversationsContent() {
                             minWidth: 18,
                             height: 18,
                             borderRadius: '50%',
-                            bgcolor: '#00a884',
+                            bgcolor: '#6366f1',
                             color: '#ffffff',
                             display: 'flex',
                             alignItems: 'center',
@@ -496,24 +497,15 @@ function ConversationsContent() {
         {/* Right Sidebar: Chat Area */}
         <Box sx={{
           flex: 1,
-          display: { xs: selectedThreadId ? 'flex' : 'none', md: 'flex' },
+          display: { xs: selectedThreadId ? 'none' : 'flex', md: 'flex' },
           flexDirection: 'column',
-          bgcolor: '#efeae2',
+          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
           position: 'relative'
         }}>
           {selectedThreadId && selectedThread ? (
             <>
-              {/* WhatsApp Web Background Pattern */}
-              <Box sx={{
-                position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-                backgroundImage: 'url("https://web.whatsapp.com/img/bg-chat-tile-dark_a4be512e7195b6b733d9110b408f075d.png")',
-                opacity: 0.06,
-                pointerEvents: 'none',
-                zIndex: 0
-              }} />
-
               {/* Chat Header */}
-              <Box sx={{ p: 2, bgcolor: '#f0f2f5', display: 'flex', alignItems: 'center', gap: 2, zIndex: 1, borderBottom: 1, borderColor: 'divider' }}>
+              <Box sx={{ p: 2, bgcolor: '#ffffff', display: 'flex', alignItems: 'center', gap: 2, zIndex: 1, borderBottom: 1, borderColor: 'divider', boxShadow: '0 2px 8px rgba(0,0,0,0.02)' }}>
                 <IconButton sx={{ display: { xs: 'flex', md: 'none' } }} onClick={() => setSelectedThreadId("")}>
                   <i className="bx bx-arrow-back" />
                 </IconButton>
@@ -521,11 +513,11 @@ function ConversationsContent() {
                   <i className="bx bx-user" />
                 </Avatar>
                 <Box sx={{ flex: 1 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#111b21', mb: 0.5 }}>
+                  <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e293b', mb: 0.5 }}>
                     {selectedThread.contact?.display_name || selectedThread.lead?.full_name || selectedThread.counterparty_number}
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-                    Status: {selectedThread.status?.toUpperCase() ?? 'OPEN'} | Channel: {selectedThread.channel.toUpperCase()}
+                    Status: {selectedThread.status?.toUpperCase() ?? 'OPEN'} | Channel: {selectedThread.channel.toUpperCase() === 'WHATSAPP' ? 'WND WHATSAPP' : selectedThread.channel.toUpperCase()}
                   </Typography>
                 </Box>
                 <Box sx={{ display: 'flex', gap: 1 }}>
@@ -556,16 +548,16 @@ function ConversationsContent() {
                   <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}><LoadingState /></Box>
                 ) : messages.length === 0 ? (
                   <Box sx={{ display: 'flex', justifyContent: 'center', mt: 10 }}>
-                    <Box sx={{ bgcolor: '#ffeecd', color: '#543b0c', px: 3, py: 1, borderRadius: 2, fontSize: '0.875rem' }}>
-                      <i className="bx bx-lock-alt" style={{ marginRight: 8 }} />
-                      Messages are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them.
+                    <Box sx={{ bgcolor: '#eef2ff', color: '#3730a3', border: '1px solid #c7d2fe', px: 3, py: 1.5, borderRadius: 2, fontSize: '0.875rem', display: 'flex', alignItems: 'center' }}>
+                      <i className="bx bx-shield-quarter" style={{ marginRight: 8, fontSize: 18 }} />
+                      Messages are end-to-end encrypted. No one outside of this chat, not even WND whatsapp, can read or listen to them.
                     </Box>
                   </Box>
                 ) : (
                   <>
                     {loadingOlder && (
                       <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2 }}>
-                        <i className="bx bx-loader-alt bx-spin" style={{ color: '#00a884', fontSize: 24 }} />
+                        <i className="bx bx-loader-alt bx-spin" style={{ color: '#6366f1', fontSize: 24 }} />
                       </Box>
                     )}
                     {messages.map((msg, index) => {
@@ -584,17 +576,16 @@ function ConversationsContent() {
                         <Box sx={{
                           alignSelf: isOutbound ? 'flex-end' : 'flex-start',
                           maxWidth: { xs: '85%', md: '65%' },
-                          bgcolor: isOutbound ? '#d9fdd3' : '#ffffff',
+                          background: isOutbound ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : '#ffffff',
                           p: 1.5,
                           pt: 1,
-                          borderRadius: 2,
-                          borderTopRightRadius: isOutbound ? 0 : 2,
-                          borderTopLeftRadius: !isOutbound ? 0 : 2,
-                          boxShadow: '0 1px 0.5px rgba(11,20,26,.13)',
+                          borderRadius: isOutbound ? '16px 16px 4px 16px' : '16px 16px 16px 4px',
+                          border: isOutbound ? 'none' : '1px solid #e2e8f0',
+                          boxShadow: '0 2px 5px rgba(0, 0, 0, 0.03)',
                           position: 'relative'
                         }}>
                           {msg.body ? (
-                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem', color: '#111b21', lineHeight: 1.5 }}>
+                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem', color: isOutbound ? '#ffffff' : '#1e293b', lineHeight: 1.5 }}>
                               {msg.body}
                             </Typography>
                           ) : null}
@@ -611,13 +602,13 @@ function ConversationsContent() {
                           )}
 
                           <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mt: 0.5, gap: 0.5 }}>
-                            <Typography variant="caption" sx={{ color: 'rgba(17,27,33,0.5)', fontSize: '0.65rem' }}>
+                            <Typography variant="caption" sx={{ color: isOutbound ? 'rgba(255,255,255,0.76)' : 'text.secondary', fontSize: '0.65rem' }}>
                               {new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </Typography>
                             {isOutbound && (
                               <i
                                 className={`bx ${msg.status === 'read' || msg.status === 'delivered' ? 'bx-check-double' : (msg.status === 'sending' ? 'bx-time-five' : 'bx-check')}`}
-                                style={{ fontSize: '1rem', color: msg.status === 'read' ? '#53bdeb' : 'rgba(17,27,33,0.4)' }}
+                                style={{ fontSize: '1rem', color: msg.status === 'read' ? '#a5f3fc' : 'rgba(255,255,255,0.6)' }}
                               />
                             )}
                           </Box>
@@ -636,17 +627,18 @@ function ConversationsContent() {
                 onSubmit={onSend}
                 sx={{
                   p: 2,
-                  bgcolor: '#f0f2f5',
+                  bgcolor: '#ffffff',
                   display: 'flex',
                   gap: 2,
                   alignItems: 'flex-end',
-                  zIndex: 1
+                  zIndex: 1,
+                  borderTop: '1px solid #e2e8f0'
                 }}
               >
-                <IconButton sx={{ color: '#54656f' }}>
+                <IconButton sx={{ color: '#6366f1' }}>
                   <i className="bx bx-smile" />
                 </IconButton>
-                <IconButton sx={{ color: '#54656f' }}>
+                <IconButton sx={{ color: '#64748b' }}>
                   <i className="bx bx-paperclip" />
                 </IconButton>
                 <TextField
@@ -657,11 +649,12 @@ function ConversationsContent() {
                   value={outboundBody}
                   onChange={e => setOutboundBody(e.target.value)}
                   sx={{
-                    bgcolor: '#fff',
+                    bgcolor: '#f1f5f9',
                     borderRadius: 3,
                     '& .MuiOutlinedInput-root': {
                       borderRadius: 3,
                       py: 1.5,
+                      border: '1px solid #e2e8f0',
                       '& fieldset': { border: 'none' }
                     }
                   }}
@@ -676,7 +669,7 @@ function ConversationsContent() {
                   type="submit"
                   disabled={sending || !outboundBody.trim()}
                   sx={{
-                    color: outboundBody.trim() ? '#00a884' : '#54656f',
+                    color: outboundBody.trim() ? '#6366f1' : '#94a3b8',
                     transition: 'all 0.2s',
                     transform: outboundBody.trim() ? 'scale(1.1)' : 'scale(1)'
                   }}
@@ -686,17 +679,17 @@ function ConversationsContent() {
               </Box>
             </>
           ) : (
-            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'text.secondary', bgcolor: '#f0f2f5', zIndex: 1 }}>
-              <Avatar sx={{ width: 120, height: 120, bgcolor: '#fff', mb: 4, boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-                <i className="bx bx-desktop" style={{ fontSize: 48, color: '#00a884' }} />
+            <Box sx={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: 'text.secondary', bgcolor: '#f8fafc', zIndex: 1 }}>
+              <Avatar sx={{ width: 120, height: 120, background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)', mb: 4, boxShadow: '0 8px 24px rgba(99, 102, 241, 0.15)' }}>
+                <i className="bx bx-message-rounded-dots" style={{ fontSize: 56, color: '#ffffff' }} />
               </Avatar>
-              <Typography variant="h5" sx={{ fontWeight: 300, color: '#41525d', mb: 2 }}>WND Dialer Web</Typography>
-              <Typography variant="body1" sx={{ color: '#667781', textAlign: 'center', maxWidth: 400 }}>
-                Send and receive messages seamlessly. Select a conversation from the left to start messaging.
+              <Typography variant="h5" sx={{ fontWeight: 600, color: '#1e293b', mb: 2 }}>WND whatsapp</Typography>
+              <Typography variant="body1" sx={{ color: '#64748b', textAlign: 'center', maxWidth: 400 }}>
+                Send and receive messages seamlessly with WND whatsapp. Select a conversation from the left to start messaging.
               </Typography>
-              <Box sx={{ display: 'flex', gap: 1, mt: 4, color: '#8696a0', alignItems: 'center' }}>
-                <i className="bx bx-lock-alt" />
-                <Typography variant="caption">End-to-end encrypted messaging</Typography>
+              <Box sx={{ display: 'flex', gap: 1, mt: 4, color: '#64748b', alignItems: 'center' }}>
+                <i className="bx bx-shield-quarter" />
+                <Typography variant="caption">End-to-end encrypted messaging protected by WND whatsapp</Typography>
               </Box>
             </Box>
           )}
