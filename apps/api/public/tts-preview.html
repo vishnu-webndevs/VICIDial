@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TwiML TTS Preview — Free Audio Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+            background: linear-gradient(135deg, #38bdf8, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .subtitle {
+            text-align: center;
+            color: #94a3b8;
+            margin-bottom: 2rem;
+            font-size: 0.95rem;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #93c5fd;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid #475569;
+            border-radius: 8px;
+            background: #0f172a;
+            color: #e2e8f0;
+            font-size: 0.95rem;
+            margin-bottom: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        input:focus, textarea:focus, select:focus {
+            border-color: #38bdf8;
+        }
+        textarea {
+            min-height: 120px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 0.85rem;
+            resize: vertical;
+        }
+        .btn-row {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: white;
+        }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,0.4); }
+        .btn-success {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+        .btn-success:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+        .btn-warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+        .btn-warning:hover { transform: translateY(-1px); }
+        .status {
+            margin-top: 1rem;
+            padding: 1rem;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            display: none;
+        }
+        .status.info { display: block; background: #1e3a5f; border: 1px solid #2563eb; color: #93c5fd; }
+        .status.success { display: block; background: #14532d; border: 1px solid #16a34a; color: #86efac; }
+        .status.error { display: block; background: #450a0a; border: 1px solid #dc2626; color: #fca5a5; }
+        .xml-preview {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 1rem;
+            font-family: 'Consolas', monospace;
+            font-size: 0.8rem;
+            color: #7dd3fc;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .tts-item {
+            background: #1a2332;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .tts-item .text {
+            flex: 1;
+            font-size: 0.95rem;
+        }
+        .tts-item .play-btn {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
+        }
+        .badge {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+        .badge-say { background: #7c3aed; color: white; }
+        .badge-gather { background: #0891b2; color: white; }
+        .voice-select { max-width: 300px; display: inline-block; }
+        .divider {
+            border: none;
+            border-top: 1px solid #334155;
+            margin: 1.5rem 0;
+        }
+        .speaking {
+            animation: pulse 1s ease-in-out infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔊 TwiML TTS Preview</h1>
+        <p class="subtitle">Test your Twilio TTS audio locally — 100% FREE, no calls needed!</p>
+
+        <!-- Option 1: Fetch from endpoint -->
+        <div class="card">
+            <label>Option 1: Fetch TwiML from your local API</label>
+            <input type="text" id="twimlUrl" placeholder="http://localhost:8000/api/webhooks/twilio/twiml/outbound?call_session_id=...&token=..." 
+                   value="http://localhost:8000/api/webhooks/twilio/twiml/outbound?call_session_id=019e6e88-6347-716d-8b4d-422f46c1568e&token=XzPAOCoE7vX47csfevVYCWaHfjQK5QY8MvV3asnM&dial_mode=auto_dialer">
+            <button class="btn-primary" onclick="fetchTwiml()">📡 Fetch TwiML</button>
+        </div>
+
+        <!-- Option 2: Paste TwiML directly -->
+        <div class="card">
+            <label>Option 2: Paste TwiML XML directly</label>
+            <textarea id="twimlXml" placeholder='<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Say voice="alice">Your text here...</Say>
+</Response>'></textarea>
+            <button class="btn-warning" onclick="parsePastedTwiml()">📋 Parse TwiML</button>
+        </div>
+
+        <!-- Option 3: Quick test any text -->
+        <div class="card">
+            <label>Option 3: Quick speak any text</label>
+            <input type="text" id="quickText" placeholder="Agar aap real estate me invest karna chahte ho to press 1.">
+            <div class="btn-row">
+                <button class="btn-success" onclick="quickSpeak()">🔊 Speak Now</button>
+                <button class="btn-danger" onclick="stopSpeaking()">⏹ Stop</button>
+            </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- Voice selection -->
+        <div class="card">
+            <label>🎤 Select Voice</label>
+            <select id="voiceSelect" class="voice-select"></select>
+            <br><br>
+            <label>Speed</label>
+            <input type="range" id="rateSlider" min="0.5" max="2" step="0.1" value="1" style="margin-bottom:0.25rem">
+            <span id="rateValue">1.0x</span>
+        </div>
+
+        <!-- Status -->
+        <div id="status" class="status"></div>
+
+        <!-- Parsed TwiML results -->
+        <div id="results" style="display:none">
+            <div class="card">
+                <label>📄 Raw TwiML XML</label>
+                <div class="xml-preview" id="xmlPreview"></div>
+            </div>
+            <div class="card">
+                <label>🔊 TTS Segments (Click to play each)</label>
+                <div id="ttsSegments"></div>
+                <br>
+                <div class="btn-row">
+                    <button class="btn-success" onclick="playAll()">▶️ Play All Sequentially</button>
+                    <button class="btn-danger" onclick="stopSpeaking()">⏹ Stop</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const synth = window.speechSynthesis;
+        let voices = [];
+
+        function loadVoices() {
+            voices = synth.getVoices();
+            const select = document.getElementById('voiceSelect');
+            select.innerHTML = '';
+            
+            // Prioritize Hindi and English voices
+            const sorted = [...voices].sort((a, b) => {
+                const aHi = a.lang.startsWith('hi') ? -2 : a.lang.startsWith('en') ? -1 : 0;
+                const bHi = b.lang.startsWith('hi') ? -2 : b.lang.startsWith('en') ? -1 : 0;
+                return aHi - bHi;
+            });
+
+            sorted.forEach((voice, i) => {
+                const opt = document.createElement('option');
+                opt.value = voices.indexOf(voice);
+                opt.textContent = `${voice.name} (${voice.lang})${voice.default ? ' — DEFAULT' : ''}`;
+                if (voice.lang.startsWith('hi') && !select.querySelector('.hi-selected')) {
+                    opt.selected = true;
+                    opt.classList.add('hi-selected');
+                }
+                select.appendChild(opt);
+            });
+        }
+
+        synth.onvoiceschanged = loadVoices;
+        loadVoices();
+
+        document.getElementById('rateSlider').addEventListener('input', (e) => {
+            document.getElementById('rateValue').textContent = parseFloat(e.target.value).toFixed(1) + 'x';
+        });
+
+        function setStatus(msg, type) {
+            const el = document.getElementById('status');
+            el.textContent = msg;
+            el.className = 'status ' + type;
+        }
+
+        function speak(text, onEnd) {
+            synth.cancel();
+            const utter = new SpeechSynthesisUtterance(text);
+            const voiceIdx = document.getElementById('voiceSelect').value;
+            if (voices[voiceIdx]) utter.voice = voices[voiceIdx];
+            utter.rate = parseFloat(document.getElementById('rateSlider').value);
+            utter.onend = () => { if (onEnd) onEnd(); };
+            utter.onerror = (e) => setStatus('Speech error: ' + e.error, 'error');
+            synth.speak(utter);
+        }
+
+        function stopSpeaking() {
+            synth.cancel();
+            setStatus('Stopped.', 'info');
+            document.querySelectorAll('.speaking').forEach(el => el.classList.remove('speaking'));
+        }
+
+        function quickSpeak() {
+            const text = document.getElementById('quickText').value.trim();
+            if (!text) return setStatus('Please enter text first.', 'error');
+            setStatus('🔊 Speaking...', 'info');
+            speak(text, () => setStatus('✅ Done!', 'success'));
+        }
+
+        async function fetchTwiml() {
+            const url = document.getElementById('twimlUrl').value.trim();
+            if (!url) return setStatus('Please enter URL.', 'error');
+            
+            setStatus('Fetching TwiML...', 'info');
+            try {
+                const resp = await fetch(url);
+                const xml = await resp.text();
+                document.getElementById('twimlXml').value = xml;
+                parseTwiml(xml);
+                setStatus('✅ TwiML fetched and parsed!', 'success');
+            } catch (e) {
+                setStatus('❌ Failed to fetch: ' + e.message, 'error');
+            }
+        }
+
+        function parsePastedTwiml() {
+            const xml = document.getElementById('twimlXml').value.trim();
+            if (!xml) return setStatus('Please paste TwiML XML.', 'error');
+            parseTwiml(xml);
+            setStatus('✅ TwiML parsed!', 'success');
+        }
+
+        let segments = [];
+
+        function parseTwiml(xml) {
+            document.getElementById('xmlPreview').textContent = xml;
+            
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(xml, 'text/xml');
+            const sayElements = doc.querySelectorAll('Say');
+            
+            segments = [];
+            const container = document.getElementById('ttsSegments');
+            container.innerHTML = '';
+
+            sayElements.forEach((say, idx) => {
+                const text = say.textContent.trim();
+                const voice = say.getAttribute('voice') || 'default';
+                const parent = say.parentElement?.tagName || '';
+                
+                segments.push({ text, voice, parent });
+
+                const div = document.createElement('div');
+                div.className = 'tts-item';
+                div.id = 'segment-' + idx;
+                div.innerHTML = `
+                    <div class="text">
+                        ${parent === 'Gather' ? '<span class="badge badge-gather">GATHER</span>' : '<span class="badge badge-say">SAY</span>'}
+                        <strong>Voice:</strong> ${voice} — "${text}"
+                    </div>
+                    <button class="btn-success play-btn" onclick="playSingle(${idx})">▶️</button>
+                `;
+                container.appendChild(div);
+            });
+
+            document.getElementById('results').style.display = segments.length ? 'block' : 'none';
+            
+            if (!segments.length) {
+                setStatus('⚠️ No <Say> elements found in TwiML.', 'error');
+            }
+        }
+
+        function playSingle(idx) {
+            const seg = segments[idx];
+            if (!seg) return;
+            const el = document.getElementById('segment-' + idx);
+            el.classList.add('speaking');
+            setStatus(`🔊 Playing segment ${idx + 1}: "${seg.text}"`, 'info');
+            speak(seg.text, () => {
+                el.classList.remove('speaking');
+                setStatus('✅ Done!', 'success');
+            });
+        }
+
+        function playAll() {
+            if (!segments.length) return;
+            setStatus('🔊 Playing all segments...', 'info');
+            let idx = 0;
+            function next() {
+                if (idx >= segments.length) {
+                    setStatus('✅ All segments played!', 'success');
+                    return;
+                }
+                const el = document.getElementById('segment-' + idx);
+                el.classList.add('speaking');
+                speak(segments[idx].text, () => {
+                    el.classList.remove('speaking');
+                    idx++;
+                    next();
+                });
+            }
+            next();
+        }
+    </script>
+</body>
+</html>

@@ -2,14 +2,11 @@
 
 import { CssBaseline } from "@mui/material";
 import { Experimental_CssVarsProvider as CssVarsProvider } from "@mui/material/styles";
-import { CacheProvider } from "@emotion/react";
-import createCache from "@emotion/cache";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 import { createUiTheme } from "./index";
+import EmotionRegistry from "./EmotionRegistry";
 
 const MODE_KEY = "wnd_ui_mode";
-
-const emotionCache = createCache({ key: "mui", prepend: true });
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -34,11 +31,11 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = useMemo(() => createUiTheme(mode), [mode]);
 
   return (
-    <CacheProvider value={emotionCache}>
+    <EmotionRegistry>
       <CssVarsProvider theme={theme} defaultMode="light">
         <CssBaseline />
         {children}
       </CssVarsProvider>
-    </CacheProvider>
+    </EmotionRegistry>
   );
 }
