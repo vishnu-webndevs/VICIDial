@@ -42,11 +42,12 @@ class ProviderWebhookController extends Controller
 
         $adapter = $this->adapterManager->for($providerType);
 
-        // Skip signature verification in local/development environments so that
-        // webhooks delivered through tunnels (ngrok, etc.) are never silently dropped
-        // due to URL mismatches in the HMAC payload.
+        // Skip signature verification in local/development environments or if strict validation is disabled
+        // so that webhooks delivered through tunnels/proxies are never silently dropped.
         $isLocal = in_array(config('app.env'), ['local', 'development'], true);
-        if (! $isLocal) {
+        $strictValidation = filter_var(env('INTEGRATION_STRICT_VALIDATION', true), FILTER_VALIDATE_BOOLEAN);
+        
+        if (! $isLocal && $strictValidation) {
             $rawPayload = $request->getContent();
             $headers = $request->headers->all();
             if (! $adapter->verifyWebhookSignature($rawPayload, $headers, $payload, (array) $provider->credentials_encrypted)) {
