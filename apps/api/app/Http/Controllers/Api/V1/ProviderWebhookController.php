@@ -50,6 +50,11 @@ class ProviderWebhookController extends Controller
             $rawPayload = $request->getContent();
             $headers = $request->headers->all();
             if (! $adapter->verifyWebhookSignature($rawPayload, $headers, $payload, (array) $provider->credentials_encrypted)) {
+                \Illuminate\Support\Facades\Log::warning('Provider webhook signature validation failed', [
+                    'provider' => $providerType,
+                    'url_calculated' => rtrim((string) config('app.url'), '/').'/api/webhooks/'.$providerType,
+                    'headers' => $headers,
+                ]);
                 return response()->json(['message' => 'Invalid webhook signature.'], 400);
             }
         }
