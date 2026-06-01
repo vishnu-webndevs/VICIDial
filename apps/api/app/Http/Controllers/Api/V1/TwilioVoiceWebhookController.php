@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Models\CallEvent;
 use App\Models\CallLeg;
 use App\Models\CallSession;
 use App\Models\Extension;
@@ -381,7 +382,7 @@ class TwilioVoiceWebhookController extends Controller
         return $pattern === $destination;
     }
 
-    public function gatherResult(Request $request): Response
+    public function gatherResult(Request $request): \Illuminate\Http\JsonResponse
     {
         $payload = $request->all();
         $callSessionId = (string) $request->query('call_session_id', '');
@@ -394,96 +395,79 @@ class TwilioVoiceWebhookController extends Controller
         ]);
 
         $callSession = CallSession::query()->where('id', $callSessionId)->first();
-        if (!$callSession) {
-            \Illuminate\Support\Facades\Log::warning('Twilio gatherResult: CallSession not found', [
-                'call_session_id' => $callSessionId,
-            ]);
-            return $this->twimlResponse($this->wrapTwiml('<Hangup/>'));
-        }
+        $callSessionFound = $callSession !== null;
 
         $digits = trim((string) ($payload['Digits'] ?? ''));
-        $leadId = (string) ($callSession->metadata['lead_id'] ?? '');
+        $leadId = '';
+        $leadFound = false;
 
-        // Update CallSession metadata with the gathered digits and lead status
-        $metadata = (array) ($callSession->metadata ?? []);
-        $metadata['digits_pressed'] = $digits;
-        $metadata['gather_completed_at'] = now()->toIso8601String();
-        $metadata['lead_status_after'] = $digits === '1' ? 'qualified' : 'follow_up';
-        $callSession->metadata = $metadata;
-        $callSession->save();
+        if ($callSessionFound) {
+            $leadId = (string) ($callSession->metadata['lead_id'] ?? '');
 
-        // Create a CallEvent for the timeline
-        CallEvent::query()->create([
-            'tenant_id' => $callSession->tenant_id,
-            'call_session_id' => $callSession->id,
-            'provider_account_id' => $callSession->provider_account_id,
-            'event_type' => 'call.gather_digits',
-            'provider_event_type' => 'twilio.gather',
-            'status_after' => $callSession->status,
-            'payload' => [
-                'digits' => $digits,
-                'lead_id' => $leadId,
-            ],
-            'occurred_at' => now(),
-        ]);
+            // Update CallSession metadata with the gathered digits and lead status
+            $metadata = (array) ($callSession->metadata ?? []);
+            $metadata['digits_pressed'] = $digits;
+            $metadata['gather_completed_at'] = now()->toIso8601String();
+            $metadata['lead_status_after'] = $digits === '1' ? 'qualified' : 'follow_up';
+            $callSession->metadata = $metadata;
+            $callSession->save();
 
-        if ($leadId !== '') {
-            $lead = \App\Models\Lead::query()->where('id', $leadId)->first();
-            if ($lead) {
-                \Illuminate\Support\Facades\Log::info('Twilio gatherResult: Lead found, updating status', [
-                    'lead_id' => $leadId,
+            // Create a CallEvent for the timeline
+            CallEvent::query()->create([
+                'tenant_id' => $callSession->tenant_id,
+                'call_session_id' => $callSession->id,
+                'provider_account_id' => $callSession->provider_account_id,
+                'event_type' => 'call.gather_digits',
+                'provider_event_type' => 'twilio.gather',
+                'status_after' => $callSession->status,
+                'payload' => [
                     'digits' => $digits,
-                ]);
-                if ($digits === '1') {
-                    $lead->status = 'qualified';
-                    $lead->last_disposition = array_merge((array) $lead->last_disposition, ['reason' => 'Interested']);
+                    'lead_id' => $leadId,
+                ],
+                'occurred_at' => now(),
+            ]);
+
+            if ($leadId !== '') {
+                $lead = \App\Models\Lead::query()->where('id', $leadId)->first();
+                if ($lead) {
+                    $leadFound = true;
+                    \Illuminate\Support\Facades\Log::info('Twilio gatherResult: Lead found, updating status', [
+                        'lead_id' => $leadId,
+                        'digits' => $digits,
+                    ]);
+                    if ($digits === '1') {
+                        $lead->status = 'qualified';
+                        $lead->last_disposition = array_merge((array) $lead->last_disposition, ['reason' => 'Interested']);
+                    } else {
+                        $lead->status = 'follow_up';
+                        $lead->last_disposition = array_merge((array) $lead->last_disposition, ['reason' => 'Call ended without key press or unrecognized key']);
+                    }
+                    $lead->save();
+                    \Illuminate\Support\Facades\Log::info('Twilio gatherResult: Lead saved successfully', [
+                        'lead_id' => $leadId,
+                        'status' => $lead->status,
+                    ]);
                 } else {
-                    $lead->status = 'follow_up';
-                    $lead->last_disposition = array_merge((array) $lead->last_disposition, ['reason' => 'Call ended without key press or unrecognized key']);
+                    \Illuminate\Support\Facades\Log::warning('Twilio gatherResult: Lead not found in DB', [
+                        'lead_id' => $leadId,
+                    ]);
                 }
-                $lead->save();
-                \Illuminate\Support\Facades\Log::info('Twilio gatherResult: Lead saved successfully', [
-                    'lead_id' => $leadId,
-                    'status' => $lead->status,
-                ]);
             } else {
-                \Illuminate\Support\Facades\Log::warning('Twilio gatherResult: Lead not found in DB', [
-                    'lead_id' => $leadId,
+                \Illuminate\Support\Facades\Log::warning('Twilio gatherResult: lead_id is missing from CallSession metadata', [
+                    'metadata' => $callSession->metadata,
                 ]);
             }
         } else {
-            \Illuminate\Support\Facades\Log::warning('Twilio gatherResult: lead_id is missing from CallSession metadata', [
-                'metadata' => $callSession->metadata,
+            \Illuminate\Support\Facades\Log::warning('Twilio gatherResult: CallSession not found', [
+                'call_session_id' => $callSessionId,
             ]);
         }
 
-        $tenantSetting = \App\Models\TenantSetting::query()->where('tenant_id', $callSession->tenant_id)->first();
-        $voiceLocale = $tenantSetting?->voice_locale ?? 'hi-IN';
-
-        // Map voice locale to beautiful standard Amazon Polly voices
-        $voice = 'Polly.Joanna';
-        $language = 'hi-IN';
-
-        if (str_starts_with($voiceLocale, 'en-US')) {
-            $voice = 'Polly.Joanna';
-            $language = 'en-US';
-        } elseif (str_starts_with($voiceLocale, 'en-IN')) {
-            $voice = 'Polly.Raveena';
-            $language = 'en-IN';
-        } elseif (str_starts_with($voiceLocale, 'hi')) {
-            $voice = 'Polly.Joanna';
-            $language = 'hi-IN';
-        } else {
-            $voice = 'Polly.Joanna';
-            $language = $voiceLocale;
-        }
-
-        $thankYouText = 'Thank you. Goodbye.';
-        if (str_starts_with($voiceLocale, 'hi')) {
-            $thankYouText = 'Dhanyawaad. Alvida.';
-        }
-        $escapedThankYou = htmlspecialchars($thankYouText, ENT_QUOTES);
-
-        return $this->twimlResponse($this->wrapTwiml('<Say voice="' . $voice . '" language="' . $language . '">' . $escapedThankYou . '</Say><Hangup/>'));
+        return response()->json([
+            'call_session_found' => $callSessionFound,
+            'lead_id' => $leadId,
+            'lead_found' => $leadFound,
+            'digits' => $digits,
+        ]);
     }
 }
