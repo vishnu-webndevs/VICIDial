@@ -45,6 +45,26 @@ export default function CallDetailPage() {
           ) : null}
           {call ? (
             <div className="mt-6 grid gap-6">
+              {/* Key Press & Qualification Banners */}
+              {call.metadata?.digits_pressed && (
+                <div className={`rounded-md border p-4 shadow-sm transition-all duration-300 ${
+                  call.metadata.digits_pressed === "1"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-800 shadow-emerald-100/50"
+                    : "border-slate-200 bg-slate-50 text-slate-800"
+                }`}>
+                  <p className="font-semibold text-sm flex items-center gap-2">
+                    {call.metadata.digits_pressed === "1" 
+                      ? "⭐ Customer Interested / Qualified Lead (ग्राहक ने 1 दबाया - Qualified)" 
+                      : `⌨️ IVR Key Press: ${call.metadata.digits_pressed} (ग्राहक ने ${call.metadata.digits_pressed} दबाया)`}
+                  </p>
+                  <p className="text-xs mt-1 leading-relaxed">
+                    {call.metadata.digits_pressed === "1"
+                      ? "The customer responded positively by pressing 1 during the automated voice campaign. This lead has been automatically qualified in the database."
+                      : `The customer pressed key ${call.metadata.digits_pressed} during the automated voice campaign.`}
+                  </p>
+                </div>
+              )}
+
               {/* Call Failure or Status Warning Banners */}
               {call.status === "busy" && (
                 <div className="rounded-md border border-rose-200 bg-rose-50 p-4 text-rose-800">
@@ -113,13 +133,13 @@ export default function CallDetailPage() {
                   <span className="mt-1 block text-slate-800 font-semibold">{call.provider?.label ?? "N/A"}</span>
                 </div>
                 <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
-                  <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Call Started (शुरू हुआ)</span>
+                  <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Call Started</span>
                   <span className="mt-1 block text-slate-800">
                     {call.started_at ? new Date(call.started_at).toLocaleString() : "N/A"}
                   </span>
                 </div>
                 <div className="rounded-lg border border-slate-100 bg-slate-50/50 p-3">
-                  <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Call Ended (खत्म हुआ)</span>
+                  <span className="block text-xs font-semibold uppercase tracking-wider text-slate-400">Call Ended</span>
                   <span className="mt-1 block text-slate-800">
                     {call.ended_at ? new Date(call.ended_at).toLocaleString() : "N/A"}
                   </span>
@@ -142,19 +162,40 @@ export default function CallDetailPage() {
           subtitle="Chronological event stream for this call."
         >
           {call?.events?.length ? (
-            <ol className="space-y-2">
-              {call.events.map((event, index) => (
-                <li key={`${event.type}-${index}`} className="rounded-md border border-slate-200 p-3">
-                  <p className="text-sm font-medium">{event.type}</p>
-                  <p className="text-xs text-slate-500">
-                    {new Date(event.occurred_at).toLocaleString()}
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    Provider Event: {event.provider_event_type ?? "n/a"} | Status:{" "}
-                    {event.status_after ?? "n/a"}
-                  </p>
-                </li>
-              ))}
+            <ol className="space-y-3">
+              {call.events.map((event, index) => {
+                const getEventTitle = (type: string) => {
+                  if (type === 'call.initiated') return '📞 Outbound Call Initiated (आउटबाउंड कॉल शुरू की गई)';
+                  if (type === 'call.ringing') return '🔔 Ringing (फ़ोन की घंटी बज रही है)';
+                  if (type === 'call.answered') return '✅ Call Answered by Customer (ग्राहक ने कॉल उठाया)';
+                  if (type === 'call.completed') return '🏁 Call Completed (कॉल समाप्त हुआ)';
+                  if (type === 'call.failed') return '⚠️ Connection Failed (कॉल कनेक्ट नहीं हो पाई)';
+                  if (type === 'call.gather_digits') {
+                    const d = event.payload?.digits ?? '1';
+                    return `⌨️ IVR Key Press: Gathered '${d}' (ग्राहक ने ${d} दबाया)`;
+                  }
+                  return type;
+                };
+
+                return (
+                  <li key={`${event.type}-${index}`} className={`rounded-md border p-3 shadow-sm transition-all duration-200 ${
+                    event.type === 'call.gather_digits'
+                      ? event.payload?.digits === '1'
+                        ? 'border-emerald-200 bg-emerald-50/50 shadow-emerald-50/50'
+                        : 'border-slate-200 bg-slate-50/50'
+                      : 'border-slate-200'
+                  }`}>
+                    <p className="text-sm font-semibold text-slate-800">{getEventTitle(event.type)}</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {new Date(event.occurred_at).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-slate-600 mt-1.5">
+                      Provider Event: <span className="font-mono text-slate-500">{event.provider_event_type ?? "n/a"}</span> | Status:{" "}
+                      <span className="font-semibold text-slate-700 capitalize">{event.status_after ?? "n/a"}</span>
+                    </p>
+                  </li>
+                );
+              })}
             </ol>
           ) : (
             <p className="text-sm text-slate-600">No timeline events recorded.</p>

@@ -498,6 +498,7 @@ class CallController extends Controller
                         'provider_event_type' => $event->provider_event_type,
                         'status_after' => $event->status_after,
                         'occurred_at' => $event->occurred_at?->toISOString(),
+                        'payload' => $event->payload,
                     ]),
             ],
         ]);
@@ -1118,6 +1119,7 @@ class CallController extends Controller
             'started_at' => $call->started_at?->toISOString(),
             'ended_at' => $call->ended_at?->toISOString(),
             'created_at' => $call->created_at?->toISOString(),
+            'metadata' => (array) ($call->metadata ?? []),
             'controls' => array_merge(
                 ['muted' => false, 'on_hold' => false],
                 (array) (($call->metadata ?? [])['controls'] ?? [])

@@ -347,6 +347,24 @@ export default function CallDashboardPage() {
                     </Box>
                   )}
 
+                  {/* Key Press & Qualification Box in Sidebar */}
+                  {selectedCall.metadata?.digits_pressed && (
+                    <Box sx={{ 
+                      p: 1.25, 
+                      borderRadius: 1, 
+                      bgcolor: selectedCall.metadata.digits_pressed === "1" ? "success.lighter" : "grey.100", 
+                      border: "1px solid", 
+                      borderColor: selectedCall.metadata.digits_pressed === "1" ? "success.light" : "grey.300" 
+                    }}>
+                      <Typography variant="caption" color={selectedCall.metadata.digits_pressed === "1" ? "success.dark" : "text.primary"} sx={{ fontWeight: "bold", display: "block" }}>
+                        {selectedCall.metadata.digits_pressed === "1" ? "⭐ Lead Qualified (Interested)" : `⌨️ Pressed Key: ${selectedCall.metadata.digits_pressed}`}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5, fontSize: "0.7rem" }}>
+                        {selectedCall.metadata.digits_pressed === "1" ? "Customer pressed 1. Lead marked as Qualified." : `Customer pressed key ${selectedCall.metadata.digits_pressed}.`}
+                      </Typography>
+                    </Box>
+                  )}
+
                   <Typography variant="body2"><Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}>From:</Box> {selectedCall.from_number}</Typography>
                   <Typography variant="body2"><Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}>To:</Box> {selectedCall.to_number}</Typography>
                   <Typography variant="body2"><Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}>Provider:</Box> {selectedCall.provider?.label ?? "N/A"}</Typography>

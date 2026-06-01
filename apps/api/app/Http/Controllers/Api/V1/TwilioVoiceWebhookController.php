@@ -20,7 +20,7 @@ class TwilioVoiceWebhookController extends Controller
     {
         $payload = $request->all();
         $provider = $this->resolveTwilioProvider($payload);
-        if (! $provider) {
+        if (!$provider) {
             return $this->twimlResponse($this->wrapTwiml(''));
         }
 
@@ -44,7 +44,7 @@ class TwilioVoiceWebhookController extends Controller
                 return $this->twimlResponse($this->voicemailTwiml($callSid));
             }
 
-            return $this->twimlResponse($this->wrapTwiml('<Say voice="alice">Thank you. Goodbye.</Say>'));
+            return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Thank you. Goodbye.</Say>'));
         }
 
         $digits = trim((string) ($payload['Digits'] ?? ''));
@@ -57,7 +57,7 @@ class TwilioVoiceWebhookController extends Controller
             ->where('extension', $digits)
             ->first();
 
-        if (! $extension) {
+        if (!$extension) {
             return $this->twimlResponse($this->voicemailTwiml($callSid, 'Invalid extension.'));
         }
 
@@ -71,7 +71,7 @@ class TwilioVoiceWebhookController extends Controller
             ->where('active', true)
             ->first();
 
-        if (! $ringGroup) {
+        if (!$ringGroup) {
             return $this->twimlResponse($this->voicemailTwiml($callSid, 'Ring group is unavailable.'));
         }
 
@@ -89,7 +89,7 @@ class TwilioVoiceWebhookController extends Controller
         }
 
         $callSession->runtime_state = 'ringing';
-        $callSession->routed_to = 'ring_group:'.$ringGroup->id;
+        $callSession->routed_to = 'ring_group:' . $ringGroup->id;
         $callSession->routing_confidence = 100;
         $callSession->metadata = array_merge((array) ($callSession->metadata ?? []), [
             'inbound' => [
@@ -127,7 +127,7 @@ class TwilioVoiceWebhookController extends Controller
     {
         $payload = $request->all();
         $provider = $this->resolveTwilioProvider($payload);
-        if (! $provider) {
+        if (!$provider) {
             return $this->twimlResponse($this->wrapTwiml(''));
         }
 
@@ -150,7 +150,7 @@ class TwilioVoiceWebhookController extends Controller
             'call_session_id' => $callSession?->id,
             'from_number' => $from,
             'to_number' => $to,
-            'storage_url' => $recordingUrl !== '' ? $recordingUrl.'.mp3' : null,
+            'storage_url' => $recordingUrl !== '' ? $recordingUrl . '.mp3' : null,
             'status' => 'captured',
             'metadata' => [
                 'provider' => 'twilio',
@@ -167,14 +167,14 @@ class TwilioVoiceWebhookController extends Controller
             $callSession->save();
         }
 
-        return $this->twimlResponse($this->wrapTwiml('<Say voice="alice">Message received. Goodbye.</Say><Hangup/>'));
+        return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Message received. Goodbye.</Say><Hangup/>'));
     }
 
     public function transfer(Request $request): Response
     {
         $payload = $request->all();
         $provider = $this->resolveTwilioProvider($payload);
-        if (! $provider) {
+        if (!$provider) {
             return $this->twimlResponse($this->wrapTwiml(''));
         }
 
@@ -182,19 +182,19 @@ class TwilioVoiceWebhookController extends Controller
         $to = (string) $request->query('to', '');
         $mode = (string) $request->query('mode', 'warm');
         if ($callSessionId === '' || $to === '') {
-            return $this->twimlResponse($this->wrapTwiml('<Say voice="alice">Transfer unavailable.</Say><Hangup/>'));
+            return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Transfer unavailable.</Say><Hangup/>'));
         }
 
         $callSession = CallSession::query()
             ->where('tenant_id', $provider->tenant_id)
             ->where('id', $callSessionId)
             ->first();
-        if (! $callSession) {
-            return $this->twimlResponse($this->wrapTwiml('<Say voice="alice">Transfer unavailable.</Say><Hangup/>'));
+        if (!$callSession) {
+            return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Transfer unavailable.</Say><Hangup/>'));
         }
 
         $callSession->runtime_state = 'transfer';
-        $callSession->routed_to = 'transfer:'.$to;
+        $callSession->routed_to = 'transfer:' . $to;
         $callSession->routing_confidence = 100;
         $callSession->save();
 
@@ -212,17 +212,17 @@ class TwilioVoiceWebhookController extends Controller
         ]);
 
         $policy = $this->resolveRecordingPolicy($provider->tenant_id, [$to]);
-        $action = rtrim((string) config('app.url'), '/').'/api/webhooks/twilio/voice?mode=post_dial';
+        $action = rtrim((string) config('app.url'), '/') . '/api/webhooks/twilio/voice?mode=post_dial';
         $inner = '';
         if ($mode === 'warm') {
-            $inner .= '<Say voice="alice">Please hold while we connect your call.</Say>';
+            $inner .= '<Say voice="Polly.Joanna">Please hold while we connect your call.</Say>';
         }
         if (($policy['enabled'] ?? false) && ($policy['require_consent'] ?? false)) {
             $prompt = htmlspecialchars((string) ($policy['consent_prompt'] ?? 'This call may be recorded.'), ENT_QUOTES);
-            $inner .= '<Say voice="alice">'.$prompt.'</Say>';
+            $inner .= '<Say voice="Polly.Joanna">' . $prompt . '</Say>';
         }
         $recordAttr = ($policy['enabled'] ?? false) ? ' record="record-from-answer"' : '';
-        $inner .= '<Dial timeout="20" action="'.$action.'" method="POST"'.$recordAttr.'><Number>'.htmlspecialchars($to, ENT_QUOTES).'</Number></Dial>';
+        $inner .= '<Dial timeout="20" action="' . $action . '" method="POST"' . $recordAttr . '><Number>' . htmlspecialchars($to, ENT_QUOTES) . '</Number></Dial>';
 
         return $this->twimlResponse($this->wrapTwiml($inner));
     }
@@ -292,57 +292,57 @@ class TwilioVoiceWebhookController extends Controller
 
     private function gatherTwiml(): string
     {
-        $action = rtrim((string) config('app.url'), '/').'/api/webhooks/twilio/voice';
+        $action = rtrim((string) config('app.url'), '/') . '/api/webhooks/twilio/voice';
 
         return $this->wrapTwiml(implode('', [
-            '<Say voice="alice">Please enter your extension, then press pound.</Say>',
-            '<Gather input="dtmf" numDigits="6" finishOnKey="#" timeout="6" action="'.$action.'" method="POST">',
+            '<Say voice="Polly.Joanna">Please enter your extension, then press pound.</Say>',
+            '<Gather input="dtmf" numDigits="6" finishOnKey="#" timeout="6" action="' . $action . '" method="POST">',
             '</Gather>',
-            '<Say voice="alice">We did not receive any input.</Say>',
-            '<Redirect method="POST">'.$action.'</Redirect>',
+            '<Say voice="Polly.Joanna">We did not receive any input.</Say>',
+            '<Redirect method="POST">' . $action . '</Redirect>',
         ]));
     }
 
     private function dialRingGroupTwiml(string $tenantId, array $numbers): string
     {
-        $action = rtrim((string) config('app.url'), '/').'/api/webhooks/twilio/voice?mode=post_dial';
+        $action = rtrim((string) config('app.url'), '/') . '/api/webhooks/twilio/voice?mode=post_dial';
         $policy = $this->resolveRecordingPolicy($tenantId, $numbers);
 
         $dialNouns = '';
         foreach ($numbers as $number) {
-            $dialNouns .= '<Number>'.htmlspecialchars($number, ENT_QUOTES).'</Number>';
+            $dialNouns .= '<Number>' . htmlspecialchars($number, ENT_QUOTES) . '</Number>';
         }
 
         $recordAttr = ($policy['enabled'] ?? false) ? ' record="record-from-answer"' : '';
         return $this->wrapTwiml(implode('', [
             (($policy['enabled'] ?? false) && ($policy['require_consent'] ?? false))
-                ? '<Say voice="alice">'.htmlspecialchars((string) ($policy['consent_prompt'] ?? 'This call may be recorded.'), ENT_QUOTES).'</Say>'
-                : '',
-            '<Dial timeout="20" action="'.$action.'" method="POST"'.$recordAttr.'>',
+            ? '<Say voice="Polly.Joanna">' . htmlspecialchars((string) ($policy['consent_prompt'] ?? 'This call may be recorded.'), ENT_QUOTES) . '</Say>'
+            : '',
+            '<Dial timeout="20" action="' . $action . '" method="POST"' . $recordAttr . '>',
             $dialNouns,
             '</Dial>',
-            '<Redirect method="POST">'.$action.'</Redirect>',
+            '<Redirect method="POST">' . $action . '</Redirect>',
         ]));
     }
 
     private function voicemailTwiml(string $callSid, ?string $prefixMessage = null): string
     {
-        $action = rtrim((string) config('app.url'), '/').'/api/webhooks/twilio/voice/voicemail';
+        $action = rtrim((string) config('app.url'), '/') . '/api/webhooks/twilio/voice/voicemail';
 
         $body = '';
         if ($prefixMessage) {
-            $body .= '<Say voice="alice">'.htmlspecialchars($prefixMessage, ENT_QUOTES).'</Say>';
+            $body .= '<Say voice="Polly.Joanna">' . htmlspecialchars($prefixMessage, ENT_QUOTES) . '</Say>';
         }
-        $body .= '<Say voice="alice">Please leave a message after the beep.</Say>';
-        $body .= '<Record playBeep="true" maxLength="120" action="'.$action.'" method="POST"/>';
-        $body .= '<Say voice="alice">No message received. Goodbye.</Say><Hangup/>';
+        $body .= '<Say voice="Polly.Joanna">Please leave a message after the beep.</Say>';
+        $body .= '<Record playBeep="true" maxLength="120" action="' . $action . '" method="POST"/>';
+        $body .= '<Say voice="Polly.Joanna">No message received. Goodbye.</Say><Hangup/>';
 
         return $this->wrapTwiml($body);
     }
 
     private function wrapTwiml(string $inner): string
     {
-        return '<?xml version="1.0" encoding="UTF-8"?><Response>'.$inner.'</Response>';
+        return '<?xml version="1.0" encoding="UTF-8"?><Response>' . $inner . '</Response>';
     }
 
     private function twimlResponse(string $twiml): Response
@@ -385,7 +385,7 @@ class TwilioVoiceWebhookController extends Controller
     {
         $payload = $request->all();
         $callSessionId = (string) $request->query('call_session_id', '');
-        
+
         \Illuminate\Support\Facades\Log::info('Twilio gatherResult webhook triggered', [
             'call_session_id' => $callSessionId,
             'payload' => $payload,
@@ -394,7 +394,7 @@ class TwilioVoiceWebhookController extends Controller
         ]);
 
         $callSession = CallSession::query()->where('id', $callSessionId)->first();
-        if (! $callSession) {
+        if (!$callSession) {
             \Illuminate\Support\Facades\Log::warning('Twilio gatherResult: CallSession not found', [
                 'call_session_id' => $callSessionId,
             ]);
@@ -403,6 +403,29 @@ class TwilioVoiceWebhookController extends Controller
 
         $digits = trim((string) ($payload['Digits'] ?? ''));
         $leadId = (string) ($callSession->metadata['lead_id'] ?? '');
+
+        // Update CallSession metadata with the gathered digits and lead status
+        $metadata = (array) ($callSession->metadata ?? []);
+        $metadata['digits_pressed'] = $digits;
+        $metadata['gather_completed_at'] = now()->toIso8601String();
+        $metadata['lead_status_after'] = $digits === '1' ? 'qualified' : 'follow_up';
+        $callSession->metadata = $metadata;
+        $callSession->save();
+
+        // Create a CallEvent for the timeline
+        CallEvent::query()->create([
+            'tenant_id' => $callSession->tenant_id,
+            'call_session_id' => $callSession->id,
+            'provider_account_id' => $callSession->provider_account_id,
+            'event_type' => 'call.gather_digits',
+            'provider_event_type' => 'twilio.gather',
+            'status_after' => $callSession->status,
+            'payload' => [
+                'digits' => $digits,
+                'lead_id' => $leadId,
+            ],
+            'occurred_at' => now(),
+        ]);
 
         if ($leadId !== '') {
             $lead = \App\Models\Lead::query()->where('id', $leadId)->first();
@@ -438,7 +461,7 @@ class TwilioVoiceWebhookController extends Controller
         $voiceLocale = $tenantSetting?->voice_locale ?? 'hi-IN';
 
         // Map voice locale to beautiful standard Amazon Polly voices
-        $voice = 'Polly.Aditi';
+        $voice = 'Polly.Joanna';
         $language = 'hi-IN';
 
         if (str_starts_with($voiceLocale, 'en-US')) {
@@ -448,10 +471,10 @@ class TwilioVoiceWebhookController extends Controller
             $voice = 'Polly.Raveena';
             $language = 'en-IN';
         } elseif (str_starts_with($voiceLocale, 'hi')) {
-            $voice = 'Polly.Aditi';
+            $voice = 'Polly.Joanna';
             $language = 'hi-IN';
         } else {
-            $voice = 'Polly.Aditi';
+            $voice = 'Polly.Joanna';
             $language = $voiceLocale;
         }
 

@@ -486,7 +486,7 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
         $twiml = implode('', [
             '<?xml version="1.0" encoding="UTF-8"?>',
             '<Response>',
-            '<Say voice="alice">Please hold while we connect your call.</Say>',
+            '<Say voice="Polly.Joanna">Please hold while we connect your call.</Say>',
             '<Pause length="60"/>',
             '</Response>',
         ]);
@@ -495,7 +495,7 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
     }
 
     $call = \App\Models\CallSession::query()->where('id', $callSessionId)->first();
-    if (! $call) {
+    if (!$call) {
         \Illuminate\Support\Facades\Log::warning('Twilio twiml/outbound: CallSession not found', [
             'call_session_id' => $callSessionId,
         ]);
@@ -505,7 +505,7 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
     $metadata = (array) ($call->metadata ?? []);
     $dialMode = (string) ($metadata['dial_mode'] ?? 'normal');
     $expected = (string) ($metadata['twiml_token'] ?? '');
-    if ($expected !== '' && ! hash_equals($expected, $token)) {
+    if ($expected !== '' && !hash_equals($expected, $token)) {
         \Illuminate\Support\Facades\Log::warning('Twilio twiml/outbound: Invalid twiml token', [
             'call_session_id' => $callSessionId,
             'expected' => $expected,
@@ -531,7 +531,7 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
         $voiceLocale = $tenantSetting?->voice_locale ?? 'hi-IN';
 
         // Map voice locale to beautiful standard Amazon Polly voices
-        $voice = 'Polly.Aditi';
+        $voice = 'Polly.Joanna';
         $language = 'hi-IN';
 
         if (str_starts_with($voiceLocale, 'en-US')) {
@@ -541,21 +541,21 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
             $voice = 'Polly.Raveena';
             $language = 'en-IN';
         } elseif (str_starts_with($voiceLocale, 'hi')) {
-            $voice = 'Polly.Aditi';
+            $voice = 'Polly.Joanna';
             $language = 'hi-IN';
         } else {
-            $voice = 'Polly.Aditi';
+            $voice = 'Polly.Joanna';
             $language = $voiceLocale;
         }
 
         $prompt = (string) ($metadata['tts_prompt'] ?? 'Press 1 if you are interested.');
-        
+
         // Escape plain text first for valid XML
         $escapedPrompt = htmlspecialchars($prompt, ENT_QUOTES);
-        
+
         // Format SSML with natural phrasing and pauses
         $ssmlPrompt = $escapedPrompt;
-        if (! str_contains($ssmlPrompt, '<speak>')) {
+        if (!str_contains($ssmlPrompt, '<speak>')) {
             $ssmlPrompt = preg_replace('/\s+/', ' ', $ssmlPrompt);
             $ssmlPrompt = str_ireplace('to press 1', ', to press 1', $ssmlPrompt);
             $ssmlPrompt = str_ireplace('press 1', ', press 1', $ssmlPrompt);
@@ -602,7 +602,7 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
 
     $agentId = (string) ($metadata['agent_id'] ?? '');
     if ($agentId === '') {
-        $twiml = '<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">No agent is assigned for this call.</Say><Hangup/></Response>';
+        $twiml = '<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Joanna">No agent is assigned for this call.</Say><Hangup/></Response>';
 
         return response($twiml, 200, ['Content-Type' => 'text/xml']);
     }
@@ -613,7 +613,7 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
         ->first();
     $destination = (string) ((array) ($agent?->metadata ?? []))['destination_number'] ?? '';
     if ($destination === '') {
-        $twiml = '<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="alice">No agent destination is configured.</Say><Hangup/></Response>';
+        $twiml = '<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Joanna">No agent destination is configured.</Say><Hangup/></Response>';
 
         return response($twiml, 200, ['Content-Type' => 'text/xml']);
     }
@@ -623,7 +623,7 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
     $twiml = implode('', [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<Response>',
-        '<Say voice="alice">Connecting you now.</Say>',
+        '<Say voice="Polly.Joanna">Connecting you now.</Say>',
         '<Dial timeout="25" callerId="' . $callerId . '">',
         '<Number>' . $dest . '</Number>',
         '</Dial>',

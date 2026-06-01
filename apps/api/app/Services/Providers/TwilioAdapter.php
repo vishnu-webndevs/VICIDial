@@ -14,7 +14,7 @@ class TwilioAdapter implements ProviderAdapterInterface
 
     public function testConnection(array $credentials): array
     {
-        if (! $this->hasRequiredCredentials($credentials, requireFrom: false)) {
+        if (!$this->hasRequiredCredentials($credentials, requireFrom: false)) {
             return ['ok' => false, 'code' => 'PROVIDER_CREDENTIALS_INVALID', 'message' => 'Twilio credentials are incomplete.'];
         }
 
@@ -44,7 +44,7 @@ class TwilioAdapter implements ProviderAdapterInterface
 
     public function fetchIncomingPhoneNumbers(array $credentials): array
     {
-        if (! $this->hasRequiredCredentials($credentials, requireFrom: false)) {
+        if (!$this->hasRequiredCredentials($credentials, requireFrom: false)) {
             return [];
         }
 
@@ -61,12 +61,12 @@ class TwilioAdapter implements ProviderAdapterInterface
 
         try {
             $response = $this->twilioRequest($credentials, '/IncomingPhoneNumbers.json?PageSize=100');
-            if (! $response->successful()) {
+            if (!$response->successful()) {
                 return [];
             }
 
             return collect((array) ($response->json()['incoming_phone_numbers'] ?? []))
-                ->map(fn (array $item) => [
+                ->map(fn(array $item) => [
                     'sid' => (string) ($item['sid'] ?? ''),
                     'phone_number' => (string) ($item['phone_number'] ?? ''),
                     'friendly_name' => (string) ($item['friendly_name'] ?? ''),
@@ -76,7 +76,7 @@ class TwilioAdapter implements ProviderAdapterInterface
                         'mms' => (bool) ($item['capabilities']['mms'] ?? false),
                     ],
                 ])
-                ->filter(fn (array $item) => $item['phone_number'] !== '')
+                ->filter(fn(array $item) => $item['phone_number'] !== '')
                 ->values()
                 ->all();
         } catch (Throwable) {
@@ -86,7 +86,7 @@ class TwilioAdapter implements ProviderAdapterInterface
 
     public function validateNumberOwnership(array $credentials, string $phoneNumber): array
     {
-        if (! $this->hasRequiredCredentials($credentials, requireFrom: false)) {
+        if (!$this->hasRequiredCredentials($credentials, requireFrom: false)) {
             return ['ok' => false, 'code' => 'PROVIDER_CREDENTIALS_INVALID', 'message' => 'Twilio credentials are incomplete.'];
         }
 
@@ -96,7 +96,7 @@ class TwilioAdapter implements ProviderAdapterInterface
 
         try {
             $numbers = $this->fetchIncomingPhoneNumbers($credentials);
-            $matched = collect($numbers)->first(fn (array $item) => (string) $item['phone_number'] === $phoneNumber);
+            $matched = collect($numbers)->first(fn(array $item) => (string) $item['phone_number'] === $phoneNumber);
             if ($matched) {
                 return ['ok' => true, 'code' => null, 'message' => null, 'number' => $matched];
             }
@@ -130,7 +130,7 @@ class TwilioAdapter implements ProviderAdapterInterface
         }
 
         // Try config('app.url') based URL
-        $fallbackUrl = rtrim((string) config('app.url'), '/').'/api/webhooks/twilio';
+        $fallbackUrl = rtrim((string) config('app.url'), '/') . '/api/webhooks/twilio';
         if ($this->checkSignature($fallbackUrl, $payload, $secret, $provided)) {
             return true;
         }
@@ -163,7 +163,7 @@ class TwilioAdapter implements ProviderAdapterInterface
             if (is_array($value)) {
                 continue;
             }
-            $signaturePayload .= (string) $key.(string) $value;
+            $signaturePayload .= (string) $key . (string) $value;
         }
         $expected = base64_encode(hash_hmac('sha1', $signaturePayload, $secret, true));
 
@@ -173,7 +173,7 @@ class TwilioAdapter implements ProviderAdapterInterface
     public function makeOutboundCall(array $credentials, string $to, string $from, string $twimlUrl, string $statusCallbackUrl): array
     {
         // Only account_sid and auth_token are required here; $from is provided as a parameter.
-        if (! $this->hasRequiredCredentials($credentials, requireFrom: false)) {
+        if (!$this->hasRequiredCredentials($credentials, requireFrom: false)) {
             return ['ok' => false, 'code' => 'PROVIDER_CREDENTIALS_INVALID', 'message' => 'Twilio account_sid or auth_token is missing.'];
         }
 
@@ -182,7 +182,7 @@ class TwilioAdapter implements ProviderAdapterInterface
         }
 
         if ($this->integrationMode->isSandbox()) {
-            return ['ok' => true, 'provider_call_id' => 'CA'.strtolower(bin2hex(random_bytes(16))), 'mode' => 'sandbox'];
+            return ['ok' => true, 'provider_call_id' => 'CA' . strtolower(bin2hex(random_bytes(16))), 'mode' => 'sandbox'];
         }
 
         try {
@@ -248,9 +248,9 @@ class TwilioAdapter implements ProviderAdapterInterface
 
     private function hasRequiredCredentials(array $credentials, bool $requireFrom = true): bool
     {
-        $hasSid = ! empty($credentials['account_sid']);
-        $hasToken = ! empty($credentials['auth_token']);
-        $hasFrom = ! empty($credentials['from_number']);
+        $hasSid = !empty($credentials['account_sid']);
+        $hasToken = !empty($credentials['auth_token']);
+        $hasFrom = !empty($credentials['from_number']);
 
         return $requireFrom ? ($hasSid && $hasToken && $hasFrom) : ($hasSid && $hasToken);
     }
@@ -268,7 +268,7 @@ class TwilioAdapter implements ProviderAdapterInterface
 
     private function extractTwilioError(mixed $payload): string
     {
-        if (is_array($payload) && ! empty($payload['message'])) {
+        if (is_array($payload) && !empty($payload['message'])) {
             return (string) $payload['message'];
         }
 
@@ -290,7 +290,7 @@ class TwilioAdapter implements ProviderAdapterInterface
         return implode('', [
             '<?xml version="1.0" encoding="UTF-8"?>',
             '<Response>',
-            '<Say voice="alice">Please hold while we connect your call.</Say>',
+            '<Say voice="Polly.Joanna">Please hold while we connect your call.</Say>',
             '<Pause length="60"/>',
             '</Response>',
         ]);
@@ -317,7 +317,7 @@ class TwilioAdapter implements ProviderAdapterInterface
         $params = [];
         parse_str($query, $params);
         $mode = $params['dial_mode'] ?? '';
-        if (! is_string($mode)) {
+        if (!is_string($mode)) {
             return '';
         }
 

@@ -1,11 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TwiML TTS Preview — Free Audio Test</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
             font-family: 'Segoe UI', system-ui, sans-serif;
             background: #0f172a;
@@ -13,6 +19,7 @@
             min-height: 100vh;
             padding: 2rem;
         }
+
         h1 {
             text-align: center;
             font-size: 1.8rem;
@@ -21,16 +28,19 @@
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+
         .subtitle {
             text-align: center;
             color: #94a3b8;
             margin-bottom: 2rem;
             font-size: 0.95rem;
         }
+
         .container {
             max-width: 800px;
             margin: 0 auto;
         }
+
         .card {
             background: #1e293b;
             border: 1px solid #334155;
@@ -38,13 +48,17 @@
             padding: 1.5rem;
             margin-bottom: 1.5rem;
         }
+
         label {
             display: block;
             font-weight: 600;
             margin-bottom: 0.5rem;
             color: #93c5fd;
         }
-        input, textarea, select {
+
+        input,
+        textarea,
+        select {
             width: 100%;
             padding: 0.75rem 1rem;
             border: 1px solid #475569;
@@ -56,20 +70,26 @@
             outline: none;
             transition: border-color 0.2s;
         }
-        input:focus, textarea:focus, select:focus {
+
+        input:focus,
+        textarea:focus,
+        select:focus {
             border-color: #38bdf8;
         }
+
         textarea {
             min-height: 120px;
             font-family: 'Consolas', 'Courier New', monospace;
             font-size: 0.85rem;
             resize: vertical;
         }
+
         .btn-row {
             display: flex;
             gap: 0.75rem;
             flex-wrap: wrap;
         }
+
         button {
             padding: 0.75rem 1.5rem;
             border: none;
@@ -79,25 +99,41 @@
             cursor: pointer;
             transition: all 0.2s;
         }
+
         .btn-primary {
             background: linear-gradient(135deg, #3b82f6, #6366f1);
             color: white;
         }
-        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(59,130,246,0.4); }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+        }
+
         .btn-success {
             background: linear-gradient(135deg, #10b981, #059669);
             color: white;
         }
-        .btn-success:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16,185,129,0.4); }
+
+        .btn-success:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+
         .btn-danger {
             background: linear-gradient(135deg, #ef4444, #dc2626);
             color: white;
         }
+
         .btn-warning {
             background: linear-gradient(135deg, #f59e0b, #d97706);
             color: white;
         }
-        .btn-warning:hover { transform: translateY(-1px); }
+
+        .btn-warning:hover {
+            transform: translateY(-1px);
+        }
+
         .status {
             margin-top: 1rem;
             padding: 1rem;
@@ -105,9 +141,28 @@
             font-size: 0.9rem;
             display: none;
         }
-        .status.info { display: block; background: #1e3a5f; border: 1px solid #2563eb; color: #93c5fd; }
-        .status.success { display: block; background: #14532d; border: 1px solid #16a34a; color: #86efac; }
-        .status.error { display: block; background: #450a0a; border: 1px solid #dc2626; color: #fca5a5; }
+
+        .status.info {
+            display: block;
+            background: #1e3a5f;
+            border: 1px solid #2563eb;
+            color: #93c5fd;
+        }
+
+        .status.success {
+            display: block;
+            background: #14532d;
+            border: 1px solid #16a34a;
+            color: #86efac;
+        }
+
+        .status.error {
+            display: block;
+            background: #450a0a;
+            border: 1px solid #dc2626;
+            color: #fca5a5;
+        }
+
         .xml-preview {
             background: #0f172a;
             border: 1px solid #334155;
@@ -121,6 +176,7 @@
             max-height: 300px;
             overflow-y: auto;
         }
+
         .tts-item {
             background: #1a2332;
             border: 1px solid #334155;
@@ -131,14 +187,17 @@
             align-items: center;
             gap: 1rem;
         }
+
         .tts-item .text {
             flex: 1;
             font-size: 0.95rem;
         }
+
         .tts-item .play-btn {
             padding: 0.5rem 1rem;
             font-size: 0.85rem;
         }
+
         .badge {
             display: inline-block;
             padding: 0.2rem 0.6rem;
@@ -147,23 +206,46 @@
             font-weight: 600;
             margin-right: 0.5rem;
         }
-        .badge-say { background: #7c3aed; color: white; }
-        .badge-gather { background: #0891b2; color: white; }
-        .voice-select { max-width: 300px; display: inline-block; }
+
+        .badge-say {
+            background: #7c3aed;
+            color: white;
+        }
+
+        .badge-gather {
+            background: #0891b2;
+            color: white;
+        }
+
+        .voice-select {
+            max-width: 300px;
+            display: inline-block;
+        }
+
         .divider {
             border: none;
             border-top: 1px solid #334155;
             margin: 1.5rem 0;
         }
+
         .speaking {
             animation: pulse 1s ease-in-out infinite;
         }
+
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1>🔊 TwiML TTS Preview</h1>
@@ -172,8 +254,9 @@
         <!-- Option 1: Fetch from endpoint -->
         <div class="card">
             <label>Option 1: Fetch TwiML from your local API</label>
-            <input type="text" id="twimlUrl" placeholder="http://localhost:8000/api/webhooks/twilio/twiml/outbound?call_session_id=...&token=..." 
-                   value="http://localhost:8000/api/webhooks/twilio/twiml/outbound?call_session_id=019e6e88-6347-716d-8b4d-422f46c1568e&token=XzPAOCoE7vX47csfevVYCWaHfjQK5QY8MvV3asnM&dial_mode=auto_dialer">
+            <input type="text" id="twimlUrl"
+                placeholder="http://localhost:8000/api/webhooks/twilio/twiml/outbound?call_session_id=...&token=..."
+                value="http://localhost:8000/api/webhooks/twilio/twiml/outbound?call_session_id=019e6e88-6347-716d-8b4d-422f46c1568e&token=XzPAOCoE7vX47csfevVYCWaHfjQK5QY8MvV3asnM&dial_mode=auto_dialer">
             <button class="btn-primary" onclick="fetchTwiml()">📡 Fetch TwiML</button>
         </div>
 
@@ -182,7 +265,7 @@
             <label>Option 2: Paste TwiML XML directly</label>
             <textarea id="twimlXml" placeholder='<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="alice">Your text here...</Say>
+  <Say voice="Polly.Joanna">Your text here...</Say>
 </Response>'></textarea>
             <button class="btn-warning" onclick="parsePastedTwiml()">📋 Parse TwiML</button>
         </div>
@@ -238,7 +321,7 @@
             voices = synth.getVoices();
             const select = document.getElementById('voiceSelect');
             select.innerHTML = '';
-            
+
             // Prioritize Hindi and English voices
             const sorted = [...voices].sort((a, b) => {
                 const aHi = a.lang.startsWith('hi') ? -2 : a.lang.startsWith('en') ? -1 : 0;
@@ -298,7 +381,7 @@
         async function fetchTwiml() {
             const url = document.getElementById('twimlUrl').value.trim();
             if (!url) return setStatus('Please enter URL.', 'error');
-            
+
             setStatus('Fetching TwiML...', 'info');
             try {
                 const resp = await fetch(url);
@@ -322,11 +405,11 @@
 
         function parseTwiml(xml) {
             document.getElementById('xmlPreview').textContent = xml;
-            
+
             const parser = new DOMParser();
             const doc = parser.parseFromString(xml, 'text/xml');
             const sayElements = doc.querySelectorAll('Say');
-            
+
             segments = [];
             const container = document.getElementById('ttsSegments');
             container.innerHTML = '';
@@ -335,7 +418,7 @@
                 const text = say.textContent.trim();
                 const voice = say.getAttribute('voice') || 'default';
                 const parent = say.parentElement?.tagName || '';
-                
+
                 segments.push({ text, voice, parent });
 
                 const div = document.createElement('div');
@@ -352,7 +435,7 @@
             });
 
             document.getElementById('results').style.display = segments.length ? 'block' : 'none';
-            
+
             if (!segments.length) {
                 setStatus('⚠️ No <Say> elements found in TwiML.', 'error');
             }
@@ -391,4 +474,5 @@
         }
     </script>
 </body>
+
 </html>

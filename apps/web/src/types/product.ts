@@ -28,6 +28,7 @@ export type CallRecord = {
   started_at?: string | null;
   ended_at?: string | null;
   created_at: string;
+  metadata?: Record<string, any>;
   controls?: {
     muted: boolean;
     on_hold: boolean;
@@ -39,6 +40,7 @@ export type CallEvent = {
   provider_event_type?: string | null;
   status_after?: string | null;
   occurred_at: string;
+  payload?: any;
 };
 
 export type CallDetail = CallRecord & {
