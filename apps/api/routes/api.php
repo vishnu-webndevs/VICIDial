@@ -475,6 +475,13 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
     $callSessionId = (string) $request->query('call_session_id', '');
     $token = (string) $request->query('token', '');
 
+    \Illuminate\Support\Facades\Log::info('Twilio twiml/outbound webhook triggered', [
+        'call_session_id' => $callSessionId,
+        'method' => $request->method(),
+        'query' => $request->query(),
+        'ip' => $request->ip(),
+    ]);
+
     if ($callSessionId === '') {
         $twiml = implode('', [
             '<?xml version="1.0" encoding="UTF-8"?>',
@@ -489,6 +496,9 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
 
     $call = \App\Models\CallSession::query()->where('id', $callSessionId)->first();
     if (! $call) {
+        \Illuminate\Support\Facades\Log::warning('Twilio twiml/outbound: CallSession not found', [
+            'call_session_id' => $callSessionId,
+        ]);
         return response('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>', 200, ['Content-Type' => 'text/xml']);
     }
 
@@ -496,6 +506,11 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
     $dialMode = (string) ($metadata['dial_mode'] ?? 'normal');
     $expected = (string) ($metadata['twiml_token'] ?? '');
     if ($expected !== '' && ! hash_equals($expected, $token)) {
+        \Illuminate\Support\Facades\Log::warning('Twilio twiml/outbound: Invalid twiml token', [
+            'call_session_id' => $callSessionId,
+            'expected' => $expected,
+            'received' => $token,
+        ]);
         return response('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>', 200, ['Content-Type' => 'text/xml']);
     }
 
@@ -512,15 +527,70 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
     }
 
     if ($dialMode === 'auto_dialer') {
+        $tenantSetting = \App\Models\TenantSetting::query()->where('tenant_id', $call->tenant_id)->first();
+        $voiceLocale = $tenantSetting?->voice_locale ?? 'hi-IN';
+
+        // Map voice locale to beautiful neural Amazon Polly voices
+        $voice = 'Polly.Aditi-Neural';
+        $language = 'hi-IN';
+
+        if (str_starts_with($voiceLocale, 'en-US')) {
+            $voice = 'Polly.Joanna-Neural';
+            $language = 'en-US';
+        } elseif (str_starts_with($voiceLocale, 'en-IN')) {
+            $voice = 'Polly.Raveena-Neural';
+            $language = 'en-IN';
+        } elseif (str_starts_with($voiceLocale, 'hi')) {
+            $voice = 'Polly.Aditi-Neural';
+            $language = 'hi-IN';
+        } else {
+            $voice = 'Polly.Aditi-Neural';
+            $language = $voiceLocale;
+        }
+
         $prompt = (string) ($metadata['tts_prompt'] ?? 'Press 1 if you are interested.');
+        
+        // Escape plain text first for valid XML
+        $escapedPrompt = htmlspecialchars($prompt, ENT_QUOTES);
+        
+        // Format SSML with natural phrasing and pauses
+        $ssmlPrompt = $escapedPrompt;
+        if (! str_contains($ssmlPrompt, '<speak>')) {
+            $ssmlPrompt = preg_replace('/\s+/', ' ', $ssmlPrompt);
+            $ssmlPrompt = str_ireplace('to press 1', ', to press 1', $ssmlPrompt);
+            $ssmlPrompt = str_ireplace('press 1', ', press 1', $ssmlPrompt);
+            $ssmlPrompt = preg_replace('/,\s*/', ', <break time="800ms"/> ', $ssmlPrompt);
+            $ssmlPrompt = preg_replace('/\.\s*/', '. <break time="1200ms"/> ', $ssmlPrompt);
+            $ssmlPrompt = '<speak>' . trim($ssmlPrompt) . '</speak>';
+        }
+
+        $noInputText = 'No input received. Goodbye.';
+        if (str_starts_with($voiceLocale, 'hi')) {
+            $noInputText = 'Koi jawaab nahi mila. Alvida.';
+        }
+        $escapedNoInput = htmlspecialchars($noInputText, ENT_QUOTES);
+
         $actionUrl = url('/api/webhooks/twilio/gather-result?call_session_id=' . $callSessionId);
+        if (str_starts_with(config('app.url'), 'https://') && str_starts_with($actionUrl, 'http://')) {
+            $actionUrl = str_replace('http://', 'https://', $actionUrl);
+        }
+
+        \Illuminate\Support\Facades\Log::info('Generating neural TwiML for auto_dialer', [
+            'call_session_id' => $callSessionId,
+            'action_url' => $actionUrl,
+            'voice' => $voice,
+            'language' => $language,
+            'prompt' => $prompt,
+            'ssml_prompt' => $ssmlPrompt,
+        ]);
+
         $twiml = implode('', [
             '<?xml version="1.0" encoding="UTF-8"?>',
             '<Response>',
-            '<Gather numDigits="1" action="' . htmlspecialchars($actionUrl, ENT_QUOTES) . '" method="POST">',
-            '<Say voice="alice">' . htmlspecialchars($prompt, ENT_QUOTES) . '</Say>',
+            '<Gather numDigits="1" timeout="10" action="' . htmlspecialchars($actionUrl, ENT_QUOTES) . '" method="POST">',
+            '<Say voice="' . $voice . '" language="' . $language . '">' . $ssmlPrompt . '</Say>',
             '</Gather>',
-            '<Say voice="alice">No input received. Goodbye.</Say>',
+            '<Say voice="' . $voice . '" language="' . $language . '">' . $escapedNoInput . '</Say>',
             '<Hangup/>',
             '</Response>',
         ]);

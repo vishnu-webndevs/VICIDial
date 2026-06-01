@@ -351,69 +351,13 @@ class TwilioVoiceWebhookController extends Controller
 
     private function resolveRecordingPolicy(string $tenantId, array $destinations = []): array
     {
-        if ($tenantId === '') {
-            return ['enabled' => false];
-        }
-        $setting = TenantSetting::query()->where('tenant_id', $tenantId)->first();
-        $metadata = (array) ($setting?->metadata ?? []);
-        $policy = (array) ($metadata['recording_policy'] ?? []);
-
-        $base = array_merge([
+        // Force-disable call recording globally to prevent any Twilio recording charges
+        return [
             'enabled' => false,
             'require_consent' => false,
-            'consent_prompt' => 'This call may be recorded.',
+            'consent_prompt' => '',
             'destination_overrides' => [],
-        ], $policy);
-
-        if ($destinations === []) {
-            return $base;
-        }
-
-        $overrides = (array) ($base['destination_overrides'] ?? []);
-        $enabledAny = false;
-        $requireConsentAny = false;
-        $consentPrompt = (string) ($base['consent_prompt'] ?? 'This call may be recorded.');
-
-        foreach ($destinations as $destination) {
-            $destination = (string) $destination;
-            $destinationPolicy = $base;
-
-            foreach ($overrides as $override) {
-                if (! is_array($override)) {
-                    continue;
-                }
-                $pattern = (string) ($override['pattern'] ?? '');
-                if ($pattern === '' || ! $this->destinationMatches($pattern, $destination)) {
-                    continue;
-                }
-
-                if (array_key_exists('enabled', $override)) {
-                    $destinationPolicy['enabled'] = (bool) $override['enabled'];
-                }
-                if (array_key_exists('require_consent', $override)) {
-                    $destinationPolicy['require_consent'] = (bool) $override['require_consent'];
-                }
-                if (array_key_exists('consent_prompt', $override) && is_string($override['consent_prompt'])) {
-                    $destinationPolicy['consent_prompt'] = (string) $override['consent_prompt'];
-                }
-
-                break;
-            }
-
-            if (($destinationPolicy['enabled'] ?? false) === true) {
-                $enabledAny = true;
-                if (($destinationPolicy['require_consent'] ?? false) === true) {
-                    $requireConsentAny = true;
-                    $consentPrompt = (string) ($destinationPolicy['consent_prompt'] ?? $consentPrompt);
-                }
-            }
-        }
-
-        return array_merge($base, [
-            'enabled' => $enabledAny,
-            'require_consent' => $requireConsentAny,
-            'consent_prompt' => $consentPrompt,
-        ]);
+        ];
     }
 
     private function destinationMatches(string $pattern, string $destination): bool
@@ -441,8 +385,18 @@ class TwilioVoiceWebhookController extends Controller
         $payload = $request->all();
         $callSessionId = (string) $request->query('call_session_id', '');
         
+        \Illuminate\Support\Facades\Log::info('Twilio gatherResult webhook triggered', [
+            'call_session_id' => $callSessionId,
+            'payload' => $payload,
+            'method' => $request->method(),
+            'ip' => $request->ip(),
+        ]);
+
         $callSession = CallSession::query()->where('id', $callSessionId)->first();
         if (! $callSession) {
+            \Illuminate\Support\Facades\Log::warning('Twilio gatherResult: CallSession not found', [
+                'call_session_id' => $callSessionId,
+            ]);
             return $this->twimlResponse($this->wrapTwiml('<Hangup/>'));
         }
 
@@ -452,17 +406,60 @@ class TwilioVoiceWebhookController extends Controller
         if ($leadId !== '') {
             $lead = \App\Models\Lead::query()->where('id', $leadId)->first();
             if ($lead) {
+                \Illuminate\Support\Facades\Log::info('Twilio gatherResult: Lead found, updating status', [
+                    'lead_id' => $leadId,
+                    'digits' => $digits,
+                ]);
                 if ($digits === '1') {
                     $lead->status = 'qualified';
                     $lead->last_disposition = array_merge((array) $lead->last_disposition, ['reason' => 'Interested']);
                 } else {
                     $lead->status = 'follow_up';
-                    $lead->last_disposition = array_merge((array) $lead->last_disposition, ['reason' => 'Call ended without key press']);
+                    $lead->last_disposition = array_merge((array) $lead->last_disposition, ['reason' => 'Call ended without key press or unrecognized key']);
                 }
                 $lead->save();
+                \Illuminate\Support\Facades\Log::info('Twilio gatherResult: Lead saved successfully', [
+                    'lead_id' => $leadId,
+                    'status' => $lead->status,
+                ]);
+            } else {
+                \Illuminate\Support\Facades\Log::warning('Twilio gatherResult: Lead not found in DB', [
+                    'lead_id' => $leadId,
+                ]);
             }
+        } else {
+            \Illuminate\Support\Facades\Log::warning('Twilio gatherResult: lead_id is missing from CallSession metadata', [
+                'metadata' => $callSession->metadata,
+            ]);
         }
 
-        return $this->twimlResponse($this->wrapTwiml('<Say voice="alice">Thank you. Goodbye.</Say><Hangup/>'));
+        $tenantSetting = \App\Models\TenantSetting::query()->where('tenant_id', $callSession->tenant_id)->first();
+        $voiceLocale = $tenantSetting?->voice_locale ?? 'hi-IN';
+
+        // Map voice locale to beautiful neural Amazon Polly voices
+        $voice = 'Polly.Aditi-Neural';
+        $language = 'hi-IN';
+
+        if (str_starts_with($voiceLocale, 'en-US')) {
+            $voice = 'Polly.Joanna-Neural';
+            $language = 'en-US';
+        } elseif (str_starts_with($voiceLocale, 'en-IN')) {
+            $voice = 'Polly.Raveena-Neural';
+            $language = 'en-IN';
+        } elseif (str_starts_with($voiceLocale, 'hi')) {
+            $voice = 'Polly.Aditi-Neural';
+            $language = 'hi-IN';
+        } else {
+            $voice = 'Polly.Aditi-Neural';
+            $language = $voiceLocale;
+        }
+
+        $thankYouText = 'Thank you. Goodbye.';
+        if (str_starts_with($voiceLocale, 'hi')) {
+            $thankYouText = 'Dhanyawaad. Alvida.';
+        }
+        $escapedThankYou = htmlspecialchars($thankYouText, ENT_QUOTES);
+
+        return $this->twimlResponse($this->wrapTwiml('<Say voice="' . $voice . '" language="' . $language . '">' . $escapedThankYou . '</Say><Hangup/>'));
     }
 }

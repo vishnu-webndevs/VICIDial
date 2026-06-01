@@ -228,18 +228,24 @@ export function SectionCard({
 }
 
 export function StatusBadge({ label, color: overrideColor }: { label: string; color?: "default" | "primary" | "secondary" | "error" | "info" | "success" | "warning" }) {
-  const normalized = label.toLowerCase();
+  const normalized = label.replace(/[_-]/g, " ").toLowerCase();
   const color = overrideColor || (
     normalized === "completed" || normalized === "connected" || normalized === "active" || normalized === "approved"
       ? "success"
-      : normalized === "failed" || normalized === "error" || normalized === "rejected"
+      : normalized === "failed" || normalized === "error" || normalized === "rejected" || normalized === "busy"
       ? "error"
-      : normalized === "ringing" || normalized === "queued" || normalized === "scheduled" || normalized === "pending"
+      : normalized === "ringing" || normalized === "queued" || normalized === "scheduled" || normalized === "pending" || normalized === "no answer" || normalized === "timeout"
       ? "warning"
       : "default"
   );
 
-  return <Chip component="span" label={label} color={color} size="medium" />;
+  const displayLabel = label
+    .replace(/[_-]/g, " ")
+    .split(" ")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+
+  return <Chip component="span" label={displayLabel} color={color} size="medium" />;
 }
 
 type LoadingStateProps = {

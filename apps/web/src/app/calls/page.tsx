@@ -308,25 +308,71 @@ export default function CallDashboardPage() {
               </Table>
             </Paper>
 
-            <Paper component="aside" variant="outlined" sx={{ p: 2 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Selected Call</Typography>
+            <Paper component="aside" variant="outlined" sx={{ p: 2.5, height: "fit-content", minWidth: 280 }}>
+              <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Selected Call Context</Typography>
               {selectedCall ? (
-                <Stack spacing={1} sx={{ mt: 1.5 }}>
+                <Stack spacing={1.5}>
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     <Box component="span" sx={{ color: "text.secondary", typography: "body2" }}>Status:</Box>
                     <StatusBadge label={selectedCall.status} />
                   </Box>
-                  <Typography variant="body2"><Box component="span" sx={{ color: "text.secondary" }}>From:</Box> {selectedCall.from_number}</Typography>
-                  <Typography variant="body2"><Box component="span" sx={{ color: "text.secondary" }}>To:</Box> {selectedCall.to_number}</Typography>
-                  <Typography variant="body2"><Box component="span" sx={{ color: "text.secondary" }}>Provider:</Box> {selectedCall.provider?.label ?? "N/A"}</Typography>
-                  <Typography variant="body2"><Box component="span" sx={{ color: "text.secondary" }}>Duration:</Box> {selectedCall.duration_seconds}s</Typography>
-                  <Typography variant="body2"><Box component="span" sx={{ color: "text.secondary" }}>Created:</Box> {new Date(selectedCall.created_at).toLocaleString()}</Typography>
-                  <MuiButton component={Link} href={`/calls/${selectedCall.id}`} variant="outlined" color="inherit" sx={{ alignSelf: "flex-start" }}>
+                  
+                  {/* Detailed Connection Alerts */}
+                  {selectedCall.status === "busy" && (
+                    <Box sx={{ p: 1, borderRadius: 1, bgcolor: "error.lighter", border: "1px solid", borderColor: "error.light" }}>
+                      <Typography variant="caption" color="error.dark" sx={{ fontWeight: "bold", display: "block" }}>
+                        🚫 Line Busy (ग्राहक व्यस्त थे)
+                      </Typography>
+                    </Box>
+                  )}
+                  {selectedCall.status === "no_answer" && (
+                    <Box sx={{ p: 1, borderRadius: 1, bgcolor: "warning.lighter", border: "1px solid", borderColor: "warning.light" }}>
+                      <Typography variant="caption" color="warning.dark" sx={{ fontWeight: "bold", display: "block" }}>
+                        ⏳ No Answer (कॉल नहीं उठाया)
+                      </Typography>
+                    </Box>
+                  )}
+                  {selectedCall.status === "rejected" && (
+                    <Box sx={{ p: 1, borderRadius: 1, bgcolor: "error.lighter", border: "1px solid", borderColor: "error.light" }}>
+                      <Typography variant="caption" color="error.dark" sx={{ fontWeight: "bold", display: "block" }}>
+                        🛑 Call Rejected (कॉल काट दिया)
+                      </Typography>
+                    </Box>
+                  )}
+                  {selectedCall.status === "failed" && (
+                    <Box sx={{ p: 1, borderRadius: 1, bgcolor: "error.lighter", border: "1px solid", borderColor: "error.light" }}>
+                      <Typography variant="caption" color="error.dark" sx={{ fontWeight: "bold", display: "block" }}>
+                        ⚠️ Failed: {selectedCall.failure_reason || "Connection issue"}
+                      </Typography>
+                    </Box>
+                  )}
+
+                  <Typography variant="body2"><Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}>From:</Box> {selectedCall.from_number}</Typography>
+                  <Typography variant="body2"><Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}>To:</Box> {selectedCall.to_number}</Typography>
+                  <Typography variant="body2"><Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}>Provider:</Box> {selectedCall.provider?.label ?? "N/A"}</Typography>
+                  
+                  <Typography variant="body2">
+                    <Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}>Duration:</Box>{" "}
+                    {selectedCall.duration_seconds !== null && selectedCall.duration_seconds !== undefined
+                      ? `${selectedCall.duration_seconds}s`
+                      : "0s"}
+                  </Typography>
+
+                  <Typography variant="body2">
+                    <Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}>Started:</Box>{" "}
+                    {selectedCall.started_at ? new Date(selectedCall.started_at).toLocaleString() : "N/A"}
+                  </Typography>
+                  <Typography variant="body2">
+                    <Box component="span" sx={{ color: "text.secondary", fontWeight: 500 }}>Ended:</Box>{" "}
+                    {selectedCall.ended_at ? new Date(selectedCall.ended_at).toLocaleString() : "N/A"}
+                  </Typography>
+
+                  <MuiButton component={Link} href={`/calls/${selectedCall.id}`} variant="outlined" color="primary" fullWidth sx={{ mt: 1 }}>
                     Open Full Detail
                   </MuiButton>
                 </Stack>
               ) : (
-                <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>Select a call row to view detail context.</Typography>
+                <Typography variant="body2" color="text.secondary">Select a call row to view detail context.</Typography>
               )}
             </Paper>
           </Box>
