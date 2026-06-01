@@ -561,7 +561,9 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
             $ssmlPrompt = str_ireplace('press 1', ', press 1', $ssmlPrompt);
             $ssmlPrompt = preg_replace('/,\s*/', ', <break time="800ms"/> ', $ssmlPrompt);
             $ssmlPrompt = preg_replace('/\.\s*/', '. <break time="1200ms"/> ', $ssmlPrompt);
-            $ssmlPrompt = '<speak>' . trim($ssmlPrompt) . '</speak>';
+        } else {
+            // Strip any <speak> and </speak> tags if they exist to avoid nesting errors in Twilio Say
+            $ssmlPrompt = preg_replace('/<\/?speak[^>]*>/i', '', $ssmlPrompt);
         }
 
         $noInputText = 'No input received. Goodbye.';
