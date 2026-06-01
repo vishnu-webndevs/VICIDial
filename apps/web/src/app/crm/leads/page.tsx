@@ -14,6 +14,7 @@ import {
   TableRow,
   TextField,
   Typography,
+  Chip,
 } from "@/ui";
 import { AppShell, SectionCard, StatusBadge } from "@/components/app-shell";
 import { EmptyPanel, SkeletonLines, ToastMessage } from "@/components/ui-primitives";
@@ -24,9 +25,10 @@ import {
   importLeadsFromFile,
   listLeads,
   saveLead,
+  listAgents,
 } from "@/lib/product-api";
 import { getTenantContext } from "@/lib/tenant-context";
-import type { Lead, LeadImportStatus, LeadStatus } from "@/types/product";
+import type { Lead, LeadImportStatus, LeadStatus, AgentEntity } from "@/types/product";
 
 const leadStatuses: LeadStatus[] = [
   "new",
@@ -130,6 +132,7 @@ function parsePhoneForForm(phone: string, fallbackCountry: string): { phone_coun
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [agents, setAgents] = useState<AgentEntity[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "error">("neutral");
@@ -140,19 +143,16 @@ export default function LeadsPage() {
   const [importState, setImportState] = useState<LeadImportStatus | null>(null);
   const [importing, setImporting] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState<string>("");
-  const [ownerDrafts, setOwnerDrafts] = useState<Record<string, string>>({});
 
   async function load() {
     setLoading(true);
     try {
-      const data = await listLeads();
-      setLeads(data);
-      setOwnerDrafts(
-        data.reduce<Record<string, string>>((acc, lead) => {
-          acc[lead.id] = lead.owner_agent ?? "";
-          return acc;
-        }, {})
-      );
+      const [leadsData, agentsData] = await Promise.all([
+        listLeads(),
+        listAgents().catch(() => []),
+      ]);
+      setLeads(leadsData);
+      setAgents(agentsData);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Failed to load leads.");
       setMessageTone("error");
@@ -317,6 +317,16 @@ export default function LeadsPage() {
     [leads, search, statusFilter]
   );
   const selectedLead = filtered.find((lead) => lead.id === selectedLeadId) ?? null;
+  const availableAgentNames = useMemo(() => {
+    const names = new Set(agents.map((a) => a.company_number));
+    leads.forEach((lead) => {
+      if (lead.owner_agent && lead.owner_agent !== "Unassigned") {
+        names.add(lead.owner_agent);
+      }
+    });
+    return Array.from(names);
+  }, [agents, leads]);
+
   const leadFormRef = useRef<HTMLDivElement | null>(null);
   const isEditing = Boolean(form.id);
 
@@ -341,32 +351,6 @@ export default function LeadsPage() {
       await load();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Failed to update lead status.");
-      setMessageTone("error");
-    }
-  }
-
-  async function updateLeadOwnerInline(lead: Lead) {
-    const owner = ownerDrafts[lead.id] || "Unassigned";
-    try {
-      await saveLead(
-        {
-          full_name: lead.full_name,
-          phone: lead.phone,
-          email: lead.email,
-          company: lead.company,
-          status: lead.status,
-          owner_agent: owner,
-          next_follow_up_at: lead.next_follow_up_at ?? null,
-          tags: lead.tags,
-          notes: lead.notes,
-        },
-        lead.id
-      );
-      setMessage("Lead owner updated.");
-      setMessageTone("success");
-      await load();
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Failed to update lead owner.");
       setMessageTone("error");
     }
   }
@@ -613,17 +597,17 @@ export default function LeadsPage() {
           <SkeletonLines rows={8} />
         ) : (
           <Paper variant="outlined" sx={{ overflowX: "auto" }}>
-            <Table size="medium" sx={{ width: "100%", minWidth: 980, tableLayout: "fixed" }}>
+            <Table size="small" sx={{ width: "100%", minWidth: 980, tableLayout: "fixed" }}>
               <TableHead>
                 <TableRow sx={{ bgcolor: "action.hover" }}>
-                  <TableCell sx={{ width: "16%" }}>Name</TableCell>
-                  <TableCell sx={{ width: "12%" }}>Phone</TableCell>
-                  <TableCell sx={{ width: "16%" }}>Status</TableCell>
-                  <TableCell sx={{ width: "16%" }}>Agent</TableCell>
-                  <TableCell sx={{ width: "8%" }}>Tags</TableCell>
-                  <TableCell sx={{ width: "10%" }}>Follow-Up</TableCell>
-                  <TableCell sx={{ width: "12%" }}>Notes</TableCell>
-                  <TableCell sx={{ width: "10%" }}>Action</TableCell>
+                  <TableCell sx={{ width: "16%", py: 1.5 }}>Name</TableCell>
+                  <TableCell sx={{ width: "12%", py: 1.5 }}>Phone</TableCell>
+                  <TableCell sx={{ width: "16%", py: 1.5 }}>Status</TableCell>
+                  <TableCell sx={{ width: "16%", py: 1.5 }}>Agent</TableCell>
+                  <TableCell sx={{ width: "8%", py: 1.5 }}>Tags</TableCell>
+                  <TableCell sx={{ width: "10%", py: 1.5 }}>Follow-Up</TableCell>
+                  <TableCell sx={{ width: "12%", py: 1.5 }}>Notes</TableCell>
+                  <TableCell sx={{ width: "10%", py: 1.5 }}>Action</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -634,81 +618,238 @@ export default function LeadsPage() {
                     onClick={() => setSelectedLeadId(lead.id)}
                     sx={{
                       cursor: "pointer",
-                      verticalAlign: "top",
                       bgcolor: selectedLeadId === lead.id ? "action.selected" : "inherit",
+                      "&:hover": {
+                        bgcolor: "action.hover",
+                      },
                     }}
                   >
-                    <TableCell sx={{ verticalAlign: "top", overflow: "hidden" }}>
-                      <Typography variant="body2" sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {lead.full_name}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {lead.company || "No company"}
-                      </Typography>
+                    <TableCell sx={{ verticalAlign: "middle", overflow: "hidden", py: 1 }}>
+                      <Stack direction="row" spacing={1.25} alignItems="center">
+                        <Box
+                          sx={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: "50%",
+                            bgcolor: "primary.light",
+                            color: "primary.contrastText",
+                            display: "grid",
+                            placeItems: "center",
+                            fontWeight: 700,
+                            fontSize: "0.8125rem",
+                            flexShrink: 0,
+                          }}
+                        >
+                          {lead.full_name ? lead.full_name.trim().charAt(0).toUpperCase() : "?"}
+                        </Box>
+                        <Box sx={{ minWidth: 0 }}>
+                          <Typography
+                            variant="body2"
+                            sx={{
+                              fontWeight: 600,
+                              color: "text.primary",
+                              whiteSpace: "nowrap",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                            }}
+                          >
+                            {lead.full_name}
+                          </Typography>
+                          {lead.company ? (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                              sx={{
+                                display: "block",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {lead.company}
+                            </Typography>
+                          ) : null}
+                        </Box>
+                      </Stack>
                     </TableCell>
-                    <TableCell sx={{ verticalAlign: "top", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <TableCell
+                      sx={{
+                        verticalAlign: "middle",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        fontFamily: "monospace",
+                        fontSize: "0.875rem",
+                        letterSpacing: "0.2px",
+                      }}
+                    >
                       {lead.phone}
                     </TableCell>
-                    <TableCell sx={{ verticalAlign: "top" }}>
-                      <Stack spacing={0.75}>
-                        <StatusBadge label={lead.status} />
-                        <TextField
-                          select
-                          size="medium"
-                          value={lead.status}
-                          onClick={(event) => event.stopPropagation()}
-                          onChange={(event) =>
-                            void updateLeadStatusInline(lead, event.target.value as LeadStatus)
+                    <TableCell sx={{ verticalAlign: "middle" }}>
+                      <TextField
+                        select
+                        size="small"
+                        value={lead.status}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={(event) =>
+                          void updateLeadStatusInline(lead, event.target.value as LeadStatus)
+                        }
+                        fullWidth
+                        SelectProps={{
+                          renderValue: (value) => (
+                            <StatusBadge label={value as string} />
+                          ),
+                          sx: {
+                            minHeight: "auto",
+                            "& .MuiSelect-select": {
+                              py: "2px",
+                              pl: "4px",
+                              pr: "24px !important",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "flex-start",
+                            },
+                            "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+                            "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
+                            "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "none" },
                           }
-                          fullWidth
-                        >
-                          {leadStatuses.map((status) => (
-                            <MenuItem key={status} value={status}>
-                              {status}
-                            </MenuItem>
+                        }}
+                        sx={{
+                          width: "fit-content",
+                          bgcolor: "transparent",
+                        }}
+                      >
+                        {leadStatuses.map((status) => (
+                          <MenuItem key={status} value={status} sx={{ py: 0.75 }}>
+                            <StatusBadge label={status} />
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </TableCell>
+                    <TableCell sx={{ verticalAlign: "middle" }}>
+                      <TextField
+                        select
+                        size="small"
+                        value={lead.owner_agent || "Unassigned"}
+                        onClick={(event) => event.stopPropagation()}
+                        onChange={async (event) => {
+                          const newOwner = event.target.value;
+                          try {
+                            await saveLead(
+                              {
+                                full_name: lead.full_name,
+                                phone: lead.phone,
+                                email: lead.email,
+                                company: lead.company,
+                                status: lead.status,
+                                owner_agent: newOwner,
+                                next_follow_up_at: lead.next_follow_up_at ?? null,
+                                tags: lead.tags,
+                                notes: lead.notes,
+                              },
+                              lead.id
+                            );
+                            setMessage(`Agent assigned: ${newOwner}`);
+                            setMessageTone("success");
+                            await load();
+                          } catch (err) {
+                            setMessage(err instanceof Error ? err.message : "Failed to update agent assignment.");
+                            setMessageTone("error");
+                          }
+                        }}
+                        fullWidth
+                        SelectProps={{
+                          sx: {
+                            fontSize: "0.8125rem",
+                            py: "2px",
+                            px: "4px",
+                            bgcolor: "action.hover",
+                            borderRadius: "4px",
+                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "transparent" },
+                            "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0, 0, 0, 0.08)" },
+                            "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "primary.main" },
+                          }
+                        }}
+                      >
+                        <MenuItem value="Unassigned">
+                          <Typography variant="body2" sx={{ color: "text.secondary", fontStyle: "italic" }}>
+                            Unassigned
+                          </Typography>
+                        </MenuItem>
+                        {availableAgentNames.map((name) => (
+                          <MenuItem key={name} value={name}>
+                            <Typography variant="body2">{name}</Typography>
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </TableCell>
+                    <TableCell sx={{ verticalAlign: "middle" }}>
+                      {lead.tags.length > 0 ? (
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                          {lead.tags.map((tag) => (
+                            <Chip
+                              key={tag}
+                              label={tag}
+                              size="small"
+                              sx={{
+                                fontSize: "0.7rem",
+                                height: 18,
+                                bgcolor: "action.selected",
+                                color: "text.secondary",
+                                fontWeight: 500,
+                              }}
+                            />
                           ))}
-                        </TextField>
-                      </Stack>
+                        </Stack>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic" }}>
+                          None
+                        </Typography>
+                      )}
                     </TableCell>
-                    <TableCell sx={{ verticalAlign: "top" }}>
-                      <Stack spacing={0.75} alignItems="stretch">
-                        <TextField
-                          size="medium"
-                          value={ownerDrafts[lead.id] ?? ""}
-                          onClick={(event) => event.stopPropagation()}
-                          onChange={(event) =>
-                            setOwnerDrafts((prev) => ({ ...prev, [lead.id]: event.target.value }))
-                          }
-                          placeholder="Owner"
-                          fullWidth
-                        />
-                        <MuiButton
-                          type="button"
-                          size="medium"
-                          variant="outlined"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            void updateLeadOwnerInline(lead);
+                    <TableCell sx={{ verticalAlign: "middle" }}>
+                      {lead.next_follow_up_at ? (
+                        <Typography variant="body2" sx={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
+                          {new Date(lead.next_follow_up_at).toLocaleString([], {
+                            month: "short",
+                            day: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </Typography>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic" }}>
+                          None
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell sx={{ verticalAlign: "middle" }}>
+                      {lead.notes.length > 0 ? (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{
+                            display: "-webkit-box",
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "normal",
+                            lineHeight: 1.3,
                           }}
-                          fullWidth
+                          title={lead.notes.join("\n")}
                         >
-                          Save
-                        </MuiButton>
-                      </Stack>
+                          {lead.notes[lead.notes.length - 1]}
+                        </Typography>
+                      ) : (
+                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic" }}>
+                          No notes
+                        </Typography>
+                      )}
                     </TableCell>
-                    <TableCell sx={{ verticalAlign: "top", whiteSpace: "normal", overflowWrap: "anywhere" }}>
-                      {lead.tags.join(", ") || "None"}
-                    </TableCell>
-                    <TableCell sx={{ verticalAlign: "top" }}>
-                      {lead.next_follow_up_at
-                        ? new Date(lead.next_follow_up_at).toLocaleString()
-                        : "None"}
-                    </TableCell>
-                    <TableCell sx={{ whiteSpace: "pre-line", overflowWrap: "anywhere", verticalAlign: "top" }}>
-                      <Typography variant="caption">{lead.notes.join("\n") || "No notes"}</Typography>
-                    </TableCell>
-                    <TableCell sx={{ verticalAlign: "top" }}>
-                      <Stack spacing={0.75}>
+                    <TableCell sx={{ verticalAlign: "middle" }}>
+                      <Stack direction="row" spacing={0.75} justifyContent="flex-start">
                         <MuiButton
                           type="button"
                           size="small"
@@ -736,7 +877,7 @@ export default function LeadsPage() {
                               leadFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
                             });
                           }}
-                          fullWidth
+                          sx={{ minWidth: 42, px: 1, py: 0.25, fontSize: "0.725rem" }}
                         >
                           Edit
                         </MuiButton>
@@ -762,7 +903,7 @@ export default function LeadsPage() {
                               }
                             }
                           }}
-                          fullWidth
+                          sx={{ minWidth: 42, px: 1, py: 0.25, fontSize: "0.725rem" }}
                         >
                           Delete
                         </MuiButton>
