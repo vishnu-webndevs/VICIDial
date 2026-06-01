@@ -382,7 +382,7 @@ class TwilioVoiceWebhookController extends Controller
         return $pattern === $destination;
     }
 
-    public function gatherResult(Request $request): \Illuminate\Http\JsonResponse
+    public function gatherResult(Request $request): Response
     {
         $payload = $request->all();
         $callSessionId = (string) $request->query('call_session_id', '');
@@ -463,11 +463,6 @@ class TwilioVoiceWebhookController extends Controller
             ]);
         }
 
-        return response()->json([
-            'call_session_found' => $callSessionFound,
-            'lead_id' => $leadId,
-            'lead_found' => $leadFound,
-            'digits' => $digits,
-        ]);
+        return $this->twimlResponse($this->wrapTwiml('<Hangup/>'));
     }
 }
