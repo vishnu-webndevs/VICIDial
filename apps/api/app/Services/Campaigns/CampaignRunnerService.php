@@ -74,8 +74,7 @@ class CampaignRunnerService
         }
 
         if (! $this->isWithinAllowedCallingWindow($campaign)) {
-            $this->pauseCampaignRun($run, $campaign, 'outside_allowed_calling_window');
-            $this->writeCallCampaignLog('info', 'Call campaign paused (outside calling window).', [
+            $this->writeCallCampaignLog('info', 'Call campaign waiting (outside calling window).', [
                 'tenant_id' => $campaign->tenant_id,
                 'campaign_id' => $campaign->id,
                 'campaign_run_id' => $run->id,
@@ -170,6 +169,7 @@ class CampaignRunnerService
         $agentIndex = 0;
         $activeAgents = $agents->values();
 
+        /** @var DialQueueItem $item */
         foreach ($queueItems as $item) {
             $agent = $activeAgents[$agentIndex % $activeAgents->count()];
             $agentIndex++;
@@ -251,6 +251,7 @@ class CampaignRunnerService
 
         $staleCutoff = now()->subSeconds(self::STALE_LIVE_CALL_SECONDS);
 
+        /** @var DialQueueItem $item */
         foreach ($dialedItems as $item) {
             if (! $item->last_call_session_id) {
                 continue;
@@ -739,8 +740,12 @@ class CampaignRunnerService
         $campaign->save();
     }
 
-    private function isWithinAllowedCallingWindow(Campaign $campaign, ?Lead $lead = null): bool
+    public function isWithinAllowedCallingWindow(Campaign $campaign, ?Lead $lead = null): bool
     {
+        if (!$campaign->isWithinScheduleWindow()) {
+            return false;
+        }
+
         $settings = (array) ($campaign->settings ?? []);
         $window = (array) ($settings['allowed_calling_hours'] ?? []);
         if ($window === []) {

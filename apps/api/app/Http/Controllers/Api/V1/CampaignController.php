@@ -1167,11 +1167,15 @@ class CampaignController extends Controller
     private function serializeCampaign(Campaign $campaign): array
     {
         $settings = (array) ($campaign->settings ?? []);
+        $status = $campaign->status;
+        if ($status === 'running' && !$campaign->isWithinScheduleWindow()) {
+            $status = 'pending';
+        }
         return [
             'id' => $campaign->id,
             'name' => $campaign->name,
             'type' => $campaign->type,
-            'status' => $campaign->status,
+            'status' => $status,
             'lead_list_name' => $campaign->lead_list_name ?? '',
             'schedule_window' => $campaign->schedule_window ?? '',
             'retry_limit' => $campaign->retry_limit,

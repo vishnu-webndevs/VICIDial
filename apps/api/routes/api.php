@@ -530,21 +530,21 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
         $tenantSetting = \App\Models\TenantSetting::query()->where('tenant_id', $call->tenant_id)->first();
         $voiceLocale = $tenantSetting?->voice_locale ?? 'hi-IN';
 
-        // Map voice locale to beautiful neural Amazon Polly voices
-        $voice = 'Polly.Aditi-Neural';
+        // Map voice locale to beautiful standard Amazon Polly voices
+        $voice = 'Polly.Aditi';
         $language = 'hi-IN';
 
         if (str_starts_with($voiceLocale, 'en-US')) {
-            $voice = 'Polly.Joanna-Neural';
+            $voice = 'Polly.Joanna';
             $language = 'en-US';
         } elseif (str_starts_with($voiceLocale, 'en-IN')) {
-            $voice = 'Polly.Raveena-Neural';
+            $voice = 'Polly.Raveena';
             $language = 'en-IN';
         } elseif (str_starts_with($voiceLocale, 'hi')) {
-            $voice = 'Polly.Aditi-Neural';
+            $voice = 'Polly.Aditi';
             $language = 'hi-IN';
         } else {
-            $voice = 'Polly.Aditi-Neural';
+            $voice = 'Polly.Aditi';
             $language = $voiceLocale;
         }
 

@@ -39,6 +39,18 @@ class RunCampaignTickJob implements ShouldQueue
             return;
         }
 
+        $campaign = $run->campaign;
+        if ($campaign && !$runnerService->isWithinAllowedCallingWindow($campaign)) {
+            $this->writeTickLog('info', 'RunCampaignTickJob waiting (outside calling window).', [
+                'tenant_id' => (string) ($run->tenant_id ?? ''),
+                'campaign_id' => (string) ($run->campaign_id ?? ''),
+                'campaign_run_id' => (string) $run->id,
+            ]);
+
+            self::dispatch($run->id)->delay(now()->addSeconds(60));
+            return;
+        }
+
         $this->writeTickLog('info', 'RunCampaignTickJob handle hit.', [
             'tenant_id' => (string) ($run->tenant_id ?? ''),
             'campaign_id' => (string) ($run->campaign_id ?? ''),

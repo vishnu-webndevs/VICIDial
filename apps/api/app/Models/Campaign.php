@@ -70,4 +70,90 @@ class Campaign extends Model
     {
         return $this->hasMany(CampaignAgentAssignment::class);
     }
+
+    public function isWithinScheduleWindow(): bool
+    {
+        $window = trim((string) $this->schedule_window);
+        if ($window === '') {
+            return true;
+        }
+
+        // Fetch timezone
+        $timezone = (string) TenantSetting::query()
+            ->where('tenant_id', $this->tenant_id)
+            ->value('timezone') ?: 'UTC';
+
+        try {
+            $now = \Illuminate\Support\Carbon::now($timezone);
+        } catch (\Throwable) {
+            $now = \Illuminate\Support\Carbon::now('UTC');
+        }
+
+        // Format is typically: [Days] [HH:mm]-[HH:mm] e.g. "Mon-Fri 09:00-18:00"
+        if (preg_match('/^(?:([A-Za-z, -]+)\s+)?(\d{2}:\d{2})-(\d{2}:\d{2})$/', $window, $matches)) {
+            $daysPart = isset($matches[1]) ? trim($matches[1]) : '';
+            $startTime = $matches[2];
+            $endTime = $matches[3];
+
+            // 1. Check days part if present
+            if ($daysPart !== '') {
+                $currentDayName = $now->format('D'); // Mon, Tue, Wed, etc.
+                $allowedDays = $this->parseDaysRange($daysPart);
+                if (!in_array($currentDayName, $allowedDays, true)) {
+                    return false;
+                }
+            }
+
+            // 2. Check time part
+            $currentTime = $now->format('H:i');
+            return $currentTime >= $startTime && $currentTime <= $endTime;
+        }
+
+        return true;
+    }
+
+    private function parseDaysRange(string $daysPart): array
+    {
+        $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        $daysMap = array_flip($days);
+
+        $allowedDays = [];
+        $parts = explode(',', $daysPart);
+
+        foreach ($parts as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                continue;
+            }
+
+            if (str_contains($part, '-')) {
+                $rangeParts = explode('-', $part);
+                $startDay = trim($rangeParts[0] ?? '');
+                $endDay = trim($rangeParts[1] ?? '');
+
+                if (isset($daysMap[$startDay]) && isset($daysMap[$endDay])) {
+                    $startIndex = $daysMap[$startDay];
+                    $endIndex = $daysMap[$endDay];
+
+                    if ($startIndex <= $endIndex) {
+                        $rangeDays = array_slice($days, $startIndex, $endIndex - $startIndex + 1);
+                    } else {
+                        // Wrap around
+                        $rangeDays = array_merge(
+                            array_slice($days, $startIndex),
+                            array_slice($days, 0, $endIndex + 1)
+                        );
+                    }
+                    $allowedDays = array_merge($allowedDays, $rangeDays);
+                }
+            } else {
+                if (in_array($part, $days, true)) {
+                    $allowedDays[] = $part;
+                }
+            }
+        }
+
+        return array_unique($allowedDays);
+    }
 }
+

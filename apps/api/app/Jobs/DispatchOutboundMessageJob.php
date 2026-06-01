@@ -237,6 +237,26 @@ class DispatchOutboundMessageJob implements ShouldQueue
             }
         }
 
+        if ($this->campaignId) {
+            $campaign = Campaign::find($this->campaignId);
+            if ($campaign && !$campaign->isWithinScheduleWindow()) {
+                Log::info('Outbound message dispatch delayed (outside campaign schedule window).', [
+                    'tenant_id' => $tenantId,
+                    'lead_id' => $lead->id,
+                    'channel' => $channel,
+                    'to' => $this->maskPhone((string) $lead->phone),
+                    'bulk_batch_id' => $this->bulkBatchId,
+                    'campaign_id' => $this->campaignId,
+                    'campaign_run_id' => $this->campaignRunId,
+                    'reason' => 'outside_schedule_window',
+                    'schedule_window' => $campaign->schedule_window,
+                ]);
+
+                $this->release(60);
+                return;
+            }
+        }
+
         if ($this->campaignRunId) {
             $run = CampaignRun::query()
                 ->where('tenant_id', $tenantId)

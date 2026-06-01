@@ -239,6 +239,7 @@ class TwilioVoiceWebhookController extends Controller
             ->where('status', 'active')
             ->get();
 
+        /** @var ProviderAccount $provider */
         foreach ($providers as $provider) {
             $credentials = (array) $provider->credentials_encrypted;
             if (($credentials['account_sid'] ?? null) === $accountSid) {
@@ -436,21 +437,21 @@ class TwilioVoiceWebhookController extends Controller
         $tenantSetting = \App\Models\TenantSetting::query()->where('tenant_id', $callSession->tenant_id)->first();
         $voiceLocale = $tenantSetting?->voice_locale ?? 'hi-IN';
 
-        // Map voice locale to beautiful neural Amazon Polly voices
-        $voice = 'Polly.Aditi-Neural';
+        // Map voice locale to beautiful standard Amazon Polly voices
+        $voice = 'Polly.Aditi';
         $language = 'hi-IN';
 
         if (str_starts_with($voiceLocale, 'en-US')) {
-            $voice = 'Polly.Joanna-Neural';
+            $voice = 'Polly.Joanna';
             $language = 'en-US';
         } elseif (str_starts_with($voiceLocale, 'en-IN')) {
-            $voice = 'Polly.Raveena-Neural';
+            $voice = 'Polly.Raveena';
             $language = 'en-IN';
         } elseif (str_starts_with($voiceLocale, 'hi')) {
-            $voice = 'Polly.Aditi-Neural';
+            $voice = 'Polly.Aditi';
             $language = 'hi-IN';
         } else {
-            $voice = 'Polly.Aditi-Neural';
+            $voice = 'Polly.Aditi';
             $language = $voiceLocale;
         }
 
