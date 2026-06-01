@@ -321,21 +321,21 @@ export default function CallDashboardPage() {
                   {selectedCall.status === "busy" && (
                     <Box sx={{ p: 1, borderRadius: 1, bgcolor: "error.lighter", border: "1px solid", borderColor: "error.light" }}>
                       <Typography variant="caption" color="error.dark" sx={{ fontWeight: "bold", display: "block" }}>
-                        🚫 Line Busy (ग्राहक व्यस्त थे)
+                        🚫 Line Busy
                       </Typography>
                     </Box>
                   )}
                   {selectedCall.status === "no_answer" && (
                     <Box sx={{ p: 1, borderRadius: 1, bgcolor: "warning.lighter", border: "1px solid", borderColor: "warning.light" }}>
                       <Typography variant="caption" color="warning.dark" sx={{ fontWeight: "bold", display: "block" }}>
-                        ⏳ No Answer (कॉल नहीं उठाया)
+                        ⏳ No Answer
                       </Typography>
                     </Box>
                   )}
                   {selectedCall.status === "rejected" && (
                     <Box sx={{ p: 1, borderRadius: 1, bgcolor: "error.lighter", border: "1px solid", borderColor: "error.light" }}>
                       <Typography variant="caption" color="error.dark" sx={{ fontWeight: "bold", display: "block" }}>
-                        🛑 Call Rejected (कॉल काट दिया)
+                        🛑 Call Rejected
                       </Typography>
                     </Box>
                   )}

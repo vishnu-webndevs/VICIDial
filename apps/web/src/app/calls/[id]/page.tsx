@@ -54,8 +54,8 @@ export default function CallDetailPage() {
                 }`}>
                   <p className="font-semibold text-sm flex items-center gap-2">
                     {call.metadata.digits_pressed === "1" 
-                      ? "⭐ Customer Interested / Qualified Lead (ग्राहक ने 1 दबाया - Qualified)" 
-                      : `⌨️ IVR Key Press: ${call.metadata.digits_pressed} (ग्राहक ने ${call.metadata.digits_pressed} दबाया)`}
+                      ? "⭐ Customer Interested / Qualified Lead" 
+                      : `⌨️ IVR Key Press: ${call.metadata.digits_pressed}`}
                   </p>
                   <p className="text-xs mt-1 leading-relaxed">
                     {call.metadata.digits_pressed === "1"
@@ -69,7 +69,7 @@ export default function CallDetailPage() {
               {call.status === "busy" && (
                 <div className="rounded-md border border-rose-200 bg-rose-50 p-4 text-rose-800">
                   <p className="font-semibold text-sm flex items-center gap-2">
-                    🚫 Customer Line Busy (ग्राहक व्यस्त थे)
+                    🚫 Customer Line Busy
                   </p>
                   <p className="text-xs mt-1 text-rose-700">
                     The call was rejected or could not connect because the customer's line was busy.
@@ -79,7 +79,7 @@ export default function CallDetailPage() {
               {call.status === "no_answer" && (
                 <div className="rounded-md border border-amber-200 bg-amber-50 p-4 text-amber-800">
                   <p className="font-semibold text-sm flex items-center gap-2">
-                    ⏳ No Answer / Unanswered (ग्राहक ने कॉल नहीं उठाया)
+                    ⏳ No Answer / Unanswered
                   </p>
                   <p className="text-xs mt-1 text-amber-700">
                     The call rang successfully, but the customer did not answer the phone.
@@ -89,7 +89,7 @@ export default function CallDetailPage() {
               {call.status === "rejected" && (
                 <div className="rounded-md border border-rose-200 bg-rose-50 p-4 text-rose-800">
                   <p className="font-semibold text-sm flex items-center gap-2">
-                    🛑 Call Rejected by Customer (ग्राहक ने कॉल काट दिया)
+                    🛑 Call Rejected by Customer
                   </p>
                   <p className="text-xs mt-1 text-rose-700">
                     The customer explicitly declined or hung up the call while ringing.
@@ -99,7 +99,7 @@ export default function CallDetailPage() {
               {call.status === "failed" && (
                 <div className="rounded-md border border-red-200 bg-red-50 p-4 text-red-800">
                   <p className="font-semibold text-sm flex items-center gap-2">
-                    ⚠️ Call Connection Failed (कॉल कनेक्ट नहीं हो पाई)
+                    ⚠️ Call Connection Failed
                   </p>
                   <p className="text-xs mt-1 text-red-700">
                     {call.failure_reason || "The call failed to establish due to a provider or carrier issue."}
@@ -165,14 +165,14 @@ export default function CallDetailPage() {
             <ol className="space-y-3">
               {call.events.map((event, index) => {
                 const getEventTitle = (type: string) => {
-                  if (type === 'call.initiated') return '📞 Outbound Call Initiated (आउटबाउंड कॉल शुरू की गई)';
-                  if (type === 'call.ringing') return '🔔 Ringing (फ़ोन की घंटी बज रही है)';
-                  if (type === 'call.answered') return '✅ Call Answered by Customer (ग्राहक ने कॉल उठाया)';
-                  if (type === 'call.completed') return '🏁 Call Completed (कॉल समाप्त हुआ)';
-                  if (type === 'call.failed') return '⚠️ Connection Failed (कॉल कनेक्ट नहीं हो पाई)';
+                  if (type === 'call.initiated') return '📞 Outbound Call Initiated';
+                  if (type === 'call.ringing') return '🔔 Ringing';
+                  if (type === 'call.answered') return '✅ Call Answered by Customer';
+                  if (type === 'call.completed') return '🏁 Call Completed';
+                  if (type === 'call.failed') return '⚠️ Connection Failed';
                   if (type === 'call.gather_digits') {
                     const d = event.payload?.digits ?? '1';
-                    return `⌨️ IVR Key Press: Gathered '${d}' (ग्राहक ने ${d} दबाया)`;
+                    return `⌨️ IVR Key Press: Gathered '${d}'`;
                   }
                   return type;
                 };
