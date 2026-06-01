@@ -178,6 +178,11 @@ class CampaignController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');
+        \Illuminate\Support\Facades\Log::info('CampaignController::update hit', [
+            'id' => $id,
+            'method' => $request->method(),
+            'all' => $request->all(),
+        ]);
         $campaign = Campaign::query()
             ->where('tenant_id', $tenant->id)
             ->where('id', $id)
@@ -1195,6 +1200,7 @@ class CampaignController extends Controller
             'message_meta_template_id' => $settings['message_meta_template_id'] ?? null,
             'message_media_url' => $settings['message_media_url'] ?? null,
             'provider_account_id' => $settings['provider_account_id'] ?? null,
+            'settings' => $campaign->settings,
             'updated_at' => $campaign->updated_at?->toISOString(),
         ];
     }

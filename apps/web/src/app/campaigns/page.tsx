@@ -1189,7 +1189,9 @@ export default function CampaignsPage() {
           </Box>
           <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, mt: 1 }}>
             <MuiButton variant="outlined" onClick={() => setPopup(null)}>Cancel</MuiButton>
-            <MuiButton variant="contained" color="success" onClick={() => void onStartAutoDialer()}>Start Auto Dialer</MuiButton>
+            <MuiButton variant="contained" color="success" onClick={() => void onStartAutoDialer()}>
+              {autoDialerPrompt !== ((autoDialerCampaign?.settings?.tts_prompt as string) || "Agar aap real estate me invest karna chahte ho to press 1.") ? "Save" : "Start Auto Dialer"}
+            </MuiButton>
           </Box>
         </Box>
       </Modal>
