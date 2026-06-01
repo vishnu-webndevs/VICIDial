@@ -196,15 +196,18 @@ class TwilioAdapter implements ProviderAdapterInterface
                 $useInlineTwiml ? 'Twiml' : 'Url' => $useInlineTwiml ? ($isMissedCall ? $this->missedCallTwiml() : $this->defaultOutboundTwiml()) : $twimlUrl,
                 'StatusCallback' => $statusCallbackUrl,
                 'StatusCallbackMethod' => 'POST',
-                'StatusCallbackEvent' => 'initiated ringing answered completed',
             ];
             if ($isMissedCall) {
                 $params['Timeout'] = 12;
             }
+
+            $queryString = http_build_query($params);
+            $queryString .= '&StatusCallbackEvent=initiated&StatusCallbackEvent=ringing&StatusCallbackEvent=answered&StatusCallbackEvent=completed';
+
             $response = Http::timeout(10)
                 ->withBasicAuth($accountSid, (string) $credentials['auth_token'])
-                ->asForm()
-                ->post("https://api.twilio.com/2010-04-01/Accounts/{$accountSid}/Calls.json", $params);
+                ->withBody($queryString, 'application/x-www-form-urlencoded')
+                ->post("https://api.twilio.com/2010-04-01/Accounts/{$accountSid}/Calls.json");
 
             if ($response->successful()) {
                 return ['ok' => true, 'provider_call_id' => (string) ($response->json()['sid'] ?? '')];
