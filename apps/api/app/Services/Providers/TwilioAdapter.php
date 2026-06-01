@@ -123,9 +123,39 @@ class TwilioAdapter implements ProviderAdapterInterface
             return false;
         }
 
-        // Twilio signs webhooks using:
-        // base64_encode(HMAC-SHA1(full URL + sorted POST params, auth_token, raw_binary=true))
-        $url = rtrim((string) config('app.url'), '/').'/api/webhooks/twilio';
+        // Try request()->url() first (actual requested public URL)
+        $url = request()->url();
+        if ($this->checkSignature($url, $payload, $secret, $provided)) {
+            return true;
+        }
+
+        // Try config('app.url') based URL
+        $fallbackUrl = rtrim((string) config('app.url'), '/').'/api/webhooks/twilio';
+        if ($this->checkSignature($fallbackUrl, $payload, $secret, $provided)) {
+            return true;
+        }
+
+        // Try forcing HTTPS scheme
+        if (str_starts_with($fallbackUrl, 'http://')) {
+            $httpsUrl = 'https://' . substr($fallbackUrl, 7);
+            if ($this->checkSignature($httpsUrl, $payload, $secret, $provided)) {
+                return true;
+            }
+        }
+
+        // Try forcing HTTP scheme
+        if (str_starts_with($fallbackUrl, 'https://')) {
+            $httpUrl = 'http://' . substr($fallbackUrl, 8);
+            if ($this->checkSignature($httpUrl, $payload, $secret, $provided)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function checkSignature(string $url, array $payload, string $secret, string $provided): bool
+    {
         $signaturePayload = $url;
         $sortedPayload = $payload;
         ksort($sortedPayload);
