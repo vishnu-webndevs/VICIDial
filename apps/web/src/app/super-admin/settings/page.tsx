@@ -49,6 +49,7 @@ type TenantResponse = {
       voice_locale?: string | null;
       metadata?: {
         default_lead_country?: string | null;
+        calling_window?: CallingWindowResponse | null;
       } | null;
     } | null;
   };
@@ -130,12 +131,20 @@ export default function SuperAdminSettingsPage() {
       setVoiceLocale(tenantResponse.data.settings?.voice_locale ?? "en-US");
       setDefaultLeadCountry(tenantResponse.data.settings?.metadata?.default_lead_country ?? "US");
 
-      const persistedWindow = readCallingWindowFromStorage(tenantId);
-      if (persistedWindow) {
-        setCallingDays(persistedWindow.days ?? ["Mon", "Tue", "Wed", "Thu", "Fri"]);
-        setCallingStart(persistedWindow.start_time ?? "09:00");
-        setCallingEnd(persistedWindow.end_time ?? "18:00");
-        setCallingTimezone(persistedWindow.timezone ?? "UTC");
+      const callingWindow = tenantResponse.data.settings?.metadata?.calling_window;
+      if (callingWindow) {
+        setCallingDays(callingWindow.days ?? ["Mon", "Tue", "Wed", "Thu", "Fri"]);
+        setCallingStart(callingWindow.start_time ?? "09:00");
+        setCallingEnd(callingWindow.end_time ?? "18:00");
+        setCallingTimezone(callingWindow.timezone ?? "UTC");
+      } else {
+        const persistedWindow = readCallingWindowFromStorage(tenantId);
+        if (persistedWindow) {
+          setCallingDays(persistedWindow.days ?? ["Mon", "Tue", "Wed", "Thu", "Fri"]);
+          setCallingStart(persistedWindow.start_time ?? "09:00");
+          setCallingEnd(persistedWindow.end_time ?? "18:00");
+          setCallingTimezone(persistedWindow.timezone ?? "UTC");
+        }
       }
     } catch (error) {
       setToast({ tone: "error", message: error instanceof Error ? error.message : "Failed to load settings." });
@@ -148,6 +157,11 @@ export default function SuperAdminSettingsPage() {
     event.preventDefault();
     try {
       const { token, tenantId } = getTenantContext();
+      const existingMetadata = tenant?.settings?.metadata ?? {};
+      const updatedMetadata = {
+        ...existingMetadata,
+        default_lead_country: defaultLeadCountry,
+      };
       await apiRequest("/tenant", {
         method: "PATCH",
         token,
@@ -164,9 +178,7 @@ export default function SuperAdminSettingsPage() {
             alert_email: alertEmail || null,
             default_caller_id: defaultCallerId || null,
             voice_locale: voiceLocale,
-            metadata: {
-              default_lead_country: defaultLeadCountry,
-            },
+            metadata: updatedMetadata,
           },
         },
       });
@@ -189,14 +201,37 @@ export default function SuperAdminSettingsPage() {
   async function saveCallingWindow() {
     setSavingWindow(true);
     try {
-      const { tenantId } = getTenantContext();
+      const { token, tenantId } = getTenantContext();
+      const existingMetadata = tenant?.settings?.metadata ?? {};
+      const updatedMetadata = {
+        ...existingMetadata,
+        calling_window: {
+          days: callingDays,
+          start_time: callingStart,
+          end_time: callingEnd,
+          timezone: callingTimezone,
+        },
+      };
+
+      await apiRequest("/tenant", {
+        method: "PATCH",
+        token,
+        tenantId,
+        body: {
+          settings: {
+            metadata: updatedMetadata,
+          },
+        },
+      });
+
       writeCallingWindowToStorage(tenantId, {
         days: callingDays,
         start_time: callingStart,
         end_time: callingEnd,
         timezone: callingTimezone,
       });
-      setToast({ tone: "success", message: "Calling window saved locally for this tenant." });
+      setToast({ tone: "success", message: "Calling window saved successfully to the server." });
+      await loadTenant();
     } catch (error) {
       setToast({ tone: "error", message: error instanceof Error ? error.message : "Failed to save calling window." });
     } finally {

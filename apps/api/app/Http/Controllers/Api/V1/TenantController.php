@@ -62,9 +62,15 @@ class TenantController extends Controller
             'settings.alert_email' => ['nullable', 'email', 'max:255'],
             'settings.default_caller_id' => ['nullable', 'regex:/^\+[1-9]\d{7,14}$/'],
             'settings.voice_locale' => ['sometimes', 'string', 'max:20'],
-            'settings.metadata' => ['nullable', 'array'],
+            'settings.metadata' => ['sometimes', 'array'],
             'settings.metadata.default_lead_country' => ['sometimes', 'string', 'regex:/^[A-Z]{2}$/'],
             'settings.metadata.integration_mode' => ['sometimes', 'in:sandbox,production'],
+            'settings.metadata.calling_window' => ['sometimes', 'array'],
+            'settings.metadata.calling_window.days' => ['sometimes', 'array'],
+            'settings.metadata.calling_window.days.*' => ['string', 'in:Mon,Tue,Wed,Thu,Fri,Sat,Sun'],
+            'settings.metadata.calling_window.start_time' => ['sometimes', 'string', 'regex:/^\d{2}:\d{2}$/'],
+            'settings.metadata.calling_window.end_time' => ['sometimes', 'string', 'regex:/^\d{2}:\d{2}$/'],
+            'settings.metadata.calling_window.timezone' => ['sometimes', 'string'],
         ]);
 
         $oldTenant = $tenant->only(['name', 'slug', 'status']);
@@ -74,9 +80,15 @@ class TenantController extends Controller
         }
 
         if (isset($validated['settings'])) {
+            $settingsData = $validated['settings'];
+            if (isset($settingsData['metadata'])) {
+                $existingSettings = $tenant->settings()->first();
+                $existingMetadata = $existingSettings ? (array) ($existingSettings->metadata ?? []) : [];
+                $settingsData['metadata'] = array_merge($existingMetadata, $settingsData['metadata']);
+            }
             $tenant->settings()->updateOrCreate(
                 ['tenant_id' => $tenant->id],
-                $validated['settings'],
+                $settingsData,
             );
         }
 

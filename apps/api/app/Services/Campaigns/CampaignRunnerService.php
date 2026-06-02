@@ -742,10 +742,50 @@ class CampaignRunnerService
 
     public function isWithinAllowedCallingWindow(Campaign $campaign, ?Lead $lead = null): bool
     {
+        // 1. Check Global Tenant Calling Window
+        $tenantSetting = TenantSetting::query()
+            ->where('tenant_id', $campaign->tenant_id)
+            ->first();
+
+        if ($tenantSetting) {
+            $metadata = (array) ($tenantSetting->metadata ?? []);
+            $callingWindow = (array) ($metadata['calling_window'] ?? []);
+            if ($callingWindow !== []) {
+                $days = (array) ($callingWindow['days'] ?? []);
+                $start = (string) ($callingWindow['start_time'] ?? '');
+                $end = (string) ($callingWindow['end_time'] ?? '');
+                $timezone = (string) ($callingWindow['timezone'] ?? '') ?: $tenantSetting->timezone ?: 'UTC';
+
+                try {
+                    $now = Carbon::now($timezone);
+                } catch (\Throwable) {
+                    $now = Carbon::now('UTC');
+                }
+
+                // Check days
+                if ($days !== []) {
+                    $currentDay = $now->format('D'); // Mon, Tue, etc.
+                    if (!in_array($currentDay, $days, true)) {
+                        return false;
+                    }
+                }
+
+                // Check time
+                if ($start !== '' && $end !== '') {
+                    $currentTime = $now->format('H:i');
+                    if ($currentTime < $start || $currentTime > $end) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        // 2. Check Campaign Specific Schedule Window
         if (!$campaign->isWithinScheduleWindow()) {
             return false;
         }
 
+        // 3. Check Campaign Specific Allowed Calling Hours
         $settings = (array) ($campaign->settings ?? []);
         $window = (array) ($settings['allowed_calling_hours'] ?? []);
         if ($window === []) {
@@ -762,9 +802,7 @@ class CampaignRunnerService
             }
         }
         if ($timezone === '') {
-            $timezone = (string) TenantSetting::query()
-                ->where('tenant_id', $campaign->tenant_id)
-                ->value('timezone') ?: 'UTC';
+            $timezone = (string) ($tenantSetting?->timezone ?? 'UTC');
         }
 
         try {
