@@ -36,20 +36,26 @@ class AuditLogger
         ]);
 
         if (! empty($tenantId)) {
-            $notification = Notification::query()->create([
-                'tenant_id' => $tenantId,
-                'user_id' => $actorId,
-                'type' => 'audit_event',
-                'title' => Str::headline($action),
-                'message' => "Action {$action} recorded for {$resourceType}.",
-                'metadata' => [
-                    'resource_type' => $resourceType,
-                    'resource_id' => $resourceId,
-                    'audit_log_id' => $auditLog->id,
-                ],
-            ]);
+            $isCampaign = ($resourceType === 'campaign') ||
+                          str_contains(strtolower($resourceType), 'campaign') ||
+                          str_contains(strtolower($action), 'campaign');
 
-            $this->sendEmailNotification($tenantId, $notification->title, $notification->message);
+            if (! $isCampaign) {
+                $notification = Notification::query()->create([
+                    'tenant_id' => $tenantId,
+                    'user_id' => $actorId,
+                    'type' => 'audit_event',
+                    'title' => Str::headline($action),
+                    'message' => "Action {$action} recorded for {$resourceType}.",
+                    'metadata' => [
+                        'resource_type' => $resourceType,
+                        'resource_id' => $resourceId,
+                        'audit_log_id' => $auditLog->id,
+                    ],
+                ]);
+
+                $this->sendEmailNotification($tenantId, $notification->title, $notification->message);
+            }
         }
     }
 
