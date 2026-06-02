@@ -67,10 +67,19 @@ export function useLiveCalls() {
     };
   }, []);
 
-  const liveCalls = useMemo(
-    () => calls.filter((call) => ["queued", "ringing", "in_progress"].includes(call.status)),
-    [calls]
-  );
+  const liveCalls = useMemo(() => {
+    const active = calls.filter((call) =>
+      ["queued", "ringing", "in_progress"].includes(call.status)
+    );
+    const seen = new Set<string>();
+    return active.filter((call) => {
+      if (seen.has(call.to_number)) {
+        return false;
+      }
+      seen.add(call.to_number);
+      return true;
+    });
+  }, [calls]);
 
   return { calls, liveCalls, loading, error, refresh: load };
 }

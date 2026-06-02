@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:ngrok": "node ../../scripts/configure-ngrok-env.mjs && next dev",
+    "dev": "next dev --webpack",
+    "dev:ngrok": "node ../../scripts/configure-ngrok-env.mjs && next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

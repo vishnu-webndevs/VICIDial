@@ -566,6 +566,9 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
             $ssmlPrompt = preg_replace('/<\/?speak[^>]*>/i', '', $ssmlPrompt);
         }
 
+        // Add an initial pause and slow down the rate to ensure clear pronunciation and avoid call start clipping
+        $ssmlPrompt = '<break time="1500ms"/><prosody rate="90%">' . $ssmlPrompt . '</prosody>';
+
         $noInputText = 'No input received. Goodbye.';
         if (str_starts_with($voiceLocale, 'hi')) {
             $noInputText = 'Koi jawaab nahi mila. Alvida.';
