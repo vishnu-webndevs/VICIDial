@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { listCalls, streamCallEvents } from "@/lib/product-api";
 import type { CallRecord } from "@/types/product";
 
@@ -9,7 +9,7 @@ export function useLiveCalls() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string>("");
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
       const response = await listCalls({
         per_page: 50,
@@ -22,7 +22,7 @@ export function useLiveCalls() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void load();
@@ -65,7 +65,7 @@ export function useLiveCalls() {
       cancelled = true;
       controller?.abort();
     };
-  }, []);
+  }, [load]);
 
   const liveCalls = useMemo(() => {
     const active = calls.filter((call) =>
