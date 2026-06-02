@@ -112,6 +112,48 @@ class Campaign extends Model
         return true;
     }
 
+    public function isWithinGlobalTenantCallingWindow(): bool
+    {
+        $tenantSetting = TenantSetting::query()
+            ->where('tenant_id', $this->tenant_id)
+            ->first();
+
+        if ($tenantSetting) {
+            $metadata = (array) ($tenantSetting->metadata ?? []);
+            $callingWindow = (array) ($metadata['calling_window'] ?? []);
+            if ($callingWindow !== []) {
+                $days = (array) ($callingWindow['days'] ?? []);
+                $start = (string) ($callingWindow['start_time'] ?? '');
+                $end = (string) ($callingWindow['end_time'] ?? '');
+                $timezone = (string) ($callingWindow['timezone'] ?? '') ?: $tenantSetting->timezone ?: 'UTC';
+
+                try {
+                    $now = \Illuminate\Support\Carbon::now($timezone);
+                } catch (\Throwable) {
+                    $now = \Illuminate\Support\Carbon::now('UTC');
+                }
+
+                // Check days
+                if ($days !== []) {
+                    $currentDay = $now->format('D'); // Mon, Tue, etc.
+                    if (!in_array($currentDay, $days, true)) {
+                        return false;
+                    }
+                }
+
+                // Check time
+                if ($start !== '' && $end !== '') {
+                    $currentTime = $now->format('H:i');
+                    if ($currentTime < $start || $currentTime > $end) {
+                        return false;
+                    }
+                }
+            }
+        }
+
+        return true;
+    }
+
     private function parseDaysRange(string $daysPart): array
     {
         $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];

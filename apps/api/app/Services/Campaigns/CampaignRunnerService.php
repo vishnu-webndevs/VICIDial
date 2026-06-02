@@ -271,15 +271,21 @@ class CampaignRunnerService
             ) {
                 $this->releaseAgentAssignment($item);
 
+                $originalCallStatus = $call->status;
+                $call->status = 'failed';
+                $call->failure_reason = 'stale_call_session';
+                $call->ended_at = now();
+                $call->save();
+
                 if ($item->attempt_count < $item->max_attempts) {
                     $item->status = 'pending';
                     $item->available_at = now()->addSeconds(30 * max(1, $item->attempt_count));
-                    $item->failure_reason = 'stale_call_session_'.$call->status;
+                    $item->failure_reason = 'stale_call_session_'.$originalCallStatus;
                     $item->save();
                     $run->retried_items = $run->retried_items + 1;
                 } else {
                     $item->status = 'failed';
-                    $item->failure_reason = 'stale_call_session_'.$call->status;
+                    $item->failure_reason = 'stale_call_session_'.$originalCallStatus;
                     $item->processed_at = now();
                     $item->save();
                     $run->calls_failed = $run->calls_failed + 1;

@@ -1173,7 +1173,7 @@ class CampaignController extends Controller
     {
         $settings = (array) ($campaign->settings ?? []);
         $status = $campaign->status;
-        if ($status === 'running' && !$campaign->isWithinScheduleWindow()) {
+        if ($status === 'running' && (!$campaign->isWithinScheduleWindow() || !$campaign->isWithinGlobalTenantCallingWindow())) {
             $status = 'pending';
         }
         return [
