@@ -50,9 +50,19 @@ class SubscriptionController extends Controller
             $oldPlanId = $subscription->plan_id;
             $oldCycle = $subscription->billing_cycle;
 
+            $isInactive = $subscription->status === 'canceled' ||
+                          $subscription->status === 'unpaid' ||
+                          ($subscription->status === 'trialing' && $subscription->trial_ends_at && $subscription->trial_ends_at->isPast());
+
             $subscription->plan_id = $targetPlan->id;
             $subscription->billing_cycle = $validated['billing_cycle'] ?? $subscription->billing_cycle;
-            $subscription->status = 'active';
+
+            if ($isInactive && $oldPlanId === $targetPlan->id) {
+                // Keep the inactive/expired status if they select the same plan
+            } else {
+                $subscription->status = 'active';
+                $subscription->trial_ends_at = null;
+            }
 
             $subscription->save();
 
