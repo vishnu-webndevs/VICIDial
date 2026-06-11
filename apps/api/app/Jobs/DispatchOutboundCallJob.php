@@ -61,6 +61,8 @@ class DispatchOutboundCallJob implements ShouldQueue
             $call->failure_reason = null;
             $call->save();
 
+            $mode = (string) ($result['mode'] ?? 'live');
+
             CallEvent::query()->create([
                 'tenant_id' => $call->tenant_id,
                 'call_session_id' => $call->id,
@@ -70,10 +72,16 @@ class DispatchOutboundCallJob implements ShouldQueue
                 'status_after' => $call->status,
                 'payload' => [
                     'provider_call_id' => (string) $result['provider_call_id'],
-                    'mode' => (string) ($result['mode'] ?? 'live'),
+                    'mode' => $mode,
                 ],
                 'occurred_at' => now(),
             ]);
+
+            // In sandbox mode, Twilio webhooks cannot reach localhost so we simulate
+            // the call lifecycle (ringing → in_progress → completed) via delayed jobs.
+            if ($mode === 'sandbox') {
+                SimulateSandboxCallProgressionJob::dispatchProgression($call->id);
+            }
 
             return;
         }

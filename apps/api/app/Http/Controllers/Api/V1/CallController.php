@@ -11,6 +11,7 @@ use App\Models\CallSession;
 use App\Models\ProviderAccount;
 use App\Models\ProviderPhoneNumber;
 use App\Jobs\DispatchOutboundCallJob;
+use App\Jobs\SimulateSandboxCallProgressionJob;
 use App\Jobs\ProcessCallAiArtifactJob;
 use App\Services\AuditLogger;
 use App\Services\IdempotencyService;
@@ -415,15 +416,23 @@ class CallController extends Controller
             }
             $call->save();
 
+            $mode = (string) ($result['mode'] ?? 'live');
+
             $this->appendCallEvent(
                 call: $call,
                 eventType: 'call.updated',
                 providerEventType: 'outbound.dispatch_now',
                 payload: [
                     'provider_call_id' => (string) $result['provider_call_id'],
-                    'mode' => (string) ($result['mode'] ?? 'live'),
+                    'mode' => $mode,
                 ]
             );
+
+            // In sandbox mode, Twilio webhooks cannot reach localhost so we simulate
+            // the call lifecycle (ringing → in_progress → completed) via delayed jobs.
+            if ($mode === 'sandbox') {
+                SimulateSandboxCallProgressionJob::dispatchProgression($call->id);
+            }
 
             return response()->json(['data' => $this->serializeCall($call->fresh('providerAccount'))], 200);
         }
