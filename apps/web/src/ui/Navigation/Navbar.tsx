@@ -164,9 +164,9 @@ export function Navbar({
       color="default"
       elevation={0}
       sx={{
-        backgroundColor: "rgba(245, 245, 249, 0.95)",
+        backgroundColor: "transparent",
+        backgroundImage: "none",
         borderBottom: "none",
-        backdropFilter: "blur(10px)",
         boxShadow: "none",
         top: 0,
         zIndex: 9,
@@ -185,10 +185,15 @@ export function Navbar({
             px: { xs: 3, sm: 4 },
             gap: 2,
             flexWrap: { xs: "wrap", sm: "nowrap" },
-            bgcolor: "background.paper",
-            borderRadius: { xs: 0, md: "0.375rem" },
+            bgcolor: mode === "dark" ? "rgba(30, 41, 59, 0.6)" : "rgba(255, 255, 255, 0.7)",
+            backdropFilter: "blur(12px)",
+            borderRadius: { xs: 0, md: "10px" },
+            border: "1px solid",
+            borderColor: mode === "dark" ? "rgba(255, 255, 255, 0.08)" : "rgba(226, 232, 240, 0.8)",
             boxShadow:
-              "0 0.25rem 0.5rem rgba(161, 172, 184, 0.12)",
+              mode === "dark"
+                ? "0 4px 20px rgba(0, 0, 0, 0.3)"
+                : "0 4px 20px rgba(161, 172, 184, 0.12)",
           }}
         >
           {/* Left section: Menu toggle + Search */}
@@ -207,7 +212,7 @@ export function Navbar({
               onClick={onMenuClick}
               sx={{
                 display: { lg: "none" },
-                color: "#697a8d",
+                color: "#64748b",
               }}
             >
               <i className="bx bx-menu" style={{ fontSize: "1.5rem" }} />
@@ -221,7 +226,7 @@ export function Navbar({
                   <i
                     className="bx bx-search"
                     style={{
-                      color: "#697a8d",
+                      color: "#64748b",
                       fontSize: "1.375rem",
                     }}
                   />
@@ -232,20 +237,20 @@ export function Navbar({
               sx={{
                 width: { xs: "100%", sm: 280, md: 320 },
                 height: 38,
-                borderRadius: "0.375rem",
+                borderRadius: "8px",
                 fontSize: "0.9375rem",
                 "& .MuiOutlinedInput-input": {
                   py: 1,
                   "&::placeholder": {
-                    color: "#a1acb8",
+                    color: "#94a3b8",
                     opacity: 1,
                   },
                 },
                 "& .MuiOutlinedInput-notchedOutline": {
-                  borderColor: searchFocused ? "#696cff" : "#d9dee3",
+                  borderColor: searchFocused ? "#6366f1" : (mode === "dark" ? "rgba(255, 255, 255, 0.12)" : "#e2e8f0"),
                 },
                 "&:hover .MuiOutlinedInput-notchedOutline": {
-                  borderColor: searchFocused ? "#696cff" : "#c7cdd4",
+                  borderColor: searchFocused ? "#6366f1" : (mode === "dark" ? "rgba(255, 255, 255, 0.2)" : "#cbd5e1"),
                 },
               }}
             />
@@ -266,9 +271,9 @@ export function Navbar({
               onClick={onToggleMode}
               aria-label="Toggle dark mode"
               sx={{
-                color: "#697a8d",
+                color: "#64748b",
                 "&:hover": {
-                  bgcolor: "rgba(67, 89, 113, 0.04)",
+                  bgcolor: mode === "dark" ? "rgba(255, 255, 255, 0.05)" : "rgba(15, 23, 42, 0.05)",
                 },
               }}
             >
@@ -282,10 +287,10 @@ export function Navbar({
             <IconButton
               onClick={() => router.push("/notifications")}
               sx={{
-                color: "#697a8d",
+                color: "#64748b",
                 position: "relative",
                 "&:hover": {
-                  bgcolor: "rgba(67, 89, 113, 0.04)",
+                  bgcolor: mode === "dark" ? "rgba(255, 255, 255, 0.05)" : "rgba(15, 23, 42, 0.05)",
                 },
                 ...(unreadCount > 0 ? {
                   animation: "bellPulse 2s ease-in-out infinite",
@@ -320,7 +325,7 @@ export function Navbar({
                 width: 40,
                 height: 40,
                 borderRadius: "50%",
-                bgcolor: "#696cff",
+                bgcolor: "#6366f1",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -328,6 +333,11 @@ export function Navbar({
                 fontSize: "0.875rem",
                 fontWeight: 600,
                 cursor: "pointer",
+                transition: "transform 0.2s, box-shadow 0.2s",
+                "&:hover": {
+                  transform: "scale(1.05)",
+                  boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
+                },
               }}
               onClick={(event) => setMenuAnchor(event.currentTarget)}
             >

@@ -14,6 +14,7 @@ import { DashboardLayout } from "@/ui";
 import { fetchSessionProfile } from "@/lib/product-api";
 import { LoadingGate } from "@/components/loading-state";
 import { ApiError } from "@/lib/api";
+import { isOnboardingComplete } from "@/lib/onboarding";
 import {
   clearSession,
   getSessionStorageState,
@@ -39,6 +40,8 @@ export function AppShell({
   const [isPlatformAdmin, setIsPlatformAdmin] = useState(false);
   const [role, setRole] = useState("");
   const [tenantName, setTenantName] = useState("");
+  const [tenantId, setTenantId] = useState<string | null>(null);
+  const [trialExpired, setTrialExpired] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -60,6 +63,8 @@ export function AppShell({
       setIsPlatformAdmin(Boolean(profile.is_platform_admin));
       setRole(profile.role?.slug ?? "");
       setTenantName(profile.current_tenant?.name ?? "");
+      setTenantId(profile.current_tenant?.id ?? null);
+      setTrialExpired(Boolean(profile.trial_expired));
       syncTenantFromProfile(profile);
     };
 
@@ -82,7 +87,7 @@ export function AppShell({
             const isAuthError =
               (error instanceof ApiError ||
                 (error && typeof error === "object" && "status" in error)) &&
-              (error as any).status === 401;
+              [401, 403].includes((error as { status: number }).status);
 
             if (isAuthError) {
               clearSession();
@@ -136,7 +141,7 @@ export function AppShell({
     };
   }, [router]);
 
-  // Enforce role-based area separation once the session is loaded.
+  // Enforce role-based area separation and onboarding gate once the session is loaded.
   useEffect(() => {
     if (loading) return;
 
@@ -147,6 +152,28 @@ export function AppShell({
 
     const onSuperAdminPath = pathname.startsWith("/super-admin");
 
+    // Check plan/trial expiration first for non-platform/super admins
+    if (!isSuperAdmin && tenantId && trialExpired) {
+      if (pathname !== "/billing") {
+        router.replace("/billing");
+        return;
+      }
+      return;
+    }
+
+    // Enforce onboarding check for standard tenant users
+    if (!isSuperAdmin && tenantId) {
+      const onboardingDone = isOnboardingComplete(tenantId);
+      if (!onboardingDone && pathname !== "/onboarding") {
+        router.replace("/onboarding");
+        return;
+      }
+      if (onboardingDone && pathname === "/onboarding") {
+        router.replace("/dashboard");
+        return;
+      }
+    }
+
     if (isSuperAdmin && !onSuperAdminPath) {
       // Super admins always land in /super-admin
       router.replace("/super-admin");
@@ -154,7 +181,7 @@ export function AppShell({
       // Regular users cannot enter /super-admin
       router.replace("/dashboard");
     }
-  }, [loading, isPlatformAdmin, role, pathname, router]);
+  }, [loading, isPlatformAdmin, role, tenantId, pathname, router, trialExpired]);
 
   const can = useMemo(() => {
     if (isPlatformAdmin) {

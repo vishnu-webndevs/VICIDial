@@ -59,6 +59,37 @@ class ResolveTenantContext
         }
 
         if ($membership) {
+            // Check trial/subscription status for non-platform admin users
+            if (! $user->is_platform_admin) {
+                $isBillingRoute = $request->is('*auth/me') || $request->is('*subscription') || $request->is('*subscription/change-plan');
+                
+                if (! $isBillingRoute) {
+                    $subscription = \App\Models\Subscription::query()
+                        ->where('tenant_id', $membership->tenant_id)
+                        ->latest()
+                        ->first();
+
+                    if ($subscription) {
+                        if ($subscription->status === 'trialing' && $subscription->trial_ends_at && $subscription->trial_ends_at->isPast()) {
+                        return response()->json([
+                            'error' => [
+                                'code' => 'TRIAL_EXPIRED',
+                                'message' => 'Your 14-day free trial has expired. Please purchase a paid plan to continue using the platform.',
+                            ],
+                        ], 403);
+                    }
+                    if (in_array($subscription->status, ['canceled', 'unpaid', 'past_due'], true)) {
+                        return response()->json([
+                            'error' => [
+                                'code' => 'SUBSCRIPTION_INACTIVE',
+                                'message' => 'Your subscription is inactive. Please purchase a paid plan to access the platform.',
+                            ],
+                        ], 403);
+                    }
+                }
+            }
+        }
+
             $request->attributes->set('tenant', $membership->tenant);
             $request->attributes->set('membership', $membership);
             $request->attributes->set('org_scope', [

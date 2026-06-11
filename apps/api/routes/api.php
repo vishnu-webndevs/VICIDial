@@ -111,6 +111,8 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
 
         Route::get('/subscription', [SubscriptionController::class, 'show'])
             ->middleware('permission:billing.view');
+        Route::put('/subscription', [SubscriptionController::class, 'changePlan'])
+            ->middleware('permission:billing.manage');
         Route::post('/subscription/change-plan', [SubscriptionController::class, 'changePlan'])
             ->middleware('permission:billing.manage');
 

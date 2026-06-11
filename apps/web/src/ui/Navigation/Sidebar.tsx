@@ -8,6 +8,7 @@ import {
   ListItemIcon,
   ListItemText,
   Typography,
+  useTheme,
 } from "@mui/material";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -151,18 +152,18 @@ function SneatLogo() {
               <mask id="sneat-mask-2" fill="white">
                 <use xlinkHref="#path-sneat-1" />
               </mask>
-              <use fill="#696cff" xlinkHref="#path-sneat-1" />
+              <use fill="#6366f1" xlinkHref="#path-sneat-1" />
               <g mask="url(#sneat-mask-2)">
-                <use fill="#696cff" xlinkHref="#path-sneat-3" />
+                <use fill="#6366f1" xlinkHref="#path-sneat-3" />
                 <use fillOpacity="0.2" fill="#FFFFFF" xlinkHref="#path-sneat-3" />
               </g>
               <g mask="url(#sneat-mask-2)">
-                <use fill="#696cff" xlinkHref="#path-sneat-4" />
+                <use fill="#6366f1" xlinkHref="#path-sneat-4" />
                 <use fillOpacity="0.2" fill="#FFFFFF" xlinkHref="#path-sneat-4" />
               </g>
             </g>
             <g transform="translate(19.000000, 11.000000) rotate(-300.000000) translate(-19.000000, -11.000000)">
-              <use fill="#696cff" xlinkHref="#path-sneat-5" />
+              <use fill="#6366f1" xlinkHref="#path-sneat-5" />
               <use fillOpacity="0.2" fill="#FFFFFF" xlinkHref="#path-sneat-5" />
             </g>
           </g>
@@ -181,13 +182,15 @@ function SidebarContent({
 }) {
   const pathname = usePathname();
   const navGroups = useMemo(() => getRoleNavGroups(role), [role]);
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
 
   return (
     <Box
       sx={{
         width: "100%",
         height: "100%",
-        background: "#fff",
+        background: isDark ? "#0b0f19" : "#ffffff",
         display: "flex",
         flexDirection: "column",
       }}
@@ -208,24 +211,21 @@ function SidebarContent({
           variant="h6"
           sx={{
             fontWeight: 700,
-            fontSize: "1.375rem",
+            fontSize: "1.25rem",
             letterSpacing: -0.5,
-            textTransform: "lowercase",
-            color: "#566a7f",
+            color: isDark ? "#f8fafc" : "#1e293b",
+            display: "flex",
+            alignItems: "center",
+            gap: 0.5,
           }}
         >
-          WND Dialer
+          <Box component="span" sx={{ color: isDark ? "#fff" : "#1e293b" }}>WND</Box>
+          <Box component="span" sx={{ color: "#6366f1" }}>Dialer</Box>
         </Typography>
       </Box>
 
-      {/* Menu inner shadow */}
-      <Box
-        sx={{
-          height: 12,
-          background:
-            "linear-gradient(rgba(67,89,113,0.04) 40%, rgba(67,89,113,0.01) 95%, transparent)",
-        }}
-      />
+      {/* Spacing below brand */}
+      <Box sx={{ height: 16 }} />
 
       {/* Navigation */}
       <Box
@@ -237,7 +237,7 @@ function SidebarContent({
           "&::-webkit-scrollbar": { width: 4 },
           "&::-webkit-scrollbar-track": { bgcolor: "transparent" },
           "&::-webkit-scrollbar-thumb": {
-            bgcolor: "rgba(67,89,113,0.15)",
+            bgcolor: isDark ? "rgba(255, 255, 255, 0.1)" : "rgba(15, 23, 42, 0.08)",
             borderRadius: 10,
           },
         }}
@@ -255,7 +255,7 @@ function SidebarContent({
                   fontWeight: 700,
                   textTransform: "uppercase",
                   letterSpacing: "0.4px",
-                  color: "#a1acb8",
+                  color: isDark ? "#475569" : "#94a3b8",
                   display: "block",
                   position: "relative",
                   "&::before": {
@@ -265,7 +265,7 @@ function SidebarContent({
                     top: "50%",
                     width: 16,
                     height: 1,
-                    bgcolor: "#d9dee3",
+                    bgcolor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(15, 23, 42, 0.06)",
                     display: { xs: "none", sm: "none" },
                   },
                 }}
@@ -286,35 +286,42 @@ function SidebarContent({
                     selected={active}
                     onClick={onNavigate}
                     sx={{
-                      borderRadius: "0.375rem",
+                      borderRadius: "8px",
                       px: 2,
                       py: 1,
-                      mb: 0.25,
+                      mb: 0.5,
                       position: "relative",
-                      color: active ? "#696cff" : "#697a8d",
-                      transition: "all 0.3s ease-in-out",
+                      color: active ? (isDark ? "#fff" : "#6366f1") : (isDark ? "#94a3b8" : "#475569"),
+                      transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                       "&:hover": {
                         bgcolor: active
-                          ? "rgba(105, 108, 255, 0.16)"
-                          : "rgba(67, 89, 113, 0.04)",
-                        color: active ? "#696cff" : "#566a7f",
+                          ? (isDark ? "rgba(99, 102, 241, 0.15)" : "rgba(99, 102, 241, 0.08)")
+                          : (isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(15, 23, 42, 0.04)"),
+                        color: active ? (isDark ? "#fff" : "#6366f1") : (isDark ? "#fff" : "#1e293b"),
+                        transform: "translateX(4px)",
                       },
                       "&.Mui-selected": {
-                        bgcolor: "rgba(105, 108, 255, 0.16)",
-                        color: "#696cff",
-                        "&::after": {
+                        bgcolor: isDark ? "rgba(99, 102, 241, 0.15)" : "rgba(99, 102, 241, 0.08)",
+                        background: isDark
+                          ? "linear-gradient(90deg, rgba(99, 102, 241, 0.15) 0%, rgba(168, 85, 247, 0.05) 100%)"
+                          : "linear-gradient(90deg, rgba(99, 102, 241, 0.08) 0%, rgba(168, 85, 247, 0.03) 100%)",
+                        color: isDark ? "#fff" : "#6366f1",
+                        "&::before": {
                           content: '""',
                           position: "absolute",
-                          right: 0,
+                          left: 0,
                           top: "50%",
                           transform: "translateY(-50%)",
-                          width: "0.25rem",
-                          height: "2.5rem",
-                          bgcolor: "#696cff",
-                          borderRadius: "0.375rem 0 0 0.375rem",
+                          width: "4px",
+                          height: "16px",
+                          borderRadius: "0 4px 4px 0",
+                          background: "linear-gradient(180deg, #6366f1 0%, #a855f7 100%)",
                         },
                         "&:hover": {
-                          bgcolor: "rgba(105, 108, 255, 0.16)",
+                          bgcolor: isDark ? "rgba(99, 102, 241, 0.2)" : "rgba(99, 102, 241, 0.12)",
+                          background: isDark
+                            ? "linear-gradient(90deg, rgba(99, 102, 241, 0.2) 0%, rgba(168, 85, 247, 0.08) 100%)"
+                            : "linear-gradient(90deg, rgba(99, 102, 241, 0.12) 0%, rgba(168, 85, 247, 0.05) 100%)",
                         },
                       },
                     }}
@@ -357,6 +364,9 @@ export function Sidebar({
   role: string;
   onClose: () => void;
 }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+
   return (
     <>
       <Box
@@ -373,7 +383,8 @@ export function Sidebar({
             height: "100vh",
             top: 0,
             left: 0,
-            boxShadow: "0 0.125rem 0.375rem rgba(161, 172, 184, 0.12)",
+            borderRight: "1px solid",
+            borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(15, 23, 42, 0.06)",
             zIndex: 1200,
           }}
         >
@@ -387,7 +398,12 @@ export function Sidebar({
           display: { xs: "block", lg: "none" },
           "& .MuiDrawer-paper": {
             width: { xs: "min(84vw, 320px)", sm: SIDEBAR_WIDTH },
-            boxShadow: "0 0.625rem 1.25rem rgba(161, 172, 184, 0.5)",
+            bgcolor: isDark ? "#0b0f19" : "#ffffff",
+            borderRight: "1px solid",
+            borderColor: isDark ? "rgba(255, 255, 255, 0.08)" : "rgba(15, 23, 42, 0.06)",
+            boxShadow: isDark
+              ? "0 0.625rem 1.25rem rgba(0, 0, 0, 0.5)"
+              : "0 0.625rem 1.25rem rgba(15, 23, 42, 0.08)",
           },
         }}
       >

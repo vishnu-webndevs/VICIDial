@@ -79,18 +79,34 @@ export default function MessageReportsPage() {
         <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems={{ xs: "stretch", md: "center" }} sx={{ mb: 2 }}>
           <TextField
             select
+            id="campaign-select"
+            name="campaign_id"
             size="medium"
             label="Campaign"
             value={selectedCampaignId}
             onChange={(e) => setSelectedCampaignId(e.target.value)}
             sx={{ minWidth: { xs: "100%", md: 380 } }}
             disabled={loadingCampaigns}
+            SelectProps={{
+              id: "campaign-select",
+              name: "campaign_id",
+              labelId: "campaign-select-label",
+            }}
+            InputLabelProps={{
+              id: "campaign-select-label",
+            }}
           >
-            {messageCampaigns.map((campaign) => (
-              <MenuItem key={campaign.id} value={campaign.id}>
-                {campaign.name}
+            {messageCampaigns.length === 0 ? (
+              <MenuItem value="" disabled>
+                No campaigns available
               </MenuItem>
-            ))}
+            ) : (
+              messageCampaigns.map((campaign) => (
+                <MenuItem key={campaign.id} value={campaign.id}>
+                  {campaign.name}
+                </MenuItem>
+              ))
+            )}
           </TextField>
           <MuiButton variant="outlined" onClick={() => void loadCampaignList()} disabled={loadingCampaigns}>
             Refresh Campaigns

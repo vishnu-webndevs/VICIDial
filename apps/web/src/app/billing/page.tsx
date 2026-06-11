@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Box, Button as MuiButton, MenuItem, Paper, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button as MuiButton, MenuItem, Paper, TextField, Typography } from "@mui/material";
 import { AppShell, SectionCard } from "@/components/app-shell";
 import { PlanUsageCard } from "@/components/plans/PlanUsageCard";
 import { apiRequest } from "@/lib/api";
 import { getTenantContext } from "@/lib/tenant-context";
+import { clearSessionCache } from "@/lib/session-cache";
 
 type Plan = {
   id: string;
@@ -26,6 +27,7 @@ type Subscription = {
   status: string;
   billing_cycle: "monthly" | "yearly";
   plan: Plan;
+  trial_ends_at?: string | null;
 };
 
 function formatPlanPrice(plan: Plan, cycle: "monthly" | "yearly"): string {
@@ -97,6 +99,14 @@ export default function BillingPage() {
     [plans, selectedPlanSlug]
   );
 
+  const isTrialExpired = useMemo(() => {
+    if (!subscription) return false;
+    if (subscription.status === "trialing" && subscription.trial_ends_at) {
+      return new Date(subscription.trial_ends_at) < new Date();
+    }
+    return ["canceled", "unpaid", "past_due"].includes(subscription.status);
+  }, [subscription]);
+
   async function onSaveSubscription() {
     if (!selectedPlanSlug) return;
 
@@ -118,7 +128,11 @@ export default function BillingPage() {
       setSubscription(response.data);
       setSelectedPlanSlug(response.data.plan.slug);
       setBillingCycle(response.data.billing_cycle);
-      setMessage("Plan updated successfully.");
+      setMessage("Plan updated successfully. Redirecting...");
+      clearSessionCache();
+      setTimeout(() => {
+        window.location.href = "/dashboard";
+      }, 1000);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to update plan.");
     } finally {
@@ -129,10 +143,15 @@ export default function BillingPage() {
   return (
     <AppShell>
       <Box sx={{ display: "grid", gap: 2 }}>
-      <SectionCard
-        title="Plan"
-        subtitle="Token-based billing is disabled. Choose the plan and billing cycle that apply to your company."
-      >
+        {isTrialExpired && (
+          <Alert severity="error">
+            Your plan has expired. Please select a plan and billing cycle below to reactivate your account.
+          </Alert>
+        )}
+        <SectionCard
+          title="Plan"
+          subtitle="Token-based billing is disabled. Choose the plan and billing cycle that apply to your company."
+        >
         <Paper variant="outlined" sx={{ p: 3 }}>
           <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 2 }}>
             <MuiButton

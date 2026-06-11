@@ -115,6 +115,23 @@ class DispatchOutboundMessageJob implements ShouldQueue
             'campaign_run_id' => $this->campaignRunId,
         ]);
 
+        $alreadySent = false;
+        if ($channel === 'whatsapp' && $lead->phone) {
+            $normalizedPhone = preg_replace('/[^0-9]/', '', (string) $lead->phone);
+            $alreadySent = Message::query()
+                ->join('message_threads', 'messages.thread_id', '=', 'message_threads.id')
+                ->where('message_threads.tenant_id', $tenantId)
+                ->where('message_threads.channel', 'whatsapp')
+                ->where(function ($query) use ($lead, $normalizedPhone) {
+                    $query->where('message_threads.counterparty_number', $lead->phone)
+                        ->orWhere('message_threads.counterparty_number', '+' . $normalizedPhone)
+                        ->orWhere('message_threads.counterparty_number', $normalizedPhone);
+                })
+                ->where('messages.direction', 'outbound')
+                ->where('messages.status', '!=', 'failed')
+                ->exists();
+        }
+
         $content = trim($this->content);
         $templateKey = trim($this->templateKey);
         $metaTemplateId = $this->metaTemplateId;
@@ -160,8 +177,19 @@ class DispatchOutboundMessageJob implements ShouldQueue
                     ],
                 ], $this->variables);
 
-                $bodyOrPayload = $metaTemplateService->buildTemplatePayload($metaTemplate, (string) $lead->phone, $variables);
                 $content = $metaTemplateService->buildTemplateTextPreview($metaTemplate, $variables);
+
+                if ($alreadySent) {
+                    $bodyOrPayload = $content;
+                    Log::info('WhatsApp message already sent to this number before. Bypassing Meta template and sending as regular free-form text message to save cost.', [
+                        'tenant_id' => $tenantId,
+                        'lead_id' => $lead->id,
+                        'phone' => $lead->phone,
+                        'campaign_id' => $this->campaignId,
+                    ]);
+                } else {
+                    $bodyOrPayload = $metaTemplateService->buildTemplatePayload($metaTemplate, (string) $lead->phone, $variables);
+                }
             } else {
                 Log::warning('Meta template not found.', [
                     'tenant_id' => $tenantId,

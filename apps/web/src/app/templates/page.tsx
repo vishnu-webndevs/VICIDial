@@ -324,6 +324,26 @@ export default function TemplatesPage() {
       {toast ? <ToastMessage tone={toast.tone} message={toast.message} /> : null}
 
       <SectionCard title="Templates" subtitle="Manage reusable message templates for your campaigns.">
+        <Box sx={{ mt: 1, mb: 4, display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+          <MuiButton
+            variant="outlined"
+            size="small"
+            component="a"
+            href="/settings/whatsapp-integration"
+            sx={{ textTransform: "none" }}
+          >
+            Configure WhatsApp Settings
+          </MuiButton>
+          <MuiButton
+            variant="outlined"
+            size="small"
+            component="a"
+            href="/campaigns"
+            sx={{ textTransform: "none" }}
+          >
+            Go to Campaigns
+          </MuiButton>
+        </Box>
         <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(4, 1fr)" }, alignItems: "end" }}>
           <TextField select size="medium" label="Channel" value={channel} onChange={(e) => setChannel(e.target.value as "sms" | "whatsapp")}>
             <MenuItem value="sms">SMS</MenuItem>
@@ -343,7 +363,7 @@ export default function TemplatesPage() {
           )}
         </Box>
 
-        <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+        <Stack direction="row" spacing={1} sx={{ mt: 2, mb: 3 }}>
           <MuiButton variant="outlined" onClick={() => void loadAll()} disabled={loading || saving}>
             Refresh
           </MuiButton>

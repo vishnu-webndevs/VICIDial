@@ -62,7 +62,7 @@ const nextConfig: NextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              `default-src 'self'; img-src 'self' data: https:; font-src 'self' data: ${boxiconsCdn}; style-src 'self' 'unsafe-inline' ${boxiconsCdn}; script-src ${scriptSrcDirectives}; connect-src ${Array.from(connectSrcOrigins).join(" ")}; frame-src 'self' ${stripeJsOrigin} ${stripeHooksOrigin};`,
+              `default-src 'self'; img-src 'self' data: https:; font-src 'self' data: ${boxiconsCdn} https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' ${boxiconsCdn} https://fonts.googleapis.com; script-src ${scriptSrcDirectives}; connect-src ${Array.from(connectSrcOrigins).join(" ")}; frame-src 'self' ${stripeJsOrigin} ${stripeHooksOrigin};`,
           },
         ],
       },

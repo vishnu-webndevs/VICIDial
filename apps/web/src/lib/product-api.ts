@@ -195,6 +195,7 @@ export type SessionProfile = {
     features: Record<string, { value: number | boolean | string; label: string; type: "limit" | "boolean" | "text" }>;
   } | null;
   usage: Record<string, number>;
+  trial_expired?: boolean;
 };
 
 export type PublicPlan = {

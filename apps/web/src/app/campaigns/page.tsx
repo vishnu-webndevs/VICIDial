@@ -5,6 +5,7 @@ import {
   Box,
   Checkbox,
   FormControlLabel,
+  Link,
   MenuItem,
   Modal,
   MuiButton,
@@ -848,6 +849,11 @@ export default function CampaignsPage() {
                           message_content: templates.find((t) => t.key === e.target.value)?.body || "",
                         }))
                       }
+                      helperText={
+                        <Typography variant="caption" color="text.secondary" component="span" sx={{ display: "inline-flex", gap: 0.5 }}>
+                          Need a template? <Link href="/templates" target="_blank" sx={{ color: "primary.main", textDecoration: "underline" }}>Manage Templates</Link>
+                        </Typography>
+                      }
                     >
                       <MenuItem value="">Custom message...</MenuItem>
                       {templates
@@ -905,6 +911,11 @@ export default function CampaignsPage() {
                               value={campaignForm.message_meta_template_id}
                               onChange={(e) => setCampaignForm((p) => ({ ...p, message_meta_template_id: e.target.value }))}
                               sx={{ flexGrow: 1 }}
+                              helperText={
+                                <Typography variant="caption" color="text.secondary" component="span" sx={{ display: "inline-flex", gap: 0.5 }}>
+                                  Cannot find it? <Link href="/templates" target="_blank" sx={{ color: "primary.main", textDecoration: "underline" }}>Create or Edit Meta Templates</Link>
+                                </Typography>
+                              }
                             >
                               <MenuItem value="">Choose a template...</MenuItem>
                               {metaTemplates.filter(t => t.status === 'APPROVED').map((t) => (

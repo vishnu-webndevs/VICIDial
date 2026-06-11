@@ -13,6 +13,7 @@ import {
   listAgents,
   listCampaigns,
   listLeadLists,
+  createLeadList,
   listLeads,
   listProviderAccounts,
   fetchProviderNumbersFromTwilio,
@@ -24,15 +25,15 @@ import {
 import type { ProviderAccount as ApiProviderAccount } from "@/lib/product-api";
 import { getTenantContext, getTenantScopedStorageKey } from "@/lib/tenant-context";
 import type { Campaign, Lead, LeadList } from "@/types/product";
-import { Alert, Box, Button, Card, LinearProgress, MenuItem, Stack, TextField, Typography } from "@/ui";
+import { Alert, Box, Button, Card, Divider, LinearProgress, MenuItem, Stack, TextField, Typography } from "@/ui";
 
-type StepId = "add_lead" | "add_provider" | "create_agent" | "add_campaign";
+type StepId = "add_provider" | "create_agent" | "add_lead" | "add_campaign";
 
 const STEPS: Array<{ id: StepId; label: string; subtitle: string }> = [
-  { id: "add_lead", label: "1. Add or Import Lead", subtitle: "Manual lead entry or CSV/Excel import with validation and duplicate checks." },
-  { id: "add_provider", label: "2. Add Provider and Validate", subtitle: "Store API credentials and validate connection readiness." },
-  { id: "create_agent", label: "3. Create Agent", subtitle: "Name your agent and assign the Twilio number from the previous step." },
-  { id: "add_campaign", label: "4. Add Campaign", subtitle: "Pick template, schedule, audience, and launch-readiness checks." },
+  { id: "add_provider", label: "1. Connect Calling Provider", subtitle: "Connect your Twilio or Vonage account to generate calls." },
+  { id: "create_agent", label: "2. Create Agent & Assign Caller ID", subtitle: "Create an agent profile and map it to a validated caller ID." },
+  { id: "add_lead", label: "3. Create List & Add Leads", subtitle: "Create lead lists and upload contacts manually or via CSV." },
+  { id: "add_campaign", label: "4. Create & Launch Campaign", subtitle: "Set dialing speed, schedule windows, and launch your campaign." },
 ];
 
 const E164_REGEX = /^\+[1-9]\d{7,14}$/;
@@ -189,6 +190,36 @@ export default function OnboardingPage() {
   });
   const [draft, setDraft] = useState<OnboardingDraft>(defaultDraft);
   const [stepIndex, setStepIndex] = useState(0);
+  const [newListName, setNewListName] = useState("");
+  const [creatingList, setCreatingList] = useState(false);
+
+  async function handleCreateNewList(event: FormEvent) {
+    event.preventDefault();
+    if (!newListName.trim()) {
+      setToast("List name cannot be empty.", "error");
+      return;
+    }
+    setCreatingList(true);
+    try {
+      const created = await createLeadList({
+        name: newListName.trim(),
+        description: "Created during onboarding",
+        is_active: true,
+      });
+      await refreshSnapshot();
+      updateDraft((previous) => ({
+        ...previous,
+        lead: { ...previous.lead, listId: created.id },
+        campaign: { ...previous.campaign, listId: created.id },
+      }));
+      setNewListName("");
+      setToast(`Lead List "${created.name}" created successfully!`, "success");
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Failed to create lead list.", "error");
+    } finally {
+      setCreatingList(false);
+    }
+  }
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -201,11 +232,11 @@ export default function OnboardingPage() {
   const scopedDraftKey = getTenantScopedStorageKey(ONBOARDING_DRAFT_KEY, tenantId);
 
   const completed = useMemo(() => {
-    const leadDone = draft.lead.completed || snapshot.leads.length > 0;
     const providerDone = draft.provider.completed || snapshot.providers.some((provider) => provider.status === "active");
     const agentDone = draft.agent.completed || snapshot.agents.length > 0;
+    const leadDone = draft.lead.completed || snapshot.leads.length > 0;
     const campaignDone = draft.campaign.completed || snapshot.campaigns.length > 0;
-    return [leadDone, providerDone, agentDone, campaignDone];
+    return [providerDone, agentDone, leadDone, campaignDone];
   }, [draft, snapshot]);
 
   const progress = useMemo(() => {
@@ -335,7 +366,7 @@ export default function OnboardingPage() {
   // because at this point the user has only tested credentials, not gone through
   // the full admin number-management flow.
   useEffect(() => {
-    if (stepIndex !== 2) return;
+    if (stepIndex !== 1) return;
 
     const activeProvider = snapshot.providers.find(
       (provider) => provider.provider_type === "twilio" && provider.status === "active"
@@ -356,7 +387,7 @@ export default function OnboardingPage() {
 
   // Auto-select the first live number when the agent step becomes active.
   useEffect(() => {
-    if (stepIndex !== 2 || liveProviderNumbers.length === 0) {
+    if (stepIndex !== 1 || liveProviderNumbers.length === 0) {
       return;
     }
     setDraft((previous) => {
@@ -420,7 +451,7 @@ export default function OnboardingPage() {
       }));
       await refreshSnapshot();
       setToast("Lead added and attached to list.", "success");
-      setStepIndex(1);
+      setStepIndex(3);
     } catch (error) {
       setToast(error instanceof Error ? error.message : "Failed to save lead.", "error");
     } finally {
@@ -484,7 +515,7 @@ export default function OnboardingPage() {
       }));
       await refreshSnapshot();
       setToast(`Lead import completed: ${current.successful_rows} rows imported.`, "success");
-      setStepIndex(1);
+      setStepIndex(3);
     } catch (error) {
       setToast(error instanceof Error ? error.message : "Lead import failed.", "error");
     } finally {
@@ -619,7 +650,7 @@ export default function OnboardingPage() {
       }));
       await refreshSnapshot();
       setToast("Provider connection test passed.", "success");
-      setStepIndex(2);
+      setStepIndex(1);
     } catch (error) {
       setToast(error instanceof Error ? error.message : "Provider validation failed.", "error");
     } finally {
@@ -681,7 +712,7 @@ export default function OnboardingPage() {
       }));
       await refreshSnapshot();
       setToast("Agent created and assigned validated number.", "success");
-      setStepIndex(3);
+      setStepIndex(2);
     } catch (error) {
       setToast(error instanceof Error ? error.message : "Failed to create agent.", "error");
     } finally {
@@ -864,82 +895,14 @@ export default function OnboardingPage() {
                 })}
               </Box>
 
+              {/* Step 1: Connect Calling Provider */}
               {stepIndex === 0 ? (
                 <Card title={STEPS[0].label} subtitle={STEPS[0].subtitle}>
-                  <Stack spacing={1.5}>
-                    <TextField
-                      select
-                      size="medium"
-                      label="Lead List"
-                      value={draft.lead.listId}
-                      onChange={(event) => updateDraft((previous) => ({ ...previous, lead: { ...previous.lead, listId: event.target.value } }))}
-                    >
-                      <MenuItem value="">Select list</MenuItem>
-                      {snapshot.lists.map((item) => (
-                        <MenuItem key={item.id} value={item.id}>
-                          {item.name}
-                        </MenuItem>
-                      ))}
-                    </TextField>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    <strong>Setup Twilio / Vonage:</strong> A valid provider account is required to generate calls and SMS. Enter credentials, save, and validate connection before moving to the next step.
+                  </Alert>
 
-                    <Box component="form" onSubmit={onCreateManualLead} sx={{ display: "grid", gap: 1.25 }}>
-                      <Typography variant="subtitle2">Manual Lead Entry</Typography>
-                      <TextField
-                        required
-                        size="medium"
-                        label="Full Name"
-                        value={draft.lead.fullName}
-                        onChange={(event) => updateDraft((previous) => ({ ...previous, lead: { ...previous.lead, fullName: event.target.value } }))}
-                      />
-                      <TextField
-                        required
-                        size="medium"
-                        label="Phone (E.164)"
-                        placeholder="+15551234567"
-                        value={draft.lead.phone}
-                        onChange={(event) => updateDraft((previous) => ({ ...previous, lead: { ...previous.lead, phone: event.target.value } }))}
-                      />
-                      <TextField
-                        size="medium"
-                        label="Email"
-                        value={draft.lead.email}
-                        onChange={(event) => updateDraft((previous) => ({ ...previous, lead: { ...previous.lead, email: event.target.value } }))}
-                      />
-                      <TextField
-                        size="medium"
-                        label="Company"
-                        value={draft.lead.company}
-                        onChange={(event) => updateDraft((previous) => ({ ...previous, lead: { ...previous.lead, company: event.target.value } }))}
-                      />
-                      <Stack direction="row" spacing={1}>
-                        <Button type="submit" disabled={saving}>
-                          {saving ? "Saving..." : "Add Lead"}
-                        </Button>
-                        <Button type="button" variant="outlined" onClick={saveProgressNow}>
-                          Save Progress
-                        </Button>
-                      </Stack>
-                    </Box>
-
-                    <Box sx={{ borderTop: 1, borderColor: "divider", pt: 1.5 }}>
-                      <Typography variant="subtitle2">Bulk Import (CSV / Excel)</Typography>
-                      <Box component="input" type="file" accept=".csv,.xlsx,.xls" onChange={onImportLeads} sx={{ mt: 1 }} />
-                      <Typography variant="caption" color="text.secondary">
-                        Duplicate phone checks run automatically for CSV before import.
-                      </Typography>
-                      <Box sx={{ mt: 1 }}>
-                        <Button type="button" disabled={importing} onClick={saveProgressNow}>
-                          {importing ? "Importing..." : "Save Progress"}
-                        </Button>
-                      </Box>
-                    </Box>
-                  </Stack>
-                </Card>
-              ) : null}
-
-              {stepIndex === 1 ? (
-                <Card title={STEPS[1].label} subtitle={STEPS[1].subtitle}>
-                  <Box component="form" onSubmit={onCreateProvider} sx={{ display: "grid", gap: 1.25 }}>
+                  <Box component="form" onSubmit={onCreateProvider} sx={{ display: "grid", gap: 2.5 }}>
                     <TextField
                       select
                       size="medium"
@@ -952,7 +915,7 @@ export default function OnboardingPage() {
                         }))
                       }
                     >
-                      <MenuItem value="twilio">Twilio</MenuItem>
+                      <MenuItem value="twilio">Twilio (Recommended)</MenuItem>
                       <MenuItem value="vonage">Vonage</MenuItem>
                     </TextField>
                     <TextField
@@ -965,14 +928,14 @@ export default function OnboardingPage() {
                     <TextField
                       required
                       size="medium"
-                      label="API Key / Account SID"
+                      label="Account SID"
                       value={draft.provider.accountSid}
                       onChange={(event) => updateDraft((previous) => ({ ...previous, provider: { ...previous.provider, accountSid: event.target.value } }))}
                     />
                     <TextField
                       required
                       size="medium"
-                      label="Auth Token / Secret"
+                      label="Auth Token"
                       type="password"
                       value={draft.provider.authToken}
                       onChange={(event) => updateDraft((previous) => ({ ...previous, provider: { ...previous.provider, authToken: event.target.value } }))}
@@ -986,29 +949,41 @@ export default function OnboardingPage() {
                     />
                     <TextField
                       size="medium"
-                      label="WhatsApp From (optional)"
+                      label="WhatsApp From Number (Optional)"
                       placeholder="whatsapp:+14155238886"
                       value={draft.provider.whatsappFrom}
                       onChange={(event) => updateDraft((previous) => ({ ...previous, provider: { ...previous.provider, whatsappFrom: event.target.value } }))}
                     />
-                    <Stack direction="row" spacing={1}>
-                      <Button type="submit" disabled={saving}>
-                        {saving ? "Saving..." : "Save Provider"}
-                      </Button>
-                      <Button type="button" variant="outlined" onClick={() => void onTestProviderConnection()} disabled={saving}>
-                        Validate Connection
-                      </Button>
-                      <Button type="button" variant="outlined" onClick={saveProgressNow}>
-                        Save Progress
+                    <Stack direction="row" spacing={1} sx={{ mt: 2, justifyContent: "space-between", alignItems: "center" }}>
+                      <Stack direction="row" spacing={1}>
+                        <Button type="submit" disabled={saving}>
+                          {saving ? "Saving..." : "Save Provider"}
+                        </Button>
+                        <Button type="button" variant="outlined" onClick={() => void onTestProviderConnection()} disabled={saving}>
+                          Validate Connection
+                        </Button>
+                      </Stack>
+                      <Button
+                        type="button"
+                        variant="contained"
+                        disabled={!completed[0]}
+                        onClick={() => setStepIndex(1)}
+                      >
+                        Next: Agent Setup →
                       </Button>
                     </Stack>
                   </Box>
                 </Card>
               ) : null}
 
-              {stepIndex === 2 ? (
-                <Card title={STEPS[2].label} subtitle={STEPS[2].subtitle}>
-                  <Box component="form" onSubmit={onCreateAgent} sx={{ display: "grid", gap: 1.25 }}>
+              {/* Step 2: Create Agent & Assign Caller ID */}
+              {stepIndex === 1 ? (
+                <Card title={STEPS[1].label} subtitle={STEPS[1].subtitle}>
+                  <Alert severity="info" sx={{ mb: 2 }}>
+                    <strong>Setup Agent:</strong> Assign a validated phone number to the agent profile for making and receiving calls.
+                  </Alert>
+
+                  <Box component="form" onSubmit={onCreateAgent} sx={{ display: "grid", gap: 2.5 }}>
                     <TextField
                       required
                       size="medium"
@@ -1020,13 +995,13 @@ export default function OnboardingPage() {
                     <TextField
                       select
                       size="medium"
-                      label="Twilio Number"
+                      label="Caller ID / Synced Number"
                       value={draft.agent.twilioNumberId}
                       disabled={liveProviderNumbers.length === 0}
                       helperText={
                         liveProviderNumbers.length === 0
                           ? "Fetching numbers from Twilio..."
-                          : undefined
+                          : "Select validated caller ID number."
                       }
                       onChange={(event) =>
                         updateDraft((previous) => ({
@@ -1044,21 +1019,142 @@ export default function OnboardingPage() {
                         </MenuItem>
                       ))}
                     </TextField>
-                    <Stack direction="row" spacing={1}>
-                      <Button type="submit" disabled={saving}>
-                        {saving ? "Saving..." : "Create Agent"}
-                      </Button>
-                      <Button type="button" variant="outlined" onClick={saveProgressNow}>
-                        Save Progress
+                    <Stack direction="row" spacing={1} sx={{ mt: 2, justifyContent: "space-between", alignItems: "center" }}>
+                      <Stack direction="row" spacing={1}>
+                        <Button type="button" variant="outlined" onClick={() => setStepIndex(0)}>
+                          ← Back
+                        </Button>
+                        <Button type="submit" disabled={saving}>
+                          {saving ? "Saving..." : "Create Agent"}
+                        </Button>
+                      </Stack>
+                      <Button
+                        type="button"
+                        variant="contained"
+                        disabled={!completed[1]}
+                        onClick={() => setStepIndex(2)}
+                      >
+                        Next: Leads Setup →
                       </Button>
                     </Stack>
                   </Box>
                 </Card>
               ) : null}
 
+              {/* Step 3: Create List & Add Leads */}
+              {stepIndex === 2 ? (
+                <Card title={STEPS[2].label} subtitle={STEPS[2].subtitle}>
+                  <Stack spacing={3.5}>
+                    {/* Inline Lead List Creation Box */}
+                    <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1.5, p: 2, bgcolor: "background.default" }}>
+                      <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>
+                        Create a New Lead List
+                      </Typography>
+                      <Box component="form" onSubmit={handleCreateNewList} sx={{ display: "flex", gap: 2 }}>
+                        <TextField
+                          size="small"
+                          label="List Name"
+                          fullWidth
+                          value={newListName}
+                          onChange={(e) => setNewListName(e.target.value)}
+                        />
+                        <Button type="submit" disabled={creatingList} sx={{ minWidth: 120 }}>
+                          {creatingList ? "Creating..." : "Create List"}
+                        </Button>
+                      </Box>
+                    </Box>
+
+                    <TextField
+                      select
+                      size="medium"
+                      label="Select Target List"
+                      value={draft.lead.listId}
+                      onChange={(event) => updateDraft((previous) => ({ ...previous, lead: { ...previous.lead, listId: event.target.value } }))}
+                      helperText="Create a new list above or select an existing one."
+                    >
+                      <MenuItem value="">Select list</MenuItem>
+                      {snapshot.lists.map((item) => (
+                        <MenuItem key={item.id} value={item.id}>
+                          {item.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+
+                    <Box component="form" onSubmit={onCreateManualLead} sx={{ display: "grid", gap: 2.5 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Manual Lead Entry</Typography>
+                      <TextField
+                        required
+                        size="medium"
+                        label="Full Name"
+                        value={draft.lead.fullName}
+                        onChange={(event) => updateDraft((previous) => ({ ...previous, lead: { ...previous.lead, fullName: event.target.value } }))}
+                      />
+                      <TextField
+                        required
+                        size="medium"
+                        label="Phone Number"
+                        placeholder="+15551234567"
+                        value={draft.lead.phone}
+                        onChange={(event) => updateDraft((previous) => ({ ...previous, lead: { ...previous.lead, phone: event.target.value } }))}
+                      />
+                      <TextField
+                        size="medium"
+                        label="Email Address (Optional)"
+                        value={draft.lead.email}
+                        onChange={(event) => updateDraft((previous) => ({ ...previous, lead: { ...previous.lead, email: event.target.value } }))}
+                      />
+                      <TextField
+                        size="medium"
+                        label="Company Name (Optional)"
+                        value={draft.lead.company}
+                        onChange={(event) => updateDraft((previous) => ({ ...previous, lead: { ...previous.lead, company: event.target.value } }))}
+                      />
+                      <Stack direction="row" spacing={1}>
+                        <Button type="submit" disabled={saving}>
+                          {saving ? "Saving..." : "Add Lead"}
+                        </Button>
+                      </Stack>
+                    </Box>
+
+                    <Box sx={{ borderTop: 1, borderColor: "divider", pt: 1.5 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                        Bulk Import (CSV / Excel) {importing && " - Importing..."}
+                      </Typography>
+                      <Box
+                        component="input"
+                        type="file"
+                        accept=".csv,.xlsx,.xls"
+                        onChange={onImportLeads}
+                        disabled={importing}
+                        sx={{ mt: 1 }}
+                      />
+                      <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
+                        Format: The CSV must include a header row with &apos;full_name,phone,email&apos;.
+                      </Typography>
+                    </Box>
+
+                    <Divider sx={{ my: 2 }} />
+                    <Stack direction="row" spacing={1} sx={{ justifyContent: "space-between", alignItems: "center" }}>
+                      <Button type="button" variant="outlined" onClick={() => setStepIndex(1)}>
+                        ← Back
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="contained"
+                        disabled={!completed[2]}
+                        onClick={() => setStepIndex(3)}
+                      >
+                        Next: Campaign Setup →
+                      </Button>
+                    </Stack>
+                  </Stack>
+                </Card>
+              ) : null}
+
+              {/* Step 4: Setup & Launch Campaign */}
               {stepIndex === 3 ? (
                 <Card title={STEPS[3].label} subtitle={STEPS[3].subtitle}>
-                  <Box component="form" onSubmit={onCreateCampaign} sx={{ display: "grid", gap: 1.25 }}>
+                  <Box component="form" onSubmit={onCreateCampaign} sx={{ display: "grid", gap: 2.5 }}>
                     <TextField
                       select
                       size="medium"
@@ -1074,9 +1170,9 @@ export default function OnboardingPage() {
                         }))
                       }
                     >
-                      <MenuItem value="standard">Standard Outreach</MenuItem>
-                      <MenuItem value="high_volume">High Volume</MenuItem>
-                      <MenuItem value="quality_first">Quality First</MenuItem>
+                      <MenuItem value="standard">Standard outreach speed</MenuItem>
+                      <MenuItem value="high_volume">High volume blast dialing</MenuItem>
+                      <MenuItem value="quality_first">Focus calling</MenuItem>
                     </TextField>
                     <TextField
                       required
@@ -1106,7 +1202,7 @@ export default function OnboardingPage() {
                       value={draft.campaign.scheduleWindow}
                       onChange={(event) => updateDraft((previous) => ({ ...previous, campaign: { ...previous.campaign, scheduleWindow: event.target.value } }))}
                     />
-                    <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" } }}>
+                    <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" } }}>
                       <TextField
                         size="medium"
                         type="number"
@@ -1144,24 +1240,27 @@ export default function OnboardingPage() {
                         }))
                       }
                     >
-                      <MenuItem value="draft">Draft</MenuItem>
+                      <MenuItem value="draft">Draft (Draft mode me rakhein)</MenuItem>
                     </TextField>
 
-                    <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1.5, p: 1.5 }}>
-                      <Typography variant="subtitle2">Launch Validation</Typography>
+                    <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1.5, p: 2, bgcolor: "background.default", mb: 2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                        Campaign Launch Checklist (Running eligibility check)
+                      </Typography>
                       {launchChecks.map((check) => (
-                        <Typography key={check.label} variant="body2" color={check.passed ? "success.main" : "text.secondary"}>
-                          {check.passed ? "Passed" : "Pending"} - {check.label}
+                        <Typography key={check.label} variant="body2" sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5 }}>
+                          {check.passed ? "✅ Passed: " : "⚠️ Pending: "}
+                          <span style={{ color: check.passed ? "inherit" : "gray" }}>{check.label}</span>
                         </Typography>
                       ))}
                     </Box>
 
-                    <Stack direction="row" spacing={1}>
-                      <Button type="submit" disabled={saving}>
-                        {saving ? "Saving..." : "Create Campaign"}
+                    <Stack direction="row" spacing={1} sx={{ mt: 2, justifyContent: "space-between", alignItems: "center" }}>
+                      <Button type="button" variant="outlined" onClick={() => setStepIndex(2)}>
+                        ← Back
                       </Button>
-                      <Button type="button" variant="outlined" onClick={saveProgressNow}>
-                        Save Progress
+                      <Button type="submit" disabled={saving}>
+                        {saving ? "Launching..." : "Launch Campaign 🚀"}
                       </Button>
                     </Stack>
                   </Box>

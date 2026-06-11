@@ -271,6 +271,26 @@ export default function WhatsAppIntegrationSettingsPage() {
       {toast ? <ToastMessage tone={toast.tone} message={toast.message} /> : null}
 
       <SectionCard title="WhatsApp Integration" subtitle="Configure Meta WhatsApp Cloud API (tenant-level).">
+        <Box sx={{ mt: 1, mb: 4, display: "flex", gap: 1.5, flexWrap: "wrap" }}>
+          <MuiButton
+            variant="outlined"
+            size="small"
+            component="a"
+            href="/templates"
+            sx={{ textTransform: "none" }}
+          >
+            Manage Templates
+          </MuiButton>
+          <MuiButton
+            variant="outlined"
+            size="small"
+            component="a"
+            href="/campaigns"
+            sx={{ textTransform: "none" }}
+          >
+            Go to Campaigns
+          </MuiButton>
+        </Box>
         {loading ? (
           <LoadingState label="Loading WhatsApp integration..." />
         ) : (

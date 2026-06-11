@@ -221,6 +221,7 @@ class AuthController extends Controller
             ], 200);
         }
 
+
         $user->update([
             'last_login_at' => now(),
             'last_login_ip' => $request->ip(),
@@ -338,9 +339,25 @@ class AuthController extends Controller
         $permissions = $membership?->role?->permissions?->pluck('slug')->values() ?? collect();
         $plan = null;
         $usage = [];
+        $trialExpired = false;
+
         if ($tenant) {
             $plan = $this->planQuotaService->resolveActivePlan($tenant);
             $usage = $this->planQuotaService->usageSnapshot($tenant->id, $plan);
+
+            if ($user && !$user->is_platform_admin) {
+                $subscription = Subscription::query()
+                    ->where('tenant_id', $tenant->id)
+                    ->latest()
+                    ->first();
+                if ($subscription) {
+                    if ($subscription->status === 'trialing' && $subscription->trial_ends_at && $subscription->trial_ends_at->isPast()) {
+                        $trialExpired = true;
+                    } elseif (in_array($subscription->status, ['canceled', 'unpaid', 'past_due'], true)) {
+                        $trialExpired = true;
+                    }
+                }
+            }
         }
 
         return response()->json([
@@ -377,6 +394,7 @@ class AuthController extends Controller
                         ->all(),
                 ] : null,
                 'usage' => $usage,
+                'trial_expired' => $trialExpired,
             ],
         ]);
     }
