@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Box,
   MenuItem,
@@ -26,9 +26,13 @@ import {
   listLeads,
   saveLead,
   listAgents,
+  listLeadLists,
+  createLeadList,
+  attachLeadsToList,
+  detachLeadsFromList,
 } from "@/lib/product-api";
 import { getTenantContext } from "@/lib/tenant-context";
-import type { Lead, LeadImportStatus, LeadStatus, AgentEntity } from "@/types/product";
+import type { Lead, LeadImportStatus, LeadStatus, AgentEntity, LeadList } from "@/types/product";
 
 const leadStatuses: LeadStatus[] = [
   "new",
@@ -130,7 +134,10 @@ function parsePhoneForForm(phone: string, fallbackCountry: string): { phone_coun
   };
 }
 
+type PageTab = "leads" | "lists";
+
 export default function LeadsPage() {
+  const [activeTab, setActiveTab] = useState<PageTab>("leads");
   const [leads, setLeads] = useState<Lead[]>([]);
   const [agents, setAgents] = useState<AgentEntity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,6 +150,15 @@ export default function LeadsPage() {
   const [importState, setImportState] = useState<LeadImportStatus | null>(null);
   const [importing, setImporting] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState<string>("");
+
+  // Lead Lists state
+  const [lists, setLists] = useState<LeadList[]>([]);
+  const [selectedListId, setSelectedListId] = useState("");
+  const [selectedLeadIdsForList, setSelectedLeadIdsForList] = useState<string[]>([]);
+  const [listMode, setListMode] = useState<"add" | "remove">("add");
+  const [listName, setListName] = useState("");
+  const [listDescription, setListDescription] = useState("");
+  const [listsLoading, setListsLoading] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -160,6 +176,26 @@ export default function LeadsPage() {
       setLoading(false);
     }
   }
+
+  const loadLists = useCallback(async () => {
+    setListsLoading(true);
+    try {
+      const [listData, leadData] = await Promise.all([
+        listLeadLists(),
+        listMode === "remove" && selectedListId ? listLeads({ listId: selectedListId }) : listLeads(),
+      ]);
+      setLists(listData);
+      setLeads(leadData);
+      if (!selectedListId && listData.length > 0) {
+        setSelectedListId(listData[0].id);
+      }
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to load lists data.");
+      setMessageTone("error");
+    } finally {
+      setListsLoading(false);
+    }
+  }, [listMode, selectedListId]);
 
   async function loadLeadDefaults() {
     try {
@@ -188,6 +224,59 @@ export default function LeadsPage() {
     void load();
     void loadLeadDefaults();
   }, []);
+
+  // Load lists when switching to lists tab
+  useEffect(() => {
+    if (activeTab === "lists") {
+      void loadLists();
+    }
+  }, [activeTab, loadLists]);
+
+  async function onCreateList(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMessage("");
+    try {
+      await createLeadList({ name: listName.trim(), description: listDescription.trim() || undefined });
+      setListName("");
+      setListDescription("");
+      setMessage("Lead list created.");
+      setMessageTone("success");
+      await loadLists();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to create lead list.");
+      setMessageTone("error");
+    }
+  }
+
+  async function onAttachLeads() {
+    if (!selectedListId || selectedLeadIdsForList.length === 0) return;
+    setMessage("");
+    try {
+      const response = await attachLeadsToList(selectedListId, selectedLeadIdsForList);
+      setMessage(`${response.attached_count} leads attached to selected list.`);
+      setMessageTone("success");
+      setSelectedLeadIdsForList([]);
+      await loadLists();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to attach leads.");
+      setMessageTone("error");
+    }
+  }
+
+  async function onDetachLeads() {
+    if (!selectedListId || selectedLeadIdsForList.length === 0) return;
+    setMessage("");
+    try {
+      const response = await detachLeadsFromList(selectedListId, selectedLeadIdsForList);
+      setMessage(`${response.detached_count} leads removed from selected list.`);
+      setMessageTone("success");
+      setSelectedLeadIdsForList([]);
+      await loadLists();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to remove leads from list.");
+      setMessageTone("error");
+    }
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -355,8 +444,65 @@ export default function LeadsPage() {
     }
   }
 
+  const selectedList = lists.find((item) => item.id === selectedListId) ?? null;
+  const visibleListLeads = useMemo(() => leads.slice(0, 150), [leads]);
+
   return (
     <AppShell requiredPermissions={["call.initiate"]}>
+      {/* Tab Switcher */}
+      <Paper
+        variant="outlined"
+        sx={{
+          mb: 2.5,
+          p: 0.5,
+          display: "inline-flex",
+          gap: 0.5,
+          borderRadius: 2,
+          bgcolor: "action.hover",
+        }}
+      >
+        <MuiButton
+          variant={activeTab === "leads" ? "contained" : "text"}
+          size="small"
+          onClick={() => setActiveTab("leads")}
+          sx={{
+            borderRadius: 1.5,
+            px: 2.5,
+            py: 0.75,
+            fontWeight: 600,
+            fontSize: "0.8125rem",
+            textTransform: "none",
+            ...(activeTab !== "leads" && {
+              color: "text.secondary",
+              "&:hover": { bgcolor: "action.selected" },
+            }),
+          }}
+        >
+          Leads
+        </MuiButton>
+        <MuiButton
+          variant={activeTab === "lists" ? "contained" : "text"}
+          size="small"
+          onClick={() => setActiveTab("lists")}
+          sx={{
+            borderRadius: 1.5,
+            px: 2.5,
+            py: 0.75,
+            fontWeight: 600,
+            fontSize: "0.8125rem",
+            textTransform: "none",
+            ...(activeTab !== "lists" && {
+              color: "text.secondary",
+              "&:hover": { bgcolor: "action.selected" },
+            }),
+          }}
+        >
+          Lead Lists
+        </MuiButton>
+      </Paper>
+
+      {activeTab === "leads" ? (
+      <>
       <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", xl: "repeat(3, 1fr)" } }}>
         <Box ref={leadFormRef}>
           <SectionCard
@@ -974,6 +1120,170 @@ export default function LeadsPage() {
         )}
       </Paper>
       </Box>
+      </>
+      ) : (
+        /* ===== Lead Lists Tab ===== */
+        <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", xl: "1fr 1.7fr" } }}>
+          <SectionCard title="Lead Lists" subtitle="Create and manage list containers for campaign assignment.">
+            <Box component="form" onSubmit={onCreateList} sx={{ display: "grid", gap: 1.25 }}>
+              <TextField
+                required
+                size="medium"
+                value={listName}
+                onChange={(event) => setListName(event.target.value)}
+                placeholder="List name"
+              />
+              <TextField
+                size="medium"
+                value={listDescription}
+                onChange={(event) => setListDescription(event.target.value)}
+                placeholder="Description"
+              />
+              <MuiButton type="submit" variant="contained">Create List</MuiButton>
+            </Box>
+
+            <TextField
+              select
+              size="medium"
+              value={selectedListId}
+              onChange={(event) => setSelectedListId(event.target.value)}
+              sx={{ mt: 1.5, width: "100%" }}
+            >
+              <MenuItem value="">Select list</MenuItem>
+              {lists.map((item) => (
+                <MenuItem key={item.id} value={item.id}>
+                  {item.name} ({item.leads_count ?? 0})
+                </MenuItem>
+              ))}
+            </TextField>
+
+            {selectedList ? (
+              <Paper variant="outlined" sx={{ mt: 1.5, p: 1.5, bgcolor: "action.hover" }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>{selectedList.name}</Typography>
+                <Typography variant="caption" color="text.secondary">{selectedList.description || "No description"}</Typography>
+              </Paper>
+            ) : null}
+
+            {message ? (
+              <Box sx={{ mt: 1.5 }}>
+                <ToastMessage tone={messageTone} message={message} />
+              </Box>
+            ) : null}
+          </SectionCard>
+
+          <SectionCard
+            title="Manage List Leads"
+            subtitle={listMode === "remove" ? "Remove leads from selected list." : "Attach existing leads into selected lead list."}
+          >
+            {listsLoading ? (
+              <SkeletonLines rows={6} />
+            ) : !selectedListId ? (
+              <EmptyPanel title="Select a list first" description="Choose a lead list to add or remove leads." />
+            ) : (
+              <>
+                <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
+                  <MuiButton
+                    variant={listMode === "add" ? "contained" : "outlined"}
+                    onClick={() => {
+                      setSelectedLeadIdsForList([]);
+                      setListMode("add");
+                    }}
+                  >
+                    Add Leads
+                  </MuiButton>
+                  <MuiButton
+                    variant={listMode === "remove" ? "contained" : "outlined"}
+                    onClick={() => {
+                      setSelectedLeadIdsForList([]);
+                      setListMode("remove");
+                    }}
+                  >
+                    Remove Leads
+                  </MuiButton>
+                </Stack>
+
+                {visibleListLeads.length === 0 ? (
+                  <EmptyPanel
+                    title={listMode === "remove" ? "No leads in this list" : "No leads available"}
+                    description={listMode === "remove" ? "This lead list has no leads attached yet." : "Create or import leads first to populate list membership."}
+                  />
+                ) : (
+                  <>
+                    <Paper variant="outlined" sx={{ overflowX: "auto" }}>
+                      <Table size="medium" sx={{ minWidth: 620 }}>
+                        <TableHead>
+                          <TableRow sx={{ bgcolor: "action.hover" }}>
+                            <TableCell sx={{ width: 40 }} />
+                            <TableCell>Name</TableCell>
+                            <TableCell>Phone</TableCell>
+                            <TableCell>Status</TableCell>
+                            <TableCell>Owner</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {visibleListLeads.map((lead) => {
+                            const selected = selectedLeadIdsForList.includes(lead.id);
+                            return (
+                              <TableRow key={lead.id} hover onClick={() => {
+                                setSelectedLeadIdsForList((prev) => selected ? prev.filter((id) => id !== lead.id) : [...prev, lead.id]);
+                              }} sx={{ cursor: "pointer", bgcolor: selected ? "action.selected" : "inherit" }}>
+                                <TableCell>
+                                  <Box
+                                    sx={{
+                                      width: 18,
+                                      height: 18,
+                                      borderRadius: 0.5,
+                                      border: 2,
+                                      borderColor: selected ? "primary.main" : "divider",
+                                      bgcolor: selected ? "primary.main" : "transparent",
+                                      display: "grid",
+                                      placeItems: "center",
+                                      color: "#fff",
+                                      fontSize: "0.7rem",
+                                      fontWeight: 700,
+                                    }}
+                                  >
+                                    {selected ? "✓" : ""}
+                                  </Box>
+                                </TableCell>
+                                <TableCell>{lead.full_name}</TableCell>
+                                <TableCell sx={{ fontFamily: "monospace", fontSize: "0.85rem" }}>{lead.phone}</TableCell>
+                                <TableCell><StatusBadge label={lead.status} /></TableCell>
+                                <TableCell>{lead.owner_agent || "Unassigned"}</TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </Paper>
+                    <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+                      {listMode === "remove" ? (
+                        <MuiButton
+                          variant="contained"
+                          color="error"
+                          onClick={() => void onDetachLeads()}
+                          disabled={!selectedListId || selectedLeadIdsForList.length === 0}
+                        >
+                          Remove {selectedLeadIdsForList.length} Leads
+                        </MuiButton>
+                      ) : (
+                        <MuiButton
+                          variant="contained"
+                          onClick={() => void onAttachLeads()}
+                          disabled={!selectedListId || selectedLeadIdsForList.length === 0}
+                        >
+                          Attach {selectedLeadIdsForList.length} Leads
+                        </MuiButton>
+                      )}
+                      <MuiButton variant="outlined" onClick={() => setSelectedLeadIdsForList([])}>Clear</MuiButton>
+                    </Stack>
+                  </>
+                )}
+              </>
+            )}
+          </SectionCard>
+        </Box>
+      )}
     </AppShell>
   );
 }
