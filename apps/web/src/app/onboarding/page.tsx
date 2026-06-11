@@ -354,6 +354,14 @@ export default function OnboardingPage() {
     setStepIndex(findFirstIncomplete(completed));
   }, [completed]);
 
+  // Automatically mark onboarding as complete once all steps are completed,
+  // preventing redirects when clicking sidebar items before the final CTA button is clicked.
+  useEffect(() => {
+    if (hydrated && allDone) {
+      setOnboardingComplete(tenantId);
+    }
+  }, [hydrated, allDone, tenantId]);
+
   useEffect(() => {
     if (!hydrated || typeof window === "undefined") {
       return;
