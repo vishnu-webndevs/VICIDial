@@ -7,7 +7,10 @@ use App\Models\MessageThread;
 use App\Models\Notification;
 use App\Models\LegalHold;
 use App\Models\RetentionPolicy;
+use App\Models\Membership;
+use App\Models\Tenant;
 use App\Models\TenantSetting;
+use App\Models\User;
 use App\Models\VoicemailMessage;
 use App\Models\DataSubjectRequest;
 use App\Models\Lead;
@@ -358,8 +361,62 @@ Artisan::command('dsr:process {--tenant=} {--execute}', function () {
     }
 })->purpose('Process data subject requests (export/erase) for a tenant');
 
+Artisan::command('account:purge-expired {--execute}', function () {
+    $execute = (bool) $this->option('execute');
+    $now = now();
+
+    $query = User::withTrashed()
+        ->whereNotNull('deleted_at')
+        ->whereNotNull('deletion_scheduled_at')
+        ->where('deletion_scheduled_at', '<', $now);
+
+    $count = (clone $query)->count();
+
+    if (! $execute) {
+        $this->info("Would purge {$count} expired account(s).");
+        return;
+    }
+
+    $users = $query->get();
+    if ($users->isEmpty()) {
+        $this->info('No expired accounts to purge.');
+        return;
+    }
+
+    foreach ($users as $user) {
+        DB::transaction(function () use ($user) {
+            DB::table('personal_access_tokens')
+                ->where('tokenable_type', User::class)
+                ->where('tokenable_id', $user->id)
+                ->delete();
+
+            DB::table('sessions')
+                ->where('user_id', $user->id)
+                ->delete();
+
+            $tenantIds = Membership::query()
+                ->where('user_id', $user->id)
+                ->whereHas('role', fn ($q) => $q->where('slug', 'company_owner'))
+                ->pluck('tenant_id')
+                ->all();
+
+            if ($tenantIds !== []) {
+                $tenants = Tenant::withTrashed()->whereIn('id', $tenantIds)->get();
+                foreach ($tenants as $tenant) {
+                    $tenant->forceDelete();
+                }
+            }
+
+            $user->forceDelete();
+        });
+
+        $this->info("Purged user {$user->id} ({$user->email}).");
+    }
+})->purpose('Permanently purge expired soft-deleted accounts (and owned tenants) after the grace period');
+
 Schedule::command('dialer-incidents:prune')->daily();
 Schedule::command('retention:enforce --execute')->dailyAt('02:10');
 Schedule::command('inbox:sla-evaluate --execute')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('dsr:process --execute')->hourly()->withoutOverlapping();
+Schedule::command('account:purge-expired --execute')->dailyAt('03:00');
 Schedule::job(new RunCampaignDialerJob)->everyMinute()->withoutOverlapping();

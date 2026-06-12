@@ -40,6 +40,7 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
     Route::prefix('auth')->middleware('throttle:auth')->group(function () {
         Route::post('/register', [AuthController::class, 'register']);
         Route::post('/login', [AuthController::class, 'login']);
+        Route::post('/recover-account', [AuthController::class, 'cancelAccountDeletion']);
         Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('/reset-password', [AuthController::class, 'resetPassword']);
     });
@@ -51,6 +52,7 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             Route::post('/logout', [AuthController::class, 'logout']);
             Route::get('/me', [AuthController::class, 'me']);
             Route::patch('/me', [AuthController::class, 'updateMe']);
+            Route::post('/delete-account', [AuthController::class, 'requestAccountDeletion']);
         });
 
         Route::get('/tenant', [TenantController::class, 'show'])

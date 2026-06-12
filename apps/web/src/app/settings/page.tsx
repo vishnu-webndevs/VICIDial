@@ -1,11 +1,14 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Box, Checkbox, FormControlLabel, MenuItem, MuiButton, Stack, TextField, Typography } from "@/ui";
+import { useRouter } from "next/navigation";
+import { Box, Checkbox, FormControlLabel, MenuItem, Modal, MuiButton, Stack, TextField, Typography } from "@/ui";
 import { AppShell, EmptyState, ErrorState, LoadingState, SectionCard } from "@/components/app-shell";
 import { ToastMessage } from "@/components/ui-primitives";
 import { apiRequest } from "@/lib/api";
 import { getTenantContext, getTenantScopedStorageKey } from "@/lib/tenant-context";
+import { clearSession } from "@/lib/auth-session";
+import { deleteAccount } from "@/lib/product-api";
 
 const leadCountryOptions = [
   { code: "US", label: "United States (+1)" },
@@ -62,6 +65,7 @@ type CallingWindowResponse = {
 };
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [tenant, setTenant] = useState<TenantResponse["data"] | null>(null);
   const [name, setName] = useState("");
   const [timezone, setTimezone] = useState("UTC");
@@ -82,6 +86,10 @@ export default function SettingsPage() {
   const [callingEnd, setCallingEnd] = useState("18:00");
   const [callingTimezone, setCallingTimezone] = useState("UTC");
   const [savingWindow, setSavingWindow] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteReason, setDeleteReason] = useState("");
+  const [deletingAccount, setDeletingAccount] = useState(false);
 
   function readCallingWindowFromStorage(tenantId: string | null): CallingWindowResponse | null {
     if (typeof window === "undefined") {
@@ -237,6 +245,25 @@ export default function SettingsPage() {
     void loadTenant();
   }, [loadTenant]);
 
+  async function submitAccountDeletion() {
+    const password = deletePassword;
+    if (!password.trim()) {
+      setToast({ tone: "error", message: "Password is required to delete your account." });
+      return;
+    }
+
+    setDeletingAccount(true);
+    try {
+      const result = await deleteAccount(password, deleteReason || undefined);
+      clearSession();
+      router.push(`/login?accountDeletionScheduledAt=${encodeURIComponent(result.scheduled_permanent_deletion_at)}`);
+    } catch (error) {
+      setToast({ tone: "error", message: error instanceof Error ? error.message : "Failed to delete account." });
+    } finally {
+      setDeletingAccount(false);
+    }
+  }
+
   return (
     <AppShell requiredPermissions={["tenant.view"]}>
       {toast ? <ToastMessage tone={toast.tone} message={toast.message} /> : null}
@@ -338,7 +365,81 @@ export default function SettingsPage() {
             </MuiButton>
           </Stack>
         </SectionCard>
+
+        <SectionCard title="Danger Zone" subtitle="Destructive actions that affect your account and company.">
+          <Box
+            sx={{
+              border: "1px solid #ff3e1d",
+              borderRadius: "0.375rem",
+              p: 2,
+              display: "grid",
+              gap: 1,
+              bgcolor: "#fff5f2",
+            }}
+          >
+            <Typography variant="subtitle2" sx={{ color: "#ff3e1d" }}>
+              Delete account (15-day grace period)
+            </Typography>
+            <Typography variant="body2" sx={{ color: "#566a7f" }}>
+              This will schedule your user account and owned company for deletion. You can recover within 15 days by logging in and choosing Recover Account.
+            </Typography>
+            <MuiButton variant="contained" color="error" onClick={() => setDeleteOpen(true)} sx={{ justifySelf: "start" }}>
+              Delete Account
+            </MuiButton>
+          </Box>
+        </SectionCard>
       </Box>
+
+      <Modal
+        open={deleteOpen}
+        onClose={() => {
+          if (deletingAccount) return;
+          setDeleteOpen(false);
+        }}
+        title="Confirm account deletion"
+      >
+        <Stack spacing={2}>
+          <Typography variant="body2" sx={{ color: "#697a8d" }}>
+            Your account will be soft-deleted immediately and permanently purged after 15 days. You can recover it during the grace period.
+          </Typography>
+          <TextField
+            type="password"
+            label="Confirm password"
+            value={deletePassword}
+            onChange={(event) => setDeletePassword(event.target.value)}
+            placeholder="Enter your password to confirm"
+            fullWidth
+            disabled={deletingAccount}
+          />
+          <TextField
+            label="Reason (optional)"
+            value={deleteReason}
+            onChange={(event) => setDeleteReason(event.target.value)}
+            placeholder="Tell us why you're leaving"
+            fullWidth
+            disabled={deletingAccount}
+            multiline
+            minRows={3}
+          />
+          <Stack direction="row" spacing={1} sx={{ justifyContent: "flex-end" }}>
+            <MuiButton
+              variant="outlined"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deletingAccount}
+            >
+              Cancel
+            </MuiButton>
+            <MuiButton
+              variant="contained"
+              color="error"
+              onClick={() => void submitAccountDeletion()}
+              disabled={deletingAccount}
+            >
+              {deletingAccount ? "Deleting..." : "Delete My Account"}
+            </MuiButton>
+          </Stack>
+        </Stack>
+      </Modal>
     </AppShell>
   );
 }

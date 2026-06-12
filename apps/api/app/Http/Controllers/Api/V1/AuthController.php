@@ -211,7 +211,7 @@ class AuthController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $user = User::query()->where('email', Str::lower($validated['email']))->first();
+        $user = User::withTrashed()->where('email', Str::lower($validated['email']))->first();
         
         if (! $user || ! Hash::check($validated['password'], $user->password)) {
             return response()->json([
@@ -221,6 +221,24 @@ class AuthController extends Controller
             ], 200);
         }
 
+        if ($user->trashed()) {
+            if ($user->deletion_scheduled_at && $user->deletion_scheduled_at->isFuture()) {
+                return response()->json([
+                    'error' => [
+                        'code' => 'ACCOUNT_PENDING_DELETION',
+                        'message' => 'Your account is scheduled for deletion.',
+                        'scheduled_permanent_deletion_at' => $user->deletion_scheduled_at->toISOString(),
+                    ],
+                ], 200);
+            }
+
+            return response()->json([
+                'error' => [
+                    'code' => 'ACCOUNT_PERMANENTLY_DELETED',
+                    'message' => 'Your account has been permanently deleted.',
+                ],
+            ], 200);
+        }
 
         $user->update([
             'last_login_at' => now(),
@@ -235,6 +253,168 @@ class AuthController extends Controller
             resourceId: $user->id,
             tenantId: null,
             actorId: $user->id,
+            request: $request
+        );
+
+        return response()->json([
+            'data' => [
+                'token' => $token,
+                'user' => [
+                    'id' => $user->id,
+                    'email' => $user->email,
+                    'first_name' => $user->first_name,
+                    'last_name' => $user->last_name,
+                    'last_login_at' => optional($user->last_login_at)->toISOString(),
+                ],
+            ],
+        ]);
+    }
+
+    public function requestAccountDeletion(Request $request): JsonResponse
+    {
+        $user = $request->user();
+        if (! $user) {
+            return response()->json([
+                'error' => [
+                    'code' => 'UNAUTHENTICATED',
+                    'message' => 'Unauthenticated.',
+                ],
+            ], 401);
+        }
+
+        $validated = $request->validate([
+            'password' => ['required', 'string', 'max:128'],
+            'reason' => ['sometimes', 'nullable', 'string', 'max:2000'],
+        ]);
+
+        if (! Hash::check((string) $validated['password'], $user->password)) {
+            throw ValidationException::withMessages([
+                'password' => ['Password is incorrect.'],
+            ]);
+        }
+
+        $now = now();
+        $scheduledAt = $now->copy()->addDays(15);
+
+        $tenantIds = Membership::query()
+            ->where('user_id', $user->id)
+            ->whereHas('role', fn ($q) => $q->where('slug', 'company_owner'))
+            ->pluck('tenant_id')
+            ->all();
+
+        DB::transaction(function () use ($user, $validated, $tenantIds, $now, $scheduledAt) {
+            $user->forceFill([
+                'deletion_requested_at' => $now,
+                'deletion_scheduled_at' => $scheduledAt,
+                'deletion_reason' => $validated['reason'] ?? null,
+            ])->save();
+
+            if ($tenantIds !== []) {
+                $tenants = Tenant::query()->whereIn('id', $tenantIds)->get();
+                foreach ($tenants as $tenant) {
+                    $tenant->delete();
+                }
+
+                Membership::query()
+                    ->whereIn('tenant_id', $tenantIds)
+                    ->where('status', 'active')
+                    ->update([
+                        'status' => 'inactive',
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            $user->tokens()->delete();
+            $user->delete();
+        });
+
+        $this->auditLogger->log(
+            action: 'auth.account_deletion_requested',
+            resourceType: 'user',
+            resourceId: $user->id,
+            tenantId: $tenantIds[0] ?? null,
+            actorId: $user->id,
+            newValues: [
+                'deletion_requested_at' => $now->toISOString(),
+                'deletion_scheduled_at' => $scheduledAt->toISOString(),
+                'tenant_ids' => $tenantIds,
+                'reason_provided' => (string) ($validated['reason'] ?? '') !== '',
+            ],
+            request: $request
+        );
+
+        return response()->json([
+            'data' => [
+                'scheduled_permanent_deletion_at' => $scheduledAt->toISOString(),
+            ],
+        ]);
+    }
+
+    public function cancelAccountDeletion(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string', 'max:128'],
+        ]);
+
+        $user = User::withTrashed()->where('email', Str::lower((string) $validated['email']))->first();
+
+        if (! $user || ! Hash::check((string) $validated['password'], $user->password)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Invalid email or password.',
+                'error' => 'invalid_credentials',
+            ], 200);
+        }
+
+        if (! $user->trashed() || ! $user->deletion_scheduled_at || $user->deletion_scheduled_at->isPast()) {
+            return response()->json([
+                'error' => [
+                    'code' => 'ACCOUNT_NOT_RECOVERABLE',
+                    'message' => 'This account is not recoverable.',
+                ],
+            ], 200);
+        }
+
+        $tenantIds = Membership::query()
+            ->where('user_id', $user->id)
+            ->whereHas('role', fn ($q) => $q->where('slug', 'company_owner'))
+            ->pluck('tenant_id')
+            ->all();
+
+        DB::transaction(function () use ($user, $tenantIds) {
+            $user->restore();
+            $user->forceFill([
+                'deletion_requested_at' => null,
+                'deletion_scheduled_at' => null,
+                'deletion_reason' => null,
+            ])->save();
+
+            if ($tenantIds !== []) {
+                Tenant::withTrashed()->whereIn('id', $tenantIds)->restore();
+                Membership::query()
+                    ->whereIn('tenant_id', $tenantIds)
+                    ->where('status', 'inactive')
+                    ->update([
+                        'status' => 'active',
+                        'updated_at' => now(),
+                    ]);
+            }
+
+            $user->tokens()->delete();
+        });
+
+        $token = $user->createToken('auth-token')->plainTextToken;
+
+        $this->auditLogger->log(
+            action: 'auth.account_deletion_canceled',
+            resourceType: 'user',
+            resourceId: $user->id,
+            tenantId: $tenantIds[0] ?? null,
+            actorId: $user->id,
+            newValues: [
+                'tenant_ids' => $tenantIds,
+            ],
             request: $request
         );
 

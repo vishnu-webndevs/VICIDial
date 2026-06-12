@@ -2,9 +2,9 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/api";
-import { fetchSessionProfile } from "@/lib/product-api";
+import { fetchSessionProfile, recoverAccount } from "@/lib/product-api";
 import type { LoginResponse } from "@/types/auth";
 import { isOnboardingComplete } from "@/lib/onboarding";
 import {
@@ -24,8 +24,15 @@ import {
 
 export default function LoginClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [message, setMessage] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [pendingDeletion, setPendingDeletion] = useState<{
+    scheduledAt: string;
+    email: string;
+    password: string;
+  } | null>(null);
+  const [recovering, setRecovering] = useState(false);
 
   useEffect(() => {
     const { token } = getSessionStorageState();
@@ -34,10 +41,46 @@ export default function LoginClient() {
     }
   }, [router]);
 
+  useEffect(() => {
+    const scheduledAt = searchParams.get("accountDeletionScheduledAt");
+    if (scheduledAt) {
+      const dateText = Number.isNaN(new Date(scheduledAt).getTime())
+        ? scheduledAt
+        : new Date(scheduledAt).toLocaleString();
+      setMessage(`Account deletion requested. Your account is scheduled for permanent deletion on ${dateText}.`);
+    }
+  }, [searchParams]);
+
+  async function onRecover() {
+    if (!pendingDeletion) {
+      return;
+    }
+
+    setRecovering(true);
+    setMessage("");
+    try {
+      const response = await recoverAccount(pendingDeletion.email, pendingDeletion.password);
+      saveSession(response.token);
+      setPendingDeletion(null);
+      const profile = await fetchSessionProfile();
+      syncTenantFromProfile(profile);
+      const onboardingDone = isOnboardingComplete(profile.current_tenant?.id ?? null);
+      router.push(getRoleAwareRoute(profile, onboardingDone));
+    } catch (error) {
+      clearSession();
+      const errorMessage =
+        error instanceof Error ? error.message : "Account recovery failed.";
+      setMessage(errorMessage);
+    } finally {
+      setRecovering(false);
+    }
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setLoading(true);
     setMessage("");
+    setPendingDeletion(null);
 
     const formData = new FormData(event.currentTarget);
     const payload = {
@@ -46,13 +89,54 @@ export default function LoginClient() {
     };
 
     try {
-      const response = await apiRequest<LoginResponse & { success?: boolean; message?: string }>("/auth/login", {
+      type LoginApiError = {
+        error: {
+          code: string;
+          message?: string;
+          scheduled_permanent_deletion_at?: string;
+        };
+      };
+      type LoginApiResponse = (LoginResponse & { success?: boolean; message?: string }) | LoginApiError;
+
+      const response = await apiRequest<LoginApiResponse>("/auth/login", {
         method: "POST",
         body: payload,
       });
 
-      if (response.success === false) {
-        setMessage(response.message || "Invalid credentials provided.");
+      if ("error" in response && response.error?.code === "ACCOUNT_PENDING_DELETION") {
+        const scheduledAt = String(response.error.scheduled_permanent_deletion_at ?? "");
+        setPendingDeletion({
+          scheduledAt,
+          email: payload.email,
+          password: payload.password,
+        });
+        const dateText = Number.isNaN(new Date(scheduledAt).getTime())
+          ? scheduledAt
+          : new Date(scheduledAt).toLocaleString();
+        setMessage(`Your account is scheduled for deletion on ${dateText}. You can recover it within the 15-day grace period.`);
+        setLoading(false);
+        return;
+      }
+      if ("error" in response && response.error?.code === "ACCOUNT_PERMANENTLY_DELETED") {
+        setMessage("This account has been permanently deleted.");
+        setLoading(false);
+        return;
+      }
+
+      if ("error" in response && response.error) {
+        setMessage(response.error.message || "Login failed.");
+        setLoading(false);
+        return;
+      }
+
+      if ("success" in response && response.success === false) {
+        setMessage(("message" in response && response.message) || "Invalid credentials provided.");
+        setLoading(false);
+        return;
+      }
+
+      if (!("data" in response)) {
+        setMessage("Login failed.");
         setLoading(false);
         return;
       }
@@ -151,6 +235,36 @@ export default function LoginClient() {
           >
             Please sign-in to your account and start the adventure
           </Typography>
+
+          {pendingDeletion ? (
+            <Box
+              sx={{
+                mb: 3,
+                p: 2,
+                borderRadius: "0.375rem",
+                bgcolor: "#fff5f2",
+                border: "1px solid #ff3e1d",
+              }}
+            >
+              <Typography variant="subtitle2" sx={{ color: "#ff3e1d", mb: 0.5 }}>
+                Account pending deletion
+              </Typography>
+              <Typography variant="body2" sx={{ color: "#566a7f", mb: 1.5 }}>
+                Your account is scheduled for deletion on{" "}
+                {Number.isNaN(new Date(pendingDeletion.scheduledAt).getTime())
+                  ? pendingDeletion.scheduledAt
+                  : new Date(pendingDeletion.scheduledAt).toLocaleString()}
+                . Want to recover it?
+              </Typography>
+              <Button
+                onClick={() => void onRecover()}
+                disabled={recovering || loading}
+                fullWidth
+              >
+                {recovering ? "Recovering..." : "Recover Account"}
+              </Button>
+            </Box>
+          ) : null}
 
           <Box component="form" onSubmit={onSubmit}>
             <Box sx={{ mb: 3 }}>

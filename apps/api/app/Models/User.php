@@ -11,11 +11,12 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasApiTokens, HasFactory, HasUuids, Notifiable;
+    use HasApiTokens, HasFactory, HasUuids, Notifiable, SoftDeletes;
 
     /**
      * The attributes that are mass assignable.
@@ -30,6 +31,9 @@ class User extends Authenticatable
         'is_platform_admin',
         'last_login_at',
         'last_login_ip',
+        'deletion_requested_at',
+        'deletion_scheduled_at',
+        'deletion_reason',
     ];
 
     /**
@@ -54,6 +58,8 @@ class User extends Authenticatable
             'password' => 'hashed',
             'is_platform_admin' => 'boolean',
             'last_login_at' => 'datetime',
+            'deletion_requested_at' => 'datetime',
+            'deletion_scheduled_at' => 'datetime',
         ];
     }
 

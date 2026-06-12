@@ -457,6 +457,31 @@ export async function fetchSessionProfile(): Promise<SessionProfile> {
   return response.data;
 }
 
+export async function deleteAccount(password: string, reason?: string): Promise<{ scheduled_permanent_deletion_at: string }> {
+  const { token, tenantId } = getTenantContext();
+  const response = await apiRequest<ApiDataResponse<{ scheduled_permanent_deletion_at: string }>>("/auth/delete-account", {
+    method: "POST",
+    token,
+    tenantId,
+    body: {
+      password,
+      reason: reason?.trim() ? reason.trim() : null,
+    },
+  });
+  return response.data;
+}
+
+export async function recoverAccount(email: string, password: string): Promise<{ token: string }> {
+  const response = await apiRequest<ApiDataResponse<{ token: string }>>("/auth/recover-account", {
+    method: "POST",
+    body: {
+      email,
+      password,
+    },
+  });
+  return response.data;
+}
+
 export async function fetchPublicPlans(): Promise<PublicPlan[]> {
   const response = await apiRequest<ApiDataResponse<PublicPlan[]>>("/plans");
   return response.data ?? [];
