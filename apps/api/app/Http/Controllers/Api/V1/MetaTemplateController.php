@@ -14,7 +14,8 @@ class MetaTemplateController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+            $tenant = $request->attributes->get('tenant');
+            $tenantId = $tenant->id;
             
             $providerAccountId = $request->query('provider_account_id');
             $providerQuery = ProviderAccount::query()
@@ -71,7 +72,8 @@ class MetaTemplateController extends Controller
     public function store(Request $request, MetaTemplateService $service): JsonResponse
     {
         try {
-            $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+            $tenant = $request->attributes->get('tenant');
+            $tenantId = $tenant->id;
             
             $validated = $request->validate([
                 'name' => ['required', 'string', 'regex:/^[a-z0-9_]+$/'],
@@ -153,7 +155,8 @@ class MetaTemplateController extends Controller
     public function sync(Request $request, MetaTemplateService $service): JsonResponse
     {
         try {
-            $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+            $tenant = $request->attributes->get('tenant');
+            $tenantId = $tenant->id;
 
             $validated = $request->validate([
                 'provider_account_id' => ['nullable', 'string'],
@@ -205,7 +208,8 @@ class MetaTemplateController extends Controller
     public function update(Request $request, $id, MetaTemplateService $service): JsonResponse
     {
         try {
-            $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+            $tenant = $request->attributes->get('tenant');
+            $tenantId = $tenant->id;
             
             $validated = $request->validate([
                 'name' => ['required', 'string', 'regex:/^[a-z0-9_]+$/'],
@@ -270,7 +274,8 @@ class MetaTemplateController extends Controller
     public function destroy(Request $request, $id, MetaTemplateService $service): JsonResponse
     {
         try {
-            $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+            $tenant = $request->attributes->get('tenant');
+            $tenantId = $tenant->id;
 
             $providerQuery = ProviderAccount::query()
                 ->where('tenant_id', $tenantId)

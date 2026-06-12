@@ -2222,7 +2222,8 @@ class CorePhaseOneController extends Controller
 
     public function whatsappDebugSendTest(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+        $tenant = $request->attributes->get('tenant');
+        $tenantId = $tenant->id;
         
         $validated = $request->validate([
             'phone_number' => ['required', 'string'],
@@ -2367,7 +2368,8 @@ class CorePhaseOneController extends Controller
 
     public function whatsappDebugDeliveryInspector(Request $request): JsonResponse
     {
-        $tenantId = $request->header('X-Tenant-Id') ?? $request->user()->tenant_id;
+        $tenant = $request->attributes->get('tenant');
+        $tenantId = $tenant->id;
 
         $messages = Message::query()
             ->where('tenant_id', $tenantId)
