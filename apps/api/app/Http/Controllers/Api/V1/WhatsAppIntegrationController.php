@@ -19,15 +19,9 @@ class WhatsAppIntegrationController extends Controller
             ->latest('created_at')
             ->first();
 
-        $userId = (string) ($request->user()?->id ?? '');
-        $includeSecrets = false;
-        if ($provider && $userId !== '' && (string) ($provider->credentials_owner_user_id ?? '') === $userId) {
-            $includeSecrets = true;
-        }
-
         return response()->json([
             'data' => [
-                'provider' => $provider ? $this->serializeProvider($provider, $includeSecrets) : null,
+                'provider' => $provider ? $this->serializeProvider($provider) : null,
             ],
         ]);
     }
@@ -86,9 +80,7 @@ class WhatsAppIntegrationController extends Controller
         $provider->credentials_encrypted = array_filter($nextCredentials, fn ($v) => $v !== null && trim((string) $v) !== '');
         $provider->save();
 
-        $userId = (string) ($request->user()?->id ?? '');
-        $includeSecrets = $userId !== '' && (string) ($provider->credentials_owner_user_id ?? '') === $userId;
-        return response()->json(['data' => ['provider' => $this->serializeProvider($provider, $includeSecrets)]], 200);
+        return response()->json(['data' => ['provider' => $this->serializeProvider($provider)]], 200);
     }
 
     public function test(Request $request): JsonResponse
@@ -163,7 +155,7 @@ class WhatsAppIntegrationController extends Controller
         ], 200);
     }
 
-    private function serializeProvider(ProviderAccount $provider, bool $includeSecrets = false): array
+    private function serializeProvider(ProviderAccount $provider): array
     {
         $credentials = (array) ($provider->credentials_encrypted ?? []);
         $metaAppSecret = trim((string) ($credentials['meta_app_secret'] ?? ''));
@@ -202,11 +194,11 @@ class WhatsAppIntegrationController extends Controller
             'settings' => [
                 'enabled' => $provider->status === 'active',
                 'meta_app_id' => $credentials['meta_app_id'] ?? null,
-                'meta_app_secret' => $includeSecrets ? ($metaAppSecret !== '' ? $metaAppSecret : null) : null,
-                'meta_access_token' => $includeSecrets ? ($metaAccessToken !== '' ? $metaAccessToken : null) : null,
+                'meta_app_secret' => $metaAppSecret !== '' ? $metaAppSecret : null,
+                'meta_access_token' => $metaAccessToken !== '' ? $metaAccessToken : null,
                 'whatsapp_business_account_id' => $credentials['whatsapp_business_account_id'] ?? null,
                 'phone_number_id' => $credentials['phone_number_id'] ?? null,
-                'webhook_verify_token' => $includeSecrets ? ($verifyToken !== '' ? $verifyToken : null) : null,
+                'webhook_verify_token' => $verifyToken !== '' ? $verifyToken : null,
             ],
         ];
     }
