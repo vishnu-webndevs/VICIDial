@@ -1,5 +1,6 @@
 import LoginClient from "./LoginClient";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 export const metadata: Metadata = {
   title: "Login | WND Dialer",
@@ -14,5 +15,9 @@ export const metadata: Metadata = {
 };
 
 export default function Page() {
-  return <LoginClient />;
+  return (
+    <Suspense>
+      <LoginClient />
+    </Suspense>
+  );
 }
