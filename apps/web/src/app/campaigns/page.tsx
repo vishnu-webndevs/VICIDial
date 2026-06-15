@@ -1091,7 +1091,9 @@ export default function CampaignsPage() {
                     ? selectedLists.length === 0 ||
                       (!isOutboundCallCampaign &&
                         (!campaignForm.preferred_provider_account_id ||
-                          (!campaignForm.message_content.trim() && !campaignForm.message_template_key.trim())))
+                          (campaignForm.message_use_meta_template
+                            ? !campaignForm.message_meta_template_id.trim()
+                            : !campaignForm.message_content.trim() && !campaignForm.message_template_key.trim())))
                     : false
                 }
               >

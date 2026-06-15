@@ -20,6 +20,7 @@ use App\Models\TenantSetting;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -37,6 +38,18 @@ class CampaignRunnerService
     {
         $run->loadMissing('campaign');
         $campaign = $run->campaign;
+
+        // #region debug-point A:tick-entry
+        $this->debugReport('A', 'campaign.tick.entry', [
+            'campaign_run_id' => (string) $run->id,
+            'run_status' => (string) $run->status,
+            'campaign_id' => (string) ($campaign?->id ?? ''),
+            'campaign_status' => (string) ($campaign?->status ?? ''),
+            'tenant_id' => (string) ($campaign?->tenant_id ?? ''),
+            'campaign_type' => (string) ($campaign?->type ?? ''),
+        ]);
+        // #endregion
+
         if (! $campaign || $run->status !== 'running' || $campaign->status !== 'running') {
             $this->writeCallCampaignLog('info', 'Call campaign tick skipped (not running).', [
                 'campaign_run_id' => $run->id,
@@ -74,6 +87,14 @@ class CampaignRunnerService
         }
 
         if (! $this->isWithinAllowedCallingWindow($campaign)) {
+            // #region debug-point C:outside-window
+            $this->debugReport('C', 'campaign.tick.outside_calling_window', [
+                'tenant_id' => (string) $campaign->tenant_id,
+                'campaign_id' => (string) $campaign->id,
+                'campaign_run_id' => (string) $run->id,
+            ]);
+            // #endregion
+
             $this->writeCallCampaignLog('info', 'Call campaign waiting (outside calling window).', [
                 'tenant_id' => $campaign->tenant_id,
                 'campaign_id' => $campaign->id,
@@ -85,6 +106,16 @@ class CampaignRunnerService
 
         $dispatchable = $this->availableDispatchSlots($run, $campaign);
         if ($dispatchable <= 0) {
+            // #region debug-point B:no-dispatch-slots
+            $this->debugReport('B', 'campaign.tick.no_dispatch_slots', [
+                'tenant_id' => (string) $campaign->tenant_id,
+                'campaign_id' => (string) $campaign->id,
+                'campaign_run_id' => (string) $run->id,
+                'calls_dispatched_in_window' => (int) $run->calls_dispatched_in_window,
+                'pacing_window_started_at' => $run->pacing_window_started_at?->toISOString(),
+            ]);
+            // #endregion
+
             $this->writeCallCampaignLog('info', 'Call campaign tick no dispatch slots.', [
                 'tenant_id' => $campaign->tenant_id,
                 'campaign_id' => $campaign->id,
@@ -105,6 +136,21 @@ class CampaignRunnerService
         }
         if ($agents->isEmpty()) {
             $debug = $this->buildNoAvailableAgentsDebug($campaign);
+
+            // #region debug-point D:no-agents
+            $this->debugReport('D', 'campaign.tick.no_available_agents', [
+                'tenant_id' => (string) $campaign->tenant_id,
+                'campaign_id' => (string) $campaign->id,
+                'campaign_run_id' => (string) $run->id,
+                'auto_pause_when_no_agents' => (bool) $campaign->auto_pause_when_no_agents,
+                'mapped_agents_total' => (int) ($debug['mapped_agents_total'] ?? 0),
+                'eligible_agents' => (int) ($debug['eligible_agents'] ?? 0),
+                'online_agents' => (int) ($debug['online_agents'] ?? 0),
+                'offline_agents' => (int) ($debug['offline_agents'] ?? 0),
+                'mapping_last_updated_at' => $debug['mapping_last_updated_at'] ?? null,
+            ]);
+            // #endregion
+
             $this->writeCallCampaignLog('info', 'Call campaign tick no available agents.', [
                 'tenant_id' => $campaign->tenant_id,
                 'campaign_id' => $campaign->id,
@@ -155,6 +201,14 @@ class CampaignRunnerService
             ->get();
 
         if ($queueItems->isEmpty()) {
+            // #region debug-point E:no-queue-items
+            $this->debugReport('E', 'campaign.tick.no_pending_queue_items', [
+                'tenant_id' => (string) $campaign->tenant_id,
+                'campaign_id' => (string) $campaign->id,
+                'campaign_run_id' => (string) $run->id,
+            ]);
+            // #endregion
+
             $this->writeCallCampaignLog('info', 'Call campaign tick no pending queue items.', [
                 'tenant_id' => $campaign->tenant_id,
                 'campaign_id' => $campaign->id,
@@ -182,6 +236,16 @@ class CampaignRunnerService
                 continue;
             }
             if (! $this->isWithinAllowedCallingWindow($campaign, $lead)) {
+                // #region debug-point C:item-outside-window
+                $this->debugReport('C', 'campaign.queue_item.outside_calling_window', [
+                    'tenant_id' => (string) $campaign->tenant_id,
+                    'campaign_id' => (string) $campaign->id,
+                    'campaign_run_id' => (string) $run->id,
+                    'queue_item_id' => (string) $item->id,
+                    'lead_id' => (string) $lead->id,
+                ]);
+                // #endregion
+
                 $item->available_at = now()->addMinutes(15);
                 $item->failure_reason = 'outside_allowed_calling_window';
                 $item->save();
@@ -195,6 +259,20 @@ class CampaignRunnerService
                 $item->save();
 
                 $dialResult = $this->dialerService->dialQueueItem($campaign, $item, $lead, $agent->agent_id);
+                // #region debug-point F:dial-result
+                $this->debugReport('F', 'campaign.dial_queue_item.result', [
+                    'tenant_id' => (string) $campaign->tenant_id,
+                    'campaign_id' => (string) $campaign->id,
+                    'campaign_run_id' => (string) $run->id,
+                    'queue_item_id' => (string) $item->id,
+                    'lead_id' => (string) $lead->id,
+                    'agent_id' => (string) $agent->agent_id,
+                    'ok' => (bool) ($dialResult['ok'] ?? false),
+                    'error' => (string) ($dialResult['error'] ?? ''),
+                    'call_session_id' => isset($dialResult['call']) ? (string) $dialResult['call']->id : null,
+                ]);
+                // #endregion
+
                 if (($dialResult['ok'] ?? false) !== true || ! isset($dialResult['call'])) {
                     if ($item->attempt_count < $item->max_attempts) {
                         $item->status = 'pending';
@@ -241,6 +319,64 @@ class CampaignRunnerService
         $this->refreshRunStats($run);
     }
 
+    private function debugReport(string $hypothesisId, string $event, array $data): void
+    {
+        $url = $this->debugServerUrl();
+        if (! $url) {
+            return;
+        }
+
+        try {
+            Http::timeout(0.5)->post($url, [
+                'sessionId' => 'auto-dialer-outbound-calls',
+                'runId' => 'pre-fix',
+                'hypothesisId' => $hypothesisId,
+                'location' => 'CampaignRunnerService',
+                'msg' => '[DEBUG] '.$event,
+                'data' => $data,
+                'ts' => (int) floor(microtime(true) * 1000),
+            ]);
+        } catch (\Throwable) {
+        }
+    }
+
+    private function debugServerUrl(): ?string
+    {
+        static $cached = null;
+        static $loaded = false;
+
+        if ($loaded) {
+            return $cached;
+        }
+
+        $loaded = true;
+
+        try {
+            $paths = [
+                base_path('.dbg/auto-dialer-outbound-calls.env'),
+                dirname(base_path()) . DIRECTORY_SEPARATOR . '.dbg' . DIRECTORY_SEPARATOR . 'auto-dialer-outbound-calls.env',
+            ];
+            foreach ($paths as $path) {
+                if (is_string($path) && is_file($path)) {
+                    $contents = (string) file_get_contents($path);
+                    foreach (preg_split("/\r\n|\n|\r/", $contents) ?: [] as $line) {
+                        if (str_starts_with($line, 'DEBUG_SERVER_URL=')) {
+                            $cached = trim(substr($line, strlen('DEBUG_SERVER_URL=')));
+                            break 2;
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable) {
+        }
+
+        if (! is_string($cached) || $cached === '') {
+            $cached = env('DEBUG_SERVER_URL') ?: null;
+        }
+
+        return is_string($cached) && $cached !== '' ? $cached : null;
+    }
+
     private function refreshDialedQueueItems(CampaignRun $run, Campaign $campaign): void
     {
         $dialedItems = DialQueueItem::query()
@@ -272,8 +408,8 @@ class CampaignRunnerService
                 $this->releaseAgentAssignment($item);
 
                 $originalCallStatus = $call->status;
-                $call->status = 'failed';
-                $call->failure_reason = 'stale_call_session';
+                $call->status = $originalCallStatus === 'ringing' ? 'no_answer' : 'failed';
+                $call->failure_reason = $call->status === 'failed' ? 'stale_call_session' : null;
                 $call->ended_at = now();
                 $call->save();
 
