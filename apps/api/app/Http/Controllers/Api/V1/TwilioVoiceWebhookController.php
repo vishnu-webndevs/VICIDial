@@ -404,12 +404,22 @@ class TwilioVoiceWebhookController extends Controller
         if ($callSessionFound) {
             $leadId = (string) ($callSession->metadata['lead_id'] ?? '');
 
-            // Update CallSession metadata with the gathered digits and lead status
+            // A successful Gather means the callee answered and the flow is ending with a Hangup below.
+            // If provider completion callbacks are delayed or unreachable, advance the session here so the UI
+            // does not remain stuck in "queued" after the user already interacted with the IVR.
             $metadata = (array) ($callSession->metadata ?? []);
             $metadata['digits_pressed'] = $digits;
             $metadata['gather_completed_at'] = now()->toIso8601String();
             $metadata['lead_status_after'] = $digits === '1' ? 'qualified' : 'follow_up';
             $callSession->metadata = $metadata;
+            if (! in_array($callSession->status, ['completed', 'failed', 'busy', 'no_answer', 'timeout', 'rejected', 'canceled'], true)) {
+                if (! $callSession->started_at) {
+                    $callSession->started_at = now();
+                }
+                $callSession->status = 'completed';
+                $callSession->runtime_state = 'completed';
+                $callSession->ended_at = now();
+            }
             $callSession->save();
 
             // Create a CallEvent for the timeline
