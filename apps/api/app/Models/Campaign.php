@@ -81,12 +81,12 @@ class Campaign extends Model
         // Fetch timezone
         $timezone = (string) TenantSetting::query()
             ->where('tenant_id', $this->tenant_id)
-            ->value('timezone') ?: 'UTC';
+            ->value('timezone') ?: config('app.timezone', 'UTC');
 
         try {
             $now = \Illuminate\Support\Carbon::now($timezone);
         } catch (\Throwable) {
-            $now = \Illuminate\Support\Carbon::now('UTC');
+            $now = \Illuminate\Support\Carbon::now(config('app.timezone', 'UTC'));
         }
 
         // Format is typically: [Days] [HH:mm]-[HH:mm] e.g. "Mon-Fri 09:00-18:00"
@@ -130,12 +130,12 @@ class Campaign extends Model
                 $days = (array) ($callingWindow['days'] ?? []);
                 $start = (string) ($callingWindow['start_time'] ?? '');
                 $end = (string) ($callingWindow['end_time'] ?? '');
-                $timezone = (string) ($callingWindow['timezone'] ?? '') ?: $tenantSetting->timezone ?: 'UTC';
+                $timezone = (string) ($callingWindow['timezone'] ?? '') ?: $tenantSetting->timezone ?: config('app.timezone', 'UTC');
 
                 try {
                     $now = \Illuminate\Support\Carbon::now($timezone);
                 } catch (\Throwable) {
-                    $now = \Illuminate\Support\Carbon::now('UTC');
+                    $now = \Illuminate\Support\Carbon::now(config('app.timezone', 'UTC'));
                 }
 
                 // Check days

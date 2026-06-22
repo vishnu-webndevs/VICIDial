@@ -277,12 +277,12 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 $days = (array) ($callingWindow['days'] ?? []);
                 $start = (string) ($callingWindow['start_time'] ?? '');
                 $end = (string) ($callingWindow['end_time'] ?? '');
-                $timezone = (string) ($callingWindow['timezone'] ?? '') ?: $tenantSetting->timezone ?: 'UTC';
+                $timezone = (string) ($callingWindow['timezone'] ?? '') ?: $tenantSetting->timezone ?: config('app.timezone', 'UTC');
 
                 try {
                     $now = \Illuminate\Support\Carbon::now($timezone);
                 } catch (\Throwable) {
-                    $now = \Illuminate\Support\Carbon::now('UTC');
+                    $now = \Illuminate\Support\Carbon::now(config('app.timezone', 'UTC'));
                 }
 
                 // Check days
@@ -302,17 +302,33 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 // Check time
                 if ($start !== '' && $end !== '') {
                     $currentTime = $now->format('H:i');
-                    if ($currentTime < $start || $currentTime > $end) {
-                        Log::info('Outbound message dispatch delayed (outside global tenant hours window).', [
-                            'tenant_id' => $tenantId,
-                            'lead_id' => $lead->id,
-                            'current_time' => $currentTime,
-                            'start' => $start,
-                            'end' => $end,
-                            'timezone' => $timezone,
-                        ]);
-                        $this->release(300); // Try again in 5 minutes
-                        return;
+                    if ($start <= $end) {
+                        if ($currentTime < $start || $currentTime > $end) {
+                            Log::info('Outbound message dispatch delayed (outside global tenant hours window).', [
+                                'tenant_id' => $tenantId,
+                                'lead_id' => $lead->id,
+                                'current_time' => $currentTime,
+                                'start' => $start,
+                                'end' => $end,
+                                'timezone' => $timezone,
+                            ]);
+                            $this->release(300); // Try again in 5 minutes
+                            return;
+                        }
+                    } else {
+                        // Cross-midnight window
+                        if ($currentTime < $start && $currentTime > $end) {
+                            Log::info('Outbound message dispatch delayed (outside global tenant hours window).', [
+                                'tenant_id' => $tenantId,
+                                'lead_id' => $lead->id,
+                                'current_time' => $currentTime,
+                                'start' => $start,
+                                'end' => $end,
+                                'timezone' => $timezone,
+                            ]);
+                            $this->release(300); // Try again in 5 minutes
+                            return;
+                        }
                     }
                 }
             }

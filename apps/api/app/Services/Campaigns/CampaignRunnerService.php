@@ -901,12 +901,12 @@ class CampaignRunnerService
                 $days = (array) ($callingWindow['days'] ?? []);
                 $start = (string) ($callingWindow['start_time'] ?? '');
                 $end = (string) ($callingWindow['end_time'] ?? '');
-                $timezone = (string) ($callingWindow['timezone'] ?? '') ?: $tenantSetting->timezone ?: 'UTC';
+                $timezone = (string) ($callingWindow['timezone'] ?? '') ?: $tenantSetting->timezone ?: config('app.timezone', 'UTC');
 
                 try {
                     $now = Carbon::now($timezone);
                 } catch (\Throwable) {
-                    $now = Carbon::now('UTC');
+                    $now = Carbon::now(config('app.timezone', 'UTC'));
                 }
 
                 // Check days
@@ -956,13 +956,13 @@ class CampaignRunnerService
             }
         }
         if ($timezone === '') {
-            $timezone = (string) ($tenantSetting?->timezone ?? 'UTC');
+            $timezone = (string) ($tenantSetting?->timezone ?? config('app.timezone', 'UTC'));
         }
 
         try {
             $now = Carbon::now($timezone);
         } catch (\Throwable) {
-            $now = Carbon::now('UTC');
+            $now = Carbon::now(config('app.timezone', 'UTC'));
         }
 
         $current = $now->format('H:i');
