@@ -269,7 +269,7 @@ class CampaignRunnerService
                     'campaign_run_id' => (string) $run->id,
                     'queue_item_id' => (string) $item->id,
                     'lead_id' => (string) $lead->id,
-                    'agent_id' => (string) $agent->agent_id,
+                    'agent_id' => (string) ($agent?->agent_id ?? ''),
                     'ok' => (bool) ($dialResult['ok'] ?? false),
                     'error' => (string) ($dialResult['error'] ?? ''),
                     'call_session_id' => isset($dialResult['call']) ? (string) $dialResult['call']->id : null,
@@ -298,20 +298,22 @@ class CampaignRunnerService
                 $item->failure_reason = null;
                 $item->save();
 
-                AgentAssignment::query()->create([
-                    'tenant_id' => $campaign->tenant_id,
-                    'campaign_id' => $campaign->id,
-                    'campaign_run_id' => $run->id,
-                    'dial_queue_item_id' => $item->id,
-                    'agent_id' => $agent->agent_id,
-                    'agent_session_id' => $agent->id,
-                    'status' => 'assigned',
-                    'assigned_at' => now(),
-                ]);
+                if ($agent) {
+                    AgentAssignment::query()->create([
+                        'tenant_id' => $campaign->tenant_id,
+                        'campaign_id' => $campaign->id,
+                        'campaign_run_id' => $run->id,
+                        'dial_queue_item_id' => $item->id,
+                        'agent_id' => $agent->agent_id,
+                        'agent_session_id' => $agent->id,
+                        'status' => 'assigned',
+                        'assigned_at' => now(),
+                    ]);
 
-                $agent->active_assignments = max(0, (int) $agent->active_assignments) + 1;
-                $agent->last_heartbeat_at = now();
-                $agent->save();
+                    $agent->active_assignments = max(0, (int) $agent->active_assignments) + 1;
+                    $agent->last_heartbeat_at = now();
+                    $agent->save();
+                }
 
                 $run->calls_dispatched = $run->calls_dispatched + 1;
                 $run->calls_dispatched_in_window = $run->calls_dispatched_in_window + 1;
