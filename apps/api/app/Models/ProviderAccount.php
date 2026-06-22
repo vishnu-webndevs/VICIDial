@@ -8,6 +8,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+/**
+ * @property string $id
+ * @property string $provider_type
+ * @property array $credentials_encrypted
+ */
 class ProviderAccount extends Model
 {
     use HasFactory, HasUuids;
