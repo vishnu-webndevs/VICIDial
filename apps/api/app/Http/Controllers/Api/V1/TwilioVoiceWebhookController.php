@@ -414,12 +414,15 @@ class TwilioVoiceWebhookController extends Controller
             $metadata['lead_status_after'] = $digits === '1' ? 'qualified' : 'follow_up';
             $callSession->metadata = $metadata;
             if (! in_array($callSession->status, ['completed', 'failed', 'busy', 'no_answer', 'timeout', 'rejected', 'canceled'], true)) {
+                $effectiveEnd = now();
+                $effectiveStart = $callSession->started_at ?: $callSession->created_at ?: $effectiveEnd;
                 if (! $callSession->started_at) {
-                    $callSession->started_at = now();
+                    $callSession->started_at = $effectiveStart;
                 }
                 $callSession->status = 'completed';
                 $callSession->runtime_state = 'completed';
-                $callSession->ended_at = now();
+                $callSession->ended_at = $effectiveEnd;
+                $callSession->duration_seconds = max(0, $effectiveStart->diffInSeconds($effectiveEnd));
             }
             $callSession->save();
 
