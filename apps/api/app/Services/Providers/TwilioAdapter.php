@@ -123,7 +123,13 @@ class TwilioAdapter implements ProviderAdapterInterface
             return false;
         }
 
-        // Try request()->url() first (actual requested public URL)
+        // Try request()->fullUrl() first (includes query string which Twilio signs if present)
+        $fullUrl = request()->fullUrl();
+        if ($this->checkSignature($fullUrl, $payload, $secret, $provided)) {
+            return true;
+        }
+
+        // Try request()->url() (without query string)
         $url = request()->url();
         if ($this->checkSignature($url, $payload, $secret, $provided)) {
             return true;
@@ -131,6 +137,12 @@ class TwilioAdapter implements ProviderAdapterInterface
 
         // Try config('app.url') based URL
         $fallbackUrl = rtrim((string) config('app.url'), '/') . '/api/webhooks/twilio';
+        $queryString = request()->getQueryString();
+        $fallbackUrlWithQuery = $fallbackUrl . ($queryString ? '?' . $queryString : '');
+
+        if ($this->checkSignature($fallbackUrlWithQuery, $payload, $secret, $provided)) {
+            return true;
+        }
         if ($this->checkSignature($fallbackUrl, $payload, $secret, $provided)) {
             return true;
         }
@@ -138,6 +150,10 @@ class TwilioAdapter implements ProviderAdapterInterface
         // Try forcing HTTPS scheme
         if (str_starts_with($fallbackUrl, 'http://')) {
             $httpsUrl = 'https://' . substr($fallbackUrl, 7);
+            $httpsUrlWithQuery = $httpsUrl . ($queryString ? '?' . $queryString : '');
+            if ($this->checkSignature($httpsUrlWithQuery, $payload, $secret, $provided)) {
+                return true;
+            }
             if ($this->checkSignature($httpsUrl, $payload, $secret, $provided)) {
                 return true;
             }
@@ -146,6 +162,10 @@ class TwilioAdapter implements ProviderAdapterInterface
         // Try forcing HTTP scheme
         if (str_starts_with($fallbackUrl, 'https://')) {
             $httpUrl = 'http://' . substr($fallbackUrl, 8);
+            $httpUrlWithQuery = $httpUrl . ($queryString ? '?' . $queryString : '');
+            if ($this->checkSignature($httpUrlWithQuery, $payload, $secret, $provided)) {
+                return true;
+            }
             if ($this->checkSignature($httpUrl, $payload, $secret, $provided)) {
                 return true;
             }
