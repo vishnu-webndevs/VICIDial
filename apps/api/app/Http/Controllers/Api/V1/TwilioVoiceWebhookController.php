@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CallEvent;
 use App\Models\CallLeg;
 use App\Models\CallSession;
+use App\Models\DialQueueItem;
 use App\Models\Extension;
 use App\Models\ProviderAccount;
 use App\Models\RingGroup;
@@ -421,6 +422,19 @@ class TwilioVoiceWebhookController extends Controller
                 $callSession->ended_at = now();
             }
             $callSession->save();
+
+            $queueItemId = (string) ($metadata['queue_item_id'] ?? '');
+            if ($queueItemId !== '') {
+                DialQueueItem::query()
+                    ->where('tenant_id', $callSession->tenant_id)
+                    ->where('id', $queueItemId)
+                    ->update([
+                        'status' => 'completed',
+                        'processed_at' => now(),
+                        'failure_reason' => null,
+                        'available_at' => null,
+                    ]);
+            }
 
             // Create a CallEvent for the timeline
             CallEvent::query()->create([
