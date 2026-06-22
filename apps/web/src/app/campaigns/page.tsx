@@ -296,7 +296,13 @@ export default function CampaignsPage() {
         setMessageTone("error");
         return;
       }
-      if (!campaignForm.message_content.trim() && !campaignForm.message_template_key.trim()) {
+      if (campaignForm.message_use_meta_template) {
+        if (!campaignForm.message_meta_template_id.trim()) {
+          setMessage("Please select a Meta template.");
+          setMessageTone("error");
+          return;
+        }
+      } else if (!campaignForm.message_content.trim() && !campaignForm.message_template_key.trim()) {
         setMessage("Please enter message content or select a template.");
         setMessageTone("error");
         return;
