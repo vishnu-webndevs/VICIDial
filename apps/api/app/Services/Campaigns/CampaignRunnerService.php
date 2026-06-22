@@ -902,6 +902,9 @@ class CampaignRunnerService
                 $start = (string) ($callingWindow['start_time'] ?? '');
                 $end = (string) ($callingWindow['end_time'] ?? '');
                 $timezone = (string) ($callingWindow['timezone'] ?? '') ?: $tenantSetting->timezone ?: config('app.timezone', 'UTC');
+                if ($timezone === 'UTC' && config('app.timezone') !== 'UTC' && $tenantSetting->timezone === 'UTC') {
+                    $timezone = config('app.timezone');
+                }
 
                 try {
                     $now = Carbon::now($timezone);
@@ -956,7 +959,12 @@ class CampaignRunnerService
             }
         }
         if ($timezone === '') {
-            $timezone = (string) ($tenantSetting?->timezone ?? config('app.timezone', 'UTC'));
+            $metaTz = (string) (($tenantSetting?->metadata['calling_window']['timezone'] ?? '') ?: '');
+            $colTz = (string) ($tenantSetting?->timezone ?? '');
+            $timezone = $metaTz !== '' ? $metaTz : ($colTz !== '' ? $colTz : config('app.timezone', 'UTC'));
+            if ($timezone === 'UTC' && config('app.timezone') !== 'UTC' && $colTz === 'UTC') {
+                $timezone = config('app.timezone');
+            }
         }
 
         try {

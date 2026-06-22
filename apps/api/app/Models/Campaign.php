@@ -78,10 +78,18 @@ class Campaign extends Model
             return true;
         }
 
-        // Fetch timezone
-        $timezone = (string) TenantSetting::query()
+        $tenantSetting = TenantSetting::query()
             ->where('tenant_id', $this->tenant_id)
-            ->value('timezone') ?: config('app.timezone', 'UTC');
+            ->first();
+            
+        $metaTz = (string) (($tenantSetting?->metadata['calling_window']['timezone'] ?? '') ?: '');
+        $colTz = (string) ($tenantSetting?->timezone ?? '');
+        $timezone = $metaTz !== '' ? $metaTz : ($colTz !== '' ? $colTz : config('app.timezone', 'UTC'));
+
+        if ($timezone === 'UTC' && config('app.timezone') !== 'UTC' && $colTz === 'UTC') {
+            // If the column is just the default UTC, use the app default
+            $timezone = config('app.timezone');
+        }
 
         try {
             $now = \Illuminate\Support\Carbon::now($timezone);
@@ -131,6 +139,9 @@ class Campaign extends Model
                 $start = (string) ($callingWindow['start_time'] ?? '');
                 $end = (string) ($callingWindow['end_time'] ?? '');
                 $timezone = (string) ($callingWindow['timezone'] ?? '') ?: $tenantSetting->timezone ?: config('app.timezone', 'UTC');
+                if ($timezone === 'UTC' && config('app.timezone') !== 'UTC' && $tenantSetting->timezone === 'UTC') {
+                    $timezone = config('app.timezone');
+                }
 
                 try {
                     $now = \Illuminate\Support\Carbon::now($timezone);

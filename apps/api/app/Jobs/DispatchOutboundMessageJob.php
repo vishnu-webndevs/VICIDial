@@ -278,6 +278,9 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 $start = (string) ($callingWindow['start_time'] ?? '');
                 $end = (string) ($callingWindow['end_time'] ?? '');
                 $timezone = (string) ($callingWindow['timezone'] ?? '') ?: $tenantSetting->timezone ?: config('app.timezone', 'UTC');
+                if ($timezone === 'UTC' && config('app.timezone') !== 'UTC' && $tenantSetting->timezone === 'UTC') {
+                    $timezone = config('app.timezone');
+                }
 
                 try {
                     $now = \Illuminate\Support\Carbon::now($timezone);
