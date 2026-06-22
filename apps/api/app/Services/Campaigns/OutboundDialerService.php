@@ -112,7 +112,7 @@ class OutboundDialerService
             $scriptUrl = $provider->provider_type === 'vonage'
                 ? $baseUrl.'/api/webhooks/vonage/ncco/outbound?call_session_id='.$call->id
                 : $baseUrl.'/api/webhooks/twilio/twiml/outbound?call_session_id='.$call->id.'&token='.urlencode($twimlToken).$dialQuery;
-            $statusCallbackUrl = $baseUrl.'/api/webhooks/'.$provider->provider_type;
+            $statusCallbackUrl = $baseUrl.'/api/webhooks/'.$provider->provider_type.'?call_session_id='.$call->id;
 
             // #region debug-point C:dispatch-job
             $this->debugReport('C', 'dial.dispatch_outbound_call_job', [

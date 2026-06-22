@@ -61,11 +61,31 @@ class ProviderWebhookController extends Controller
         }
 
         $normalized = $adapter->normalizeWebhookEvent($payload);
-        $call = CallSession::query()
-            ->where('tenant_id', $provider->tenant_id)
-            ->where('provider_account_id', $provider->id)
-            ->where('provider_call_id', $normalized['provider_call_id'])
-            ->first();
+        
+        $callSessionId = $request->query('call_session_id');
+        $call = null;
+
+        if ($callSessionId) {
+            $call = CallSession::query()
+                ->where('tenant_id', $provider->tenant_id)
+                ->where('id', $callSessionId)
+                ->first();
+
+            // If we found the call but its provider_call_id doesn't match the real one from webhook,
+            // it means the webhook arrived before the DispatchOutboundCallJob updated the DB.
+            if ($call && $call->provider_call_id !== $normalized['provider_call_id']) {
+                $call->provider_call_id = (string) $normalized['provider_call_id'];
+                $call->save();
+            }
+        }
+
+        if (! $call) {
+            $call = CallSession::query()
+                ->where('tenant_id', $provider->tenant_id)
+                ->where('provider_account_id', $provider->id)
+                ->where('provider_call_id', $normalized['provider_call_id'])
+                ->first();
+        }
 
         if (! $call) {
             $from = (string) ($payload['From'] ?? $payload['from'] ?? '');

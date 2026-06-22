@@ -155,7 +155,7 @@ class CallController extends Controller
         $scriptUrl = $provider->provider_type === 'vonage'
             ? $baseUrl.'/api/webhooks/vonage/ncco/outbound?call_session_id='.$call->id
             : $baseUrl.'/api/webhooks/twilio/twiml/outbound?call_session_id='.$call->id.'&token='.urlencode($twimlToken).$dialQuery;
-        $statusCallbackUrl = $baseUrl.'/api/webhooks/'.$provider->provider_type;
+        $statusCallbackUrl = $baseUrl.'/api/webhooks/'.$provider->provider_type.'?call_session_id='.$call->id;
         DispatchOutboundCallJob::dispatch(
             callSessionId: $call->id,
             providerAccountId: $provider->id,
@@ -274,7 +274,7 @@ class CallController extends Controller
         $batchId = (string) Str::uuid();
         $calls = [];
         $baseUrl = rtrim((string) config('app.url'), '/');
-        $statusCallbackUrl = $baseUrl.'/api/webhooks/'.$provider->provider_type;
+        $baseStatusCallbackUrl = $baseUrl.'/api/webhooks/'.$provider->provider_type;
 
         foreach ($toNumbers as $toNumber) {
             $call = CallSession::query()->create([
@@ -308,6 +308,8 @@ class CallController extends Controller
             $scriptUrl = $provider->provider_type === 'vonage'
                 ? $baseUrl.'/api/webhooks/vonage/ncco/outbound?call_session_id='.$call->id
                 : $baseUrl.'/api/webhooks/twilio/twiml/outbound?call_session_id='.$call->id.'&token='.urlencode($twimlToken).$dialQuery;
+
+            $statusCallbackUrl = $baseStatusCallbackUrl.'?call_session_id='.$call->id;
 
             DispatchOutboundCallJob::dispatch(
                 callSessionId: $call->id,
@@ -396,7 +398,7 @@ class CallController extends Controller
         $scriptUrl = $provider->provider_type === 'vonage'
             ? $baseUrl.'/api/webhooks/vonage/ncco/outbound?call_session_id='.$call->id
             : $baseUrl.'/api/webhooks/twilio/twiml/outbound?call_session_id='.$call->id.'&token='.urlencode($twimlToken).$dialQuery;
-        $statusCallbackUrl = $baseUrl.'/api/webhooks/'.$provider->provider_type;
+        $statusCallbackUrl = $baseUrl.'/api/webhooks/'.$provider->provider_type.'?call_session_id='.$call->id;
 
         $result = $adapterManager
             ->for($provider->provider_type)
@@ -646,7 +648,7 @@ class CallController extends Controller
         $scriptUrl = $providerType === 'vonage'
             ? $baseUrl.'/api/webhooks/vonage/ncco/outbound?call_session_id='.$retry->id
             : $baseUrl.'/api/webhooks/twilio/twiml/outbound?call_session_id='.$retry->id.'&token='.urlencode($twimlToken).$dialQuery;
-        $statusCallbackUrl = $baseUrl.'/api/webhooks/'.$providerType;
+        $statusCallbackUrl = $baseUrl.'/api/webhooks/'.$providerType.'?call_session_id='.$retry->id;
         DispatchOutboundCallJob::dispatch(
             callSessionId: $retry->id,
             providerAccountId: $retry->provider_account_id,
