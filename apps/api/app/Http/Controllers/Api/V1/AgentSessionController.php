@@ -7,6 +7,7 @@ use App\Models\Agent;
 use App\Models\AgentSession;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Http;
 
 class AgentSessionController extends Controller
 {
@@ -42,6 +43,15 @@ class AgentSessionController extends Controller
             'status' => ['required', 'in:offline,available,busy,on_break'],
             'capacity' => ['nullable', 'integer', 'min:1', 'max:5'],
         ]);
+
+        // #region debug-point D:agent-heartbeat
+        $this->debugReport('D', 'agent.session.upsert.request', [
+            'tenant_id' => (string) ($tenant?->id ?? ''),
+            'agent_id' => (string) $validated['agent_id'],
+            'status' => (string) $validated['status'],
+            'capacity' => (int) ($validated['capacity'] ?? 1),
+        ]);
+        // #endregion
 
         Agent::query()
             ->where('tenant_id', $tenant->id)
@@ -96,6 +106,64 @@ class AgentSessionController extends Controller
         $session->save();
 
         return response()->json(['data' => $this->serializeSession($session)]);
+    }
+
+    private function debugReport(string $hypothesisId, string $event, array $data): void
+    {
+        $url = $this->debugServerUrl();
+        if (! $url) {
+            return;
+        }
+
+        try {
+            Http::timeout(0.5)->post($url, [
+                'sessionId' => 'auto-dialer-outbound-calls',
+                'runId' => 'pre-fix',
+                'hypothesisId' => $hypothesisId,
+                'location' => 'AgentSessionController',
+                'msg' => '[DEBUG] '.$event,
+                'data' => $data,
+                'ts' => (int) floor(microtime(true) * 1000),
+            ]);
+        } catch (\Throwable) {
+        }
+    }
+
+    private function debugServerUrl(): ?string
+    {
+        static $cached = null;
+        static $loaded = false;
+
+        if ($loaded) {
+            return $cached;
+        }
+
+        $loaded = true;
+
+        try {
+            $paths = [
+                base_path('.dbg/auto-dialer-outbound-calls.env'),
+                dirname(base_path()) . DIRECTORY_SEPARATOR . '.dbg' . DIRECTORY_SEPARATOR . 'auto-dialer-outbound-calls.env',
+            ];
+            foreach ($paths as $path) {
+                if (is_string($path) && is_file($path)) {
+                    $contents = (string) file_get_contents($path);
+                    foreach (preg_split("/\r\n|\n|\r/", $contents) ?: [] as $line) {
+                        if (str_starts_with($line, 'DEBUG_SERVER_URL=')) {
+                            $cached = trim(substr($line, strlen('DEBUG_SERVER_URL=')));
+                            break 2;
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable) {
+        }
+
+        if (! is_string($cached) || $cached === '') {
+            $cached = env('DEBUG_SERVER_URL') ?: null;
+        }
+
+        return is_string($cached) && $cached !== '' ? $cached : null;
     }
 
     /**

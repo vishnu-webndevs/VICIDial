@@ -13,6 +13,7 @@ use App\Models\Lead;
 use App\Models\ProviderAccount;
 use App\Models\ProviderPhoneNumber;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class OutboundDialerService
@@ -27,6 +28,19 @@ class OutboundDialerService
         ?string $agentId = null
     ): array {
         $providers = $this->resolveProviders($campaign);
+
+        // #region debug-point A:providers
+        $this->debugReport('A', 'dial.providers.resolved', [
+            'tenant_id' => (string) $campaign->tenant_id,
+            'campaign_id' => (string) $campaign->id,
+            'queue_item_id' => (string) $queueItem->id,
+            'lead_id' => (string) $lead->id,
+            'agent_id' => (string) ($agentId ?? ''),
+            'providers_count' => (int) $providers->count(),
+            'preferred_provider_account_id' => (string) ($campaign->preferred_provider_account_id ?? ''),
+        ]);
+        // #endregion
+
         if ($providers->isEmpty()) {
             return ['ok' => false, 'error' => 'No active provider account is available for this tenant.'];
         }
@@ -39,6 +53,16 @@ class OutboundDialerService
                 providerId: $provider->id
             ) ?: (string) ($provider->credentials_encrypted['from_number'] ?? '');
             if ($fromNumber === '') {
+                // #region debug-point B:no-from-number
+                $this->debugReport('B', 'dial.skip_provider.no_from_number', [
+                    'tenant_id' => (string) $campaign->tenant_id,
+                    'campaign_id' => (string) $campaign->id,
+                    'queue_item_id' => (string) $queueItem->id,
+                    'provider_account_id' => (string) $provider->id,
+                    'provider_type' => (string) $provider->provider_type,
+                    'agent_id' => (string) ($agentId ?? ''),
+                ]);
+                // #endregion
                 continue;
             }
 
@@ -89,6 +113,23 @@ class OutboundDialerService
                 ? $baseUrl.'/api/webhooks/vonage/ncco/outbound?call_session_id='.$call->id
                 : $baseUrl.'/api/webhooks/twilio/twiml/outbound?call_session_id='.$call->id.'&token='.urlencode($twimlToken).$dialQuery;
             $statusCallbackUrl = $baseUrl.'/api/webhooks/'.$provider->provider_type;
+
+            // #region debug-point C:dispatch-job
+            $this->debugReport('C', 'dial.dispatch_outbound_call_job', [
+                'tenant_id' => (string) $campaign->tenant_id,
+                'campaign_id' => (string) $campaign->id,
+                'queue_item_id' => (string) $queueItem->id,
+                'call_session_id' => (string) $call->id,
+                'provider_account_id' => (string) $provider->id,
+                'provider_type' => (string) $provider->provider_type,
+                'from_number' => (string) $fromNumber,
+                'to_number' => (string) ($lead->phone ?? ''),
+                'twiml_url' => (string) $scriptUrl,
+                'status_callback_url' => (string) $statusCallbackUrl,
+                'app_url' => (string) $baseUrl,
+            ]);
+            // #endregion
+
             DispatchOutboundCallJob::dispatch(
                 callSessionId: $call->id,
                 providerAccountId: $provider->id,
@@ -100,6 +141,64 @@ class OutboundDialerService
         }
 
         return ['ok' => false, 'error' => 'Active providers do not have valid outbound caller IDs configured.'];
+    }
+
+    private function debugReport(string $hypothesisId, string $event, array $data): void
+    {
+        $url = $this->debugServerUrl();
+        if (! $url) {
+            return;
+        }
+
+        try {
+            Http::timeout(0.5)->post($url, [
+                'sessionId' => 'auto-dialer-outbound-calls',
+                'runId' => 'pre-fix',
+                'hypothesisId' => $hypothesisId,
+                'location' => 'OutboundDialerService',
+                'msg' => '[DEBUG] '.$event,
+                'data' => $data,
+                'ts' => (int) floor(microtime(true) * 1000),
+            ]);
+        } catch (\Throwable) {
+        }
+    }
+
+    private function debugServerUrl(): ?string
+    {
+        static $cached = null;
+        static $loaded = false;
+
+        if ($loaded) {
+            return $cached;
+        }
+
+        $loaded = true;
+
+        try {
+            $paths = [
+                base_path('.dbg/auto-dialer-outbound-calls.env'),
+                dirname(base_path()) . DIRECTORY_SEPARATOR . '.dbg' . DIRECTORY_SEPARATOR . 'auto-dialer-outbound-calls.env',
+            ];
+            foreach ($paths as $path) {
+                if (is_string($path) && is_file($path)) {
+                    $contents = (string) file_get_contents($path);
+                    foreach (preg_split("/\r\n|\n|\r/", $contents) ?: [] as $line) {
+                        if (str_starts_with($line, 'DEBUG_SERVER_URL=')) {
+                            $cached = trim(substr($line, strlen('DEBUG_SERVER_URL=')));
+                            break 2;
+                        }
+                    }
+                }
+            }
+        } catch (\Throwable) {
+        }
+
+        if (! is_string($cached) || $cached === '') {
+            $cached = env('DEBUG_SERVER_URL') ?: null;
+        }
+
+        return is_string($cached) && $cached !== '' ? $cached : null;
     }
 
     /**
