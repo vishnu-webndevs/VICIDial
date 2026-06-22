@@ -129,12 +129,13 @@ class CampaignRunnerService
             return;
         }
 
-        $agents = $this->availableAgentSessions($campaign->tenant_id);
-        if ($agents->isEmpty()) {
+        $requiresAgents = $campaign->type === 'outbound_call';
+        $agents = $requiresAgents ? $this->availableAgentSessions($campaign->tenant_id) : collect();
+        if ($requiresAgents && $agents->isEmpty()) {
             $this->ensureCampaignAgentSessions($campaign);
             $agents = $this->availableAgentSessions($campaign->tenant_id);
         }
-        if ($agents->isEmpty()) {
+        if ($requiresAgents && $agents->isEmpty()) {
             $debug = $this->buildNoAvailableAgentsDebug($campaign);
 
             // #region debug-point D:no-agents
@@ -225,8 +226,10 @@ class CampaignRunnerService
 
         /** @var DialQueueItem $item */
         foreach ($queueItems as $item) {
-            $agent = $activeAgents[$agentIndex % $activeAgents->count()];
-            $agentIndex++;
+            $agent = $activeAgents->isNotEmpty() ? $activeAgents[$agentIndex % $activeAgents->count()] : null;
+            if ($activeAgents->isNotEmpty()) {
+                $agentIndex++;
+            }
             $lead = Lead::query()->where('tenant_id', $campaign->tenant_id)->find($item->lead_id);
             if (! $lead) {
                 $item->status = 'failed';
@@ -255,10 +258,10 @@ class CampaignRunnerService
             DB::transaction(function () use ($campaign, $run, $item, $lead, $agent): void {
                 $item->attempt_count = $item->attempt_count + 1;
                 $item->status = 'processing';
-                $item->assigned_agent_entity_id = $agent->agent_id;
+                $item->assigned_agent_entity_id = $agent?->agent_id;
                 $item->save();
 
-                $dialResult = $this->dialerService->dialQueueItem($campaign, $item, $lead, $agent->agent_id);
+                $dialResult = $this->dialerService->dialQueueItem($campaign, $item, $lead, $agent?->agent_id);
                 // #region debug-point F:dial-result
                 $this->debugReport('F', 'campaign.dial_queue_item.result', [
                     'tenant_id' => (string) $campaign->tenant_id,
@@ -915,8 +918,15 @@ class CampaignRunnerService
                 // Check time
                 if ($start !== '' && $end !== '') {
                     $currentTime = $now->format('H:i');
-                    if ($currentTime < $start || $currentTime > $end) {
-                        return false;
+                    if ($start <= $end) {
+                        if ($currentTime < $start || $currentTime > $end) {
+                            return false;
+                        }
+                    } else {
+                        // Cross-midnight window
+                        if ($currentTime < $start && $currentTime > $end) {
+                            return false;
+                        }
                     }
                 }
             }
@@ -955,7 +965,12 @@ class CampaignRunnerService
 
         $current = $now->format('H:i');
 
-        return $current >= $start && $current <= $end;
+        if ($start <= $end) {
+            return $current >= $start && $current <= $end;
+        } else {
+            // Cross-midnight window
+            return $current >= $start || $current <= $end;
+        }
     }
 
     private function notifyCampaignCompletion(CampaignRun $run, ?Campaign $campaign): void

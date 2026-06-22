@@ -1,1 +1,0 @@
-[2026-06-22 07:40:27] {"sessionId":"auto-dialer-outbound-calls","runId":"pre-fix","hypothesisId":"test-hyp","location":"OutboundDialerService","msg":"[DEBUG] test.event","data":{"key":"value","status":"testing"},"ts":1782106826545}

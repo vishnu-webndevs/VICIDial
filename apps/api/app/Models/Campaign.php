@@ -106,7 +106,12 @@ class Campaign extends Model
 
             // 2. Check time part
             $currentTime = $now->format('H:i');
-            return $currentTime >= $startTime && $currentTime <= $endTime;
+            if ($startTime <= $endTime) {
+                return $currentTime >= $startTime && $currentTime <= $endTime;
+            } else {
+                // Cross-midnight window
+                return $currentTime >= $startTime || $currentTime <= $endTime;
+            }
         }
 
         return true;
@@ -144,8 +149,15 @@ class Campaign extends Model
                 // Check time
                 if ($start !== '' && $end !== '') {
                     $currentTime = $now->format('H:i');
-                    if ($currentTime < $start || $currentTime > $end) {
-                        return false;
+                    if ($start <= $end) {
+                        if ($currentTime < $start || $currentTime > $end) {
+                            return false;
+                        }
+                    } else {
+                        // Cross-midnight window
+                        if ($currentTime < $start && $currentTime > $end) {
+                            return false;
+                        }
                     }
                 }
             }
