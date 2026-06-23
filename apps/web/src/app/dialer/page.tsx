@@ -180,11 +180,7 @@ export default function DialerPage() {
       setMessageTone("error");
       return;
     }
-    if (!selectedAgent?.destination_number) {
-      setMessage("Selected agent does not have a destination number set. Add it in Agents > Destination.");
-      setMessageTone("error");
-      return;
-    }
+
 
     setSubmitting(true);
     setMessage("");

@@ -620,6 +620,9 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
         ->first();
     $destination = (string) ((array) ($agent?->metadata ?? []))['destination_number'] ?? '';
     if ($destination === '') {
+        $destination = (string) ($call->from_number ?? '');
+    }
+    if ($destination === '') {
         $twiml = '<?xml version="1.0" encoding="UTF-8"?><Response><Say voice="Polly.Joanna">No agent destination is configured.</Say><Hangup/></Response>';
 
         return response($twiml, 200, ['Content-Type' => 'text/xml']);
