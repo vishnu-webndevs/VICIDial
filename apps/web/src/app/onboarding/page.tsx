@@ -125,17 +125,17 @@ const defaultDraft: OnboardingDraft = {
   },
   provider: {
     providerType: "twilio",
-    displayName: "",
-    accountSid: "",
-    authToken: "",
-    fromNumber: "",
+    displayName: "Main Twilio Provider",
+    accountSid: "AC11111111111111111111111111111111",
+    authToken: "sandbox_auth_token_value",
+    fromNumber: "+15550001111",
     whatsappFrom: "",
     createdProviderId: "",
     tested: false,
     completed: false,
   },
   agent: {
-    identity: "",
+    identity: "agent-1",
     status: "active",
     role: "agent",
     permissions: ["call.view", "call.initiate"],
@@ -150,7 +150,7 @@ const defaultDraft: OnboardingDraft = {
   },
   campaign: {
     template: "standard",
-    name: "",
+    name: "Outbound Campaign - Demo",
     scheduleWindow: "Mon-Fri 09:00-18:00",
     retryLimit: 2,
     queueSize: 20,
@@ -218,6 +218,251 @@ export default function OnboardingPage() {
       setToast(error instanceof Error ? error.message : "Failed to create lead list.", "error");
     } finally {
       setCreatingList(false);
+    }
+  }
+
+  async function onAddDemoLeads() {
+    setSaving(true);
+    try {
+      let targetListId = draft.lead.listId;
+      if (!targetListId) {
+        const createdList = await createLeadList({
+          name: "Demo Leads List",
+          description: "Created automatically for onboarding demo",
+          is_active: true,
+        });
+        targetListId = createdList.id;
+        await refreshSnapshot();
+      }
+
+      const sampleLeadsData = [
+        { full_name: "John Doe", phone: "+15550199001", company: "Acme Corp", email: "john@example.com" },
+        { full_name: "Jane Smith", phone: "+15550199002", company: "Global Tech", email: "jane@example.com" },
+        { full_name: "Alice Johnson", phone: "+15550199003", company: "Starter Inc", email: "alice@example.com" },
+      ];
+
+      const createdLeads = [];
+      for (const leadData of sampleLeadsData) {
+        const exists = snapshot.leads.some((l) => normalizePhone(l.phone) === normalizePhone(leadData.phone));
+        if (!exists) {
+          const created = await saveLead({
+            full_name: leadData.full_name,
+            phone: leadData.phone,
+            email: leadData.email,
+            company: leadData.company,
+            status: "new",
+            owner_agent: "Unassigned",
+            next_follow_up_at: null,
+            tags: ["demo"],
+            notes: ["Sample onboarding lead"],
+          });
+          createdLeads.push(created.id);
+        }
+      }
+
+      if (createdLeads.length > 0) {
+        await attachLeadsToList(targetListId, createdLeads);
+      }
+
+      updateDraft((previous) => ({
+        ...previous,
+        lead: {
+          ...previous.lead,
+          listId: targetListId,
+          completed: true,
+          mode: "manual",
+        },
+        campaign: {
+          ...previous.campaign,
+          listId: targetListId,
+        },
+      }));
+
+      await refreshSnapshot();
+      setToast("Demo leads populated successfully!", "success");
+      setStepIndex(3);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Failed to add demo leads.", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function onQuickSetupDemo() {
+    setSaving(true);
+    try {
+      const { token, tenantId: requestTenantId } = getTenantContext();
+
+      // 1. Create provider
+      let providerId = snapshot.providers.find(
+        (p) => p.provider_type === "twilio" && p.status === "active"
+      )?.id;
+      if (!providerId) {
+        const response = await apiRequest<{ data: { id: string } }>("/providers", {
+          method: "POST",
+          token,
+          tenantId: requestTenantId,
+          body: {
+            provider_type: "twilio",
+            display_name: "Demo Twilio Provider",
+            credentials: {
+              account_sid: "AC11111111111111111111111111111111",
+              auth_token: "sandbox_auth_token_value",
+              from_number: "+15550001111",
+              whatsapp_from: "",
+            },
+          },
+        });
+        providerId = response.data.id;
+      }
+
+      // 2. Validate/Sync number for this provider
+      const numbers = await fetchProviderNumbersFromTwilio(providerId);
+      if (numbers.length > 0) {
+        await syncProviderNumbers(providerId, numbers);
+      }
+
+      const validatedNumbers = await apiRequest<{ data: Array<{ id: string; provider_account_id: string; phone_number: string }> }>(
+        "/admin/settings/communication/numbers/validated",
+        { token, tenantId: requestTenantId }
+      );
+      const providerPhoneNumberId =
+        validatedNumbers.data.find((n) => n.provider_account_id === providerId && n.phone_number === "+15550001111")?.id ?? null;
+
+      await apiRequest(`/admin/settings/communication/providers/${providerId}/test`, {
+        method: "POST",
+        token,
+        tenantId: requestTenantId,
+        body: providerPhoneNumberId ? { provider_phone_number_id: providerPhoneNumberId } : {},
+      });
+
+      // 3. Create Agent
+      let agentId = snapshot.agents[0]?.id;
+      if (!agentId) {
+        const createdAgent = await createAgent({
+          company_number: "demo-agent",
+          status: "active",
+        });
+        agentId = createdAgent.id;
+
+        const selectedNumberId =
+          providerPhoneNumberId ||
+          (validatedNumbers.data.find((n) => n.provider_account_id === providerId)?.id ?? "");
+
+        if (selectedNumberId) {
+          await assignAgentNumber({
+            agent_id: agentId,
+            provider_account_id: providerId,
+            provider_phone_number_id: selectedNumberId,
+            status: "active",
+          });
+        }
+      }
+
+      // 4. Create Lead List
+      let listId = draft.lead.listId || snapshot.lists[0]?.id;
+      if (!listId) {
+        const createdList = await createLeadList({
+          name: "Demo Leads List",
+          description: "Created automatically for onboarding demo",
+          is_active: true,
+        });
+        listId = createdList.id;
+      }
+
+      // 5. Create Demo Leads
+      const sampleLeadsData = [
+        { full_name: "John Doe", phone: "+15550199001", company: "Acme Corp", email: "john@example.com" },
+        { full_name: "Jane Smith", phone: "+15550199002", company: "Global Tech", email: "jane@example.com" },
+        { full_name: "Alice Johnson", phone: "+15550199003", company: "Starter Inc", email: "alice@example.com" },
+      ];
+
+      const refreshedLeads = await listLeads();
+      const createdLeads = [];
+      for (const leadData of sampleLeadsData) {
+        const exists = refreshedLeads.some((l) => normalizePhone(l.phone) === normalizePhone(leadData.phone));
+        if (!exists) {
+          const created = await saveLead({
+            full_name: leadData.full_name,
+            phone: leadData.phone,
+            email: leadData.email,
+            company: leadData.company,
+            status: "new",
+            owner_agent: "Unassigned",
+            next_follow_up_at: null,
+            tags: ["demo"],
+            notes: ["Sample onboarding lead"],
+          });
+          createdLeads.push(created.id);
+        }
+      }
+
+      if (createdLeads.length > 0) {
+        await attachLeadsToList(listId, createdLeads);
+      }
+
+      // 6. Create Campaign
+      const refreshedLists = await listLeadLists();
+      const selectedList = refreshedLists.find((item) => item.id === listId) || { name: "Demo Leads List", id: listId };
+      const campaignName = "Outbound Campaign - Demo";
+
+      const createdCampaign = await saveCampaign({
+        name: campaignName,
+        type: "auto",
+        status: "draft",
+        schedule_window: "Mon-Fri 09:00-18:00",
+        retry_limit: 2,
+        queue_size: 20,
+        calls_per_minute: 20,
+        lead_list_name: selectedList.name,
+        lead_list_ids: [selectedList.id],
+      });
+
+      // 7. Update Draft states
+      updateDraft((previous) => ({
+        ...previous,
+        provider: {
+          ...previous.provider,
+          displayName: "Demo Twilio Provider",
+          accountSid: "AC11111111111111111111111111111111",
+          authToken: "sandbox_auth_token_value",
+          fromNumber: "+15550001111",
+          createdProviderId: providerId ?? "",
+          tested: true,
+          completed: true,
+        },
+        agent: {
+          ...previous.agent,
+          identity: "demo-agent",
+          twilioNumberId: "+15550001111",
+          createdAgentId: agentId ?? "",
+          completed: true,
+        },
+        lead: {
+          ...previous.lead,
+          listId: listId ?? "",
+          completed: true,
+          mode: "manual",
+        },
+        campaign: {
+          ...previous.campaign,
+          name: campaignName,
+          listId: listId ?? "",
+          completed: true,
+          createdCampaignId: createdCampaign.id,
+        },
+      }));
+
+      await refreshSnapshot();
+      setToast("⚡ Sandbox Demo Quick Setup complete! Redirecting...", "success");
+
+      setTimeout(() => {
+        completeOnboardingAndGoDashboard();
+      }, 1000);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : "Failed to run quick setup demo.", "error");
+    } finally {
+      setSaving(false);
     }
   }
   const [loading, setLoading] = useState(true);
@@ -857,13 +1102,27 @@ export default function OnboardingPage() {
                   Setup Progress: {progress.done}/{progress.total} ({progress.percent}%)
                 </Typography>
                 <LinearProgress variant="determinate" value={progress.percent} sx={{ mt: 1.25, height: 8, borderRadius: 99 }} />
-                {allDone ? (
+                {!allDone ? (
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.5, justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 1 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Want to test immediately or skip calling setup?
+                    </Typography>
+                    <Stack direction="row" spacing={1} sx={{ flexWrap: "wrap", gap: 1 }}>
+                      <Button variant="contained" color="secondary" onClick={() => void onQuickSetupDemo()} disabled={saving || loading}>
+                        {saving ? "Setting up..." : "⚡ Quick Setup Sandbox Demo"}
+                      </Button>
+                      <Button variant="outlined" color="primary" onClick={completeOnboardingAndGoDashboard} disabled={loading || saving}>
+                        Skip Setup & Go to Dashboard
+                      </Button>
+                    </Stack>
+                  </Stack>
+                ) : (
                   <Stack direction="row" spacing={1} sx={{ mt: 1.25, justifyContent: "flex-end" }}>
                     <Button variant="contained" onClick={completeOnboardingAndGoDashboard}>
                       Go to Dashboard
                     </Button>
                   </Stack>
-                ) : null}
+                )}
               </Box>
 
               <Box sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", lg: "repeat(4, minmax(0, 1fr))" } }}>
@@ -1120,6 +1379,9 @@ export default function OnboardingPage() {
                       <Stack direction="row" spacing={1}>
                         <Button type="submit" disabled={saving}>
                           {saving ? "Saving..." : "Add Lead"}
+                        </Button>
+                        <Button type="button" variant="outlined" onClick={() => void onAddDemoLeads()} disabled={saving}>
+                          {saving ? "Loading..." : "Pre-fill Demo Leads"}
                         </Button>
                       </Stack>
                     </Box>
