@@ -390,7 +390,7 @@ export default function OnboardingPage() {
         // Silently ignore — sandbox mode or no numbers on account.
       }
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stepIndex, snapshot.providers]);
 
   // Auto-select the first live number when the agent step becomes active.
@@ -1248,7 +1248,7 @@ export default function OnboardingPage() {
                         }))
                       }
                     >
-                      <MenuItem value="draft">Draft (Draft mode me rakhein)</MenuItem>
+                      <MenuItem value="draft">Draft</MenuItem>
                     </TextField>
 
                     <Box sx={{ border: 1, borderColor: "divider", borderRadius: 1.5, p: 2, bgcolor: "background.default", mb: 2 }}>
