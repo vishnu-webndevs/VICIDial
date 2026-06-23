@@ -168,10 +168,6 @@ export function AppShell({
         router.replace("/onboarding");
         return;
       }
-      if (onboardingDone && pathname === "/onboarding") {
-        router.replace("/dashboard");
-        return;
-      }
     }
 
     if (isSuperAdmin && !onSuperAdminPath) {
