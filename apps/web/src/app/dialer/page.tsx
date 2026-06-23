@@ -92,7 +92,9 @@ export default function DialerPage() {
         const all = await listAgents();
         const active = all.filter((agent) => agent.status === "active");
         setAgents(active);
-        const firstDialable = active.find((agent) => Boolean(agent.default_number?.phone_number)) ?? active[0];
+        const firstDialable = active.find((agent) => Boolean(agent.default_number?.phone_number) && Boolean(agent.destination_number))
+          ?? active.find((agent) => Boolean(agent.default_number?.phone_number))
+          ?? active[0];
         if (firstDialable) setSelectedAgentId(firstDialable.id);
       } catch { /* silently ignore */ }
     })();
@@ -417,7 +419,7 @@ export default function DialerPage() {
               }
             >
               {agents.map((agent) => (
-                <MenuItem key={agent.id} value={agent.id} disabled={!agent.default_number?.phone_number || !agent.destination_number}>
+                <MenuItem key={agent.id} value={agent.id}>
                   {agent.company_number}
                   {agent.default_number?.phone_number ? ` (${agent.default_number.phone_number})` : " (no assigned number)"}
                   {!agent.destination_number ? " (no destination)" : ""}
@@ -440,7 +442,7 @@ export default function DialerPage() {
               <UiButton
                 type="submit"
                 variant="primary"
-                disabled={submitting || ending || hasActiveDialerCall || !selectedAgentId || !selectedAgent?.default_number?.phone_number || !selectedAgent?.destination_number}
+                disabled={submitting || ending || hasActiveDialerCall || !selectedAgentId}
                 className="w-full"
               >
                 {submitting ? "Initiating Call..." : hasActiveDialerCall ? "Call Active" : ending ? "Ending..." : "Start Call"}

@@ -20,11 +20,17 @@ export default function CommandCenterPage() {
 
   const selectedCampaign = campaigns.find((item) => item.id === selectedCampaignId) ?? null;
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
+  const loadData = useCallback(async (isSilent = false) => {
+    if (!isSilent) {
+      setLoading(true);
+    }
     try {
       const campaignData = await listCampaigns();
-      setCampaigns(campaignData);
+      setCampaigns(prev => {
+        const prevSign = JSON.stringify(prev);
+        const nextSign = JSON.stringify(campaignData);
+        return prevSign === nextSign ? prev : campaignData;
+      });
       const currentId = selectedCampaignId || campaignData[0]?.id || "";
       setSelectedCampaignId(currentId);
       const [commandCenter, statusData, agents] = await Promise.all([
@@ -32,7 +38,11 @@ export default function CommandCenterPage() {
         currentId ? loadCampaignStatus(currentId) : Promise.resolve({ queue_depth: 0, active_calls: 0, connect_rate: 0, answer_rate: 0, drop_rate: 0, pacing_ratio: 1, statuses: {} }),
         listAgentActivities({ per_page: 50 }),
       ]);
-      setAgentStatuses(agents);
+      setAgentStatuses(prev => {
+        const prevSign = JSON.stringify(prev);
+        const nextSign = JSON.stringify(agents);
+        return prevSign === nextSign ? prev : agents;
+      });
       setQueueDepth(commandCenter.total || statusData.queue_depth || 0);
       setActiveCalls(statusData.active_calls || 0);
       setConnectRate(statusData.connect_rate || 0);
@@ -40,16 +50,31 @@ export default function CommandCenterPage() {
       setMessage(err instanceof Error ? err.message : "Failed to load command center.");
       setMessageTone("error");
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
   }, [selectedCampaignId]);
 
   useEffect(() => {
     void loadData();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadData(true);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     const timer = window.setInterval(() => {
-      void loadData();
-    }, 15000);
-    return () => window.clearInterval(timer);
+      if (document.hidden) return;
+      void loadData(true);
+    }, 5000);
+
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [loadData]);
 
   async function handleStopCampaign() {
@@ -58,7 +83,7 @@ export default function CommandCenterPage() {
       await stopCampaign(selectedCampaignId);
       setMessage("Campaign stopped.");
       setMessageTone("success");
-      await loadData();
+      await loadData(true);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Failed to stop campaign.");
       setMessageTone("error");
@@ -70,7 +95,7 @@ export default function CommandCenterPage() {
       await updateAgentSession(agentSessionId, { paused, pause_reason: paused ? "manual" : undefined });
       setMessage(paused ? "Agent paused." : "Agent resumed.");
       setMessageTone("success");
-      await loadData();
+      await loadData(true);
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Failed to update agent status.");
       setMessageTone("error");

@@ -97,11 +97,22 @@ export function useNotifications() {
       prevUnreadCountRef.current = state.unreadCount;
     });
 
-    const interval = setInterval(fetchUnread, POLL_INTERVAL_MS);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void fetchUnread();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    const interval = setInterval(() => {
+      if (document.hidden) return;
+      void fetchUnread();
+    }, POLL_INTERVAL_MS);
 
     return () => {
       mountedRef.current = false;
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchUnread]);

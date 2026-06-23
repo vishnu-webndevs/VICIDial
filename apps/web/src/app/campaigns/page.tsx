@@ -390,10 +390,12 @@ export default function CampaignsPage() {
     }
   }
 
-  const loadCommandCenter = useCallback(async (campaign: Campaign) => {
+  const loadCommandCenter = useCallback(async (campaign: Campaign, isSilent = false) => {
     setPopup("command-center");
     setCommandCampaign(campaign);
-    setCommandLoading(true);
+    if (!isSilent) {
+      setCommandLoading(true);
+    }
     try {
       const { token, tenantId } = getTenantContext();
       const [statsResponse, statusResponse] = await Promise.all([
@@ -406,13 +408,25 @@ export default function CampaignsPage() {
           tenantId,
         }),
       ]);
-      setCommandStats((statsResponse.data as CampaignStats | undefined) ?? { totals: statsResponse.totals ?? {} });
-      setCommandAgents(statusResponse.data.agents ?? []);
+      const nextStats = (statsResponse.data as CampaignStats | undefined) ?? { totals: statsResponse.totals ?? {} };
+      setCommandStats(prev => {
+        const prevSign = JSON.stringify(prev);
+        const nextSign = JSON.stringify(nextStats);
+        return prevSign === nextSign ? prev : nextStats;
+      });
+      const nextAgents = statusResponse.data.agents ?? [];
+      setCommandAgents(prev => {
+        const prevSign = JSON.stringify(prev);
+        const nextSign = JSON.stringify(nextAgents);
+        return prevSign === nextSign ? prev : nextAgents;
+      });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to load command center.");
       setMessageTone("error");
     } finally {
-      setCommandLoading(false);
+      if (!isSilent) {
+        setCommandLoading(false);
+      }
     }
   }, []);
 
@@ -420,10 +434,23 @@ export default function CampaignsPage() {
     if (popup !== "command-center" || !commandCampaign) {
       return;
     }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadCommandCenter(commandCampaign, true);
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     const timer = setInterval(() => {
-      void loadCommandCenter(commandCampaign);
-    }, 10000);
-    return () => clearInterval(timer);
+      if (document.hidden) return;
+      void loadCommandCenter(commandCampaign, true);
+    }, 5000);
+
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [popup, commandCampaign, loadCommandCenter]);
 
   async function onPauseCampaign() {

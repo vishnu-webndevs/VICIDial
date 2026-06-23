@@ -22,7 +22,12 @@ export default function DashboardPage() {
       setActiveCampaigns(Number(summary.active_campaigns ?? 0));
       setAgentsOnline(Number(summary.agents_online ?? 0));
       setConversionRate(Number(summary.conversion_rate ?? 0));
-      setHourlyCalls(summary.calls_per_hour ?? []);
+      setHourlyCalls(prev => {
+        const next = summary.calls_per_hour ?? [];
+        const prevSign = JSON.stringify(prev);
+        const nextSign = JSON.stringify(next);
+        return prevSign === nextSign ? prev : next;
+      });
       setMessage("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to load dashboard.");
@@ -30,15 +35,23 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    const initialTimer = window.setTimeout(() => {
-      void loadData();
-    }, 0);
+    void loadData();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadData();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     const timer = setInterval(() => {
+      if (document.hidden) return;
       void loadData();
     }, 30000);
+
     return () => {
-      clearTimeout(initialTimer);
       clearInterval(timer);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [loadData]);
 

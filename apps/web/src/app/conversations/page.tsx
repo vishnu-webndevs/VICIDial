@@ -144,9 +144,54 @@ function ConversationsContent() {
 
   // Silent background polling for new messages & threads list to provide real-time updates
   useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        if (!selectedThreadId) {
+          void listInboxThreads(channel, { per_page: 50 }).then(response => {
+            setThreads(prev => {
+              const prevSign = JSON.stringify(prev.map(t => ({ id: t.id, last_message_at: t.last_message_at, unread_count: t.unread_count, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
+              const nextSign = JSON.stringify(response.data.map(t => ({ id: t.id, last_message_at: t.last_message_at, unread_count: t.unread_count, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
+              return prevSign === nextSign ? prev : response.data;
+            });
+          }).catch(() => {});
+        } else {
+          void listInboxThreadMessages(selectedThreadId, { per_page: 10, page: 1 }).then(res => {
+            setMessages(prev => {
+              const prevSign = JSON.stringify(prev.map(m => ({ id: m.id, status: m.status })));
+              const nextSign = JSON.stringify(res.data.map(m => ({ id: m.id, status: m.status })));
+              if (prevSign !== nextSign) {
+                if (prev.length >= 10) {
+                  const updatedPrev = prev.map(pMsg => {
+                    const updatedMsg = res.data.find(nm => nm.id === pMsg.id);
+                    return updatedMsg ? updatedMsg : pMsg;
+                  });
+                  const newMessages = res.data.filter(nm => !prev.some(pm => pm.id === nm.id));
+                  return [...updatedPrev, ...newMessages];
+                }
+                return res.data;
+              }
+              return prev;
+            });
+          }).catch(() => {});
+          void listInboxThreads(channel, { per_page: 50 }).then(response => {
+            setThreads(prev => {
+              const sanitizedData = response.data.map(t => 
+                t.id === selectedThreadId ? { ...t, unread_count: 0 } : t
+              );
+              const prevSign = JSON.stringify(prev.map(t => ({ id: t.id, last_message_at: t.last_message_at, status: t.status, unread_count: t.unread_count, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
+              const nextSign = JSON.stringify(sanitizedData.map(t => ({ id: t.id, last_message_at: t.last_message_at, status: t.status, unread_count: t.unread_count, latest_msg_id: t.latest_message?.id, latest_msg_status: t.latest_message?.status })));
+              return prevSign === nextSign ? prev : sanitizedData;
+            });
+          }).catch(() => {});
+        }
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     if (!selectedThreadId) {
       // If no thread is selected, we still poll threads list silently
       const threadsInterval = setInterval(async () => {
+        if (document.hidden) return;
         try {
           const response = await listInboxThreads(channel, { per_page: 50 });
           setThreads(prev => {
@@ -161,10 +206,14 @@ function ConversationsContent() {
           // ignore
         }
       }, 15000);
-      return () => clearInterval(threadsInterval);
+      return () => {
+        clearInterval(threadsInterval);
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
+      };
     }
 
     const interval = setInterval(async () => {
+      if (document.hidden) return;
       try {
         // Poll messages silently (always page 1 to get latest)
         const res = await listInboxThreadMessages(selectedThreadId, { per_page: 10, page: 1 });
@@ -224,7 +273,10 @@ function ConversationsContent() {
       }
     }, 7000); // 7 seconds polling
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
   }, [selectedThreadId, channel]);
 
   async function onSend(event?: FormEvent<HTMLFormElement>) {
