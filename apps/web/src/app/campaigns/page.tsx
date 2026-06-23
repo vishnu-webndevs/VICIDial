@@ -1120,7 +1120,9 @@ export default function CampaignsPage() {
                 variant="contained"
                 onClick={() => setStep((prev) => Math.min(3, prev + 1))}
                 disabled={
-                  step === 2
+                  step === 1
+                    ? !campaignForm.name.trim()
+                    : step === 2
                     ? selectedLists.length === 0 ||
                       (!isOutboundCallCampaign &&
                         (!campaignForm.preferred_provider_account_id ||
