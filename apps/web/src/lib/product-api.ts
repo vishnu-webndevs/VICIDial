@@ -768,7 +768,7 @@ export async function createAgent(input: { company_number: string; status?: "act
 
 export async function updateAgent(
   agentId: string,
-  input: { company_number?: string; status?: "active" | "inactive"; destination_number?: string | null }
+  input: { company_number?: string; status?: "active" | "inactive"; destination_number?: string | null; calling_method?: "webrtc" | "phone" }
 ): Promise<AgentEntity> {
   const { token, tenantId } = getTenantContext();
   const response = await apiRequest<ApiDataResponse<AgentEntity>>(`/agents/${agentId}`, {
@@ -776,6 +776,15 @@ export async function updateAgent(
     token,
     tenantId,
     body: input,
+  });
+  return response.data;
+}
+
+export async function getTwilioToken(agentId: string): Promise<{ token: string; identity: string; twilio_twiml_app_sid: string }> {
+  const { token, tenantId } = getTenantContext();
+  const response = await apiRequest<ApiEnvelope<{ token: string; identity: string; twilio_twiml_app_sid: string }>>(`/auth/twilio-token?agent_id=${agentId}`, {
+    token,
+    tenantId,
   });
   return response.data;
 }

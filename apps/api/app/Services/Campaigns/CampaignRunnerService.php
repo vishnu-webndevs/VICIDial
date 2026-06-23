@@ -93,7 +93,7 @@ class CampaignRunnerService
                 'calls_dispatched_in_window' => (int) $run->calls_dispatched_in_window,
                 'pacing_window_started_at' => $run->pacing_window_started_at?->toISOString(),
             ]);
-            $run->last_tick_at = now();
+            $run->last_tick_at = Carbon::now();
             $run->save();
 
             return;
@@ -136,7 +136,7 @@ class CampaignRunnerService
             ) {
                 $this->pauseCampaignRun($run, $campaign, 'no_available_agents');
             } else {
-                $run->last_tick_at = now();
+                $run->last_tick_at = Carbon::now();
                 $run->save();
             }
 
@@ -163,7 +163,7 @@ class CampaignRunnerService
                 'campaign_id' => $campaign->id,
                 'campaign_run_id' => $run->id,
             ]);
-            $run->last_tick_at = now();
+            $run->last_tick_at = Carbon::now();
             $run->save();
 
             return;

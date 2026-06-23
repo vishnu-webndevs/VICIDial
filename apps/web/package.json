@@ -26,14 +26,15 @@
     "lighthouse:login": "lighthouse http://localhost:3000/login --only-categories=performance,accessibility --preset=desktop --chrome-flags=\"--headless\" --output=json --output-path=./.lighthouse-login.json"
   },
   "dependencies": {
-    "@stripe/react-stripe-js": "^6.1.0",
-    "@stripe/stripe-js": "^9.1.0",
     "@emotion/cache": "^11.14.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^5.18.0",
     "@mui/material": "^5.18.0",
     "@mui/x-date-pickers": "^7.29.4",
+    "@stripe/react-stripe-js": "^6.1.0",
+    "@stripe/stripe-js": "^9.1.0",
+    "@twilio/voice-sdk": "^2.18.3",
     "chart.js": "^4.5.1",
     "dayjs": "^1.11.20",
     "mui-datatables": "^4.3.0",

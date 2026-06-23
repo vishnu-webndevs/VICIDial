@@ -218,6 +218,7 @@ export type AgentEntity = {
   status: "active" | "inactive";
   created_at?: string | null;
   destination_number?: string | null;
+  calling_method?: "webrtc" | "phone";
   default_number?: {
     id: string;
     provider_account_id: string;

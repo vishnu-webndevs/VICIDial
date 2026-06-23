@@ -91,7 +91,9 @@ class MetaTemplateController extends Controller
             if ($request->hasFile('header_file')) {
                 $file = $request->file('header_file');
                 $path = $file->store('meta_templates', 'public');
-                $validated['header_content'] = \Illuminate\Support\Facades\Storage::disk('public')->url($path);
+                /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+                $disk = \Illuminate\Support\Facades\Storage::disk('public');
+                $validated['header_content'] = $disk->url($path);
             }
 
             if (is_string($validated['buttons'] ?? null)) {
@@ -227,7 +229,9 @@ class MetaTemplateController extends Controller
             if ($request->hasFile('header_file')) {
                 $file = $request->file('header_file');
                 $path = $file->store('meta_templates', 'public');
-                $validated['header_content'] = \Illuminate\Support\Facades\Storage::disk('public')->url($path);
+                /** @var \Illuminate\Filesystem\FilesystemAdapter $disk */
+                $disk = \Illuminate\Support\Facades\Storage::disk('public');
+                $validated['header_content'] = $disk->url($path);
             }
 
             if (is_string($validated['buttons'] ?? null)) {
@@ -286,6 +290,7 @@ class MetaTemplateController extends Controller
                 return response()->json(['error' => ['code' => 'PROVIDER_NOT_FOUND', 'message' => 'Meta WhatsApp provider account not found.']], 404);
             }
 
+            /** @var \App\Models\WhatsAppTemplate|null $template */
             $template = $provider->whatsAppTemplates()->where('id', $id)->first();
             if (!$template) {
                 return response()->json(['error' => ['code' => 'TEMPLATE_NOT_FOUND', 'message' => 'Template not found.']], 404);

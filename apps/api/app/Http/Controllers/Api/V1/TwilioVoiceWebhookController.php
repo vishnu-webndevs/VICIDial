@@ -492,4 +492,64 @@ class TwilioVoiceWebhookController extends Controller
 
         return $this->twimlResponse($this->wrapTwiml('<Hangup/>'));
     }
+
+    public function outboundClient(Request $request): Response
+    {
+        $payload = $request->all();
+        \Illuminate\Support\Facades\Log::info('outboundClient webhook triggered', [
+            'payload' => $payload,
+        ]);
+
+        $to = (string) ($payload['To'] ?? '');
+        $agentId = (string) ($payload['agent_id'] ?? '');
+        $callSessionId = (string) ($payload['call_session_id'] ?? '');
+        $callSid = (string) ($payload['CallSid'] ?? '');
+
+        if ($callSessionId !== '' && $callSid !== '') {
+            $call = \App\Models\CallSession::find($callSessionId);
+            if ($call) {
+                $call->provider_call_id = $callSid;
+                $call->status = 'ringing';
+                $call->save();
+
+                CallEvent::query()->create([
+                    'tenant_id' => $call->tenant_id,
+                    'call_session_id' => $call->id,
+                    'provider_account_id' => $call->provider_account_id,
+                    'event_type' => 'call.ringing',
+                    'provider_event_type' => 'webrtc.outbound_started',
+                    'status_after' => 'ringing',
+                    'payload' => ['provider_call_id' => $callSid],
+                    'occurred_at' => now(),
+                ]);
+            }
+        }
+
+        // Resolve caller ID
+        $callerId = '';
+        if ($agentId !== '') {
+            $agent = \App\Models\Agent::query()->with('phoneAssignments.number')->find($agentId);
+            if ($agent) {
+                $callerId = (string) ($agent->phoneAssignments->first()?->number?->phone_number ?? '');
+            }
+        }
+
+        if ($callerId === '') {
+            $callerId = (string) (config('services.twilio.from') ?? env('TWILIO_FROM') ?? '');
+        }
+
+        if ($to === '') {
+            return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Error: No destination number specified.</Say><Hangup/>'));
+        }
+
+        if ($callerId === '') {
+            return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Error: No outbound caller ID is configured.</Say><Hangup/>'));
+        }
+
+        $dialTwiML = '<Dial callerId="' . htmlspecialchars($callerId, ENT_QUOTES) . '" timeout="30">';
+        $dialTwiML .= '<Number>' . htmlspecialchars($to, ENT_QUOTES) . '</Number>';
+        $dialTwiML .= '</Dial>';
+
+        return $this->twimlResponse($this->wrapTwiml($dialTwiML));
+    }
 }

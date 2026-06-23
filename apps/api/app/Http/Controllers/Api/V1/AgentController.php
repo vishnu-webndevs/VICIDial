@@ -95,6 +95,7 @@ class AgentController extends Controller
             'company_number' => ['sometimes', 'string', 'min:1', 'max:64', 'regex:/^[A-Za-z0-9._-]+$/'],
             'status' => ['sometimes', 'in:active,inactive'],
             'destination_number' => ['sometimes', 'nullable', 'regex:/^\+[1-9]\d{7,14}$/'],
+            'calling_method' => ['sometimes', 'in:webrtc,phone'],
         ]);
 
         if ($validated === []) {
@@ -102,14 +103,25 @@ class AgentController extends Controller
         }
 
         $agent->fill($validated);
+        $metadata = (array) ($agent->metadata ?? []);
+        $metadataUpdated = false;
+
         if (array_key_exists('destination_number', $validated)) {
-            $metadata = (array) ($agent->metadata ?? []);
             $destination = $validated['destination_number'] ?? null;
             if (is_string($destination) && trim($destination) !== '') {
                 $metadata['destination_number'] = trim($destination);
             } else {
                 unset($metadata['destination_number']);
             }
+            $metadataUpdated = true;
+        }
+
+        if (array_key_exists('calling_method', $validated)) {
+            $metadata['calling_method'] = $validated['calling_method'];
+            $metadataUpdated = true;
+        }
+
+        if ($metadataUpdated) {
             $agent->metadata = $metadata === [] ? null : $metadata;
         }
         $agent->save();
@@ -403,6 +415,7 @@ class AgentController extends Controller
             'status' => $agent->status,
             'created_at' => $agent->created_at?->toISOString(),
             'destination_number' => $metadata['destination_number'] ?? null,
+            'calling_method' => $metadata['calling_method'] ?? 'phone',
             'default_number' => $assignment?->number ? $this->serializeNumber($assignment->number) : null,
             'session' => $session ? [
                 'id' => $session->id,

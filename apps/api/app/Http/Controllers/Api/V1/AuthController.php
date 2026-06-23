@@ -711,4 +711,91 @@ class AuthController extends Controller
             return false;
         }
     }
+
+    public function twilioToken(Request $request): JsonResponse
+    {
+        $tenant = $request->attributes->get('tenant');
+        if (!$tenant) {
+            return response()->json(['error' => ['code' => 'TENANT_NOT_FOUND', 'message' => 'Tenant context required.']], 400);
+        }
+
+        $validated = $request->validate([
+            'agent_id' => ['required', 'uuid'],
+        ]);
+
+        $agent = \App\Models\Agent::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('id', $validated['agent_id'])
+            ->firstOrFail();
+
+        $provider = \App\Models\ProviderAccount::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('provider_type', 'twilio')
+            ->where('status', 'active')
+            ->first();
+
+        $credentials = $provider ? (array) $provider->credentials_encrypted : [];
+        $accountSid = (string) ($credentials['account_sid'] ?? config('services.twilio.sid') ?? env('TWILIO_SID'));
+        $authToken = (string) ($credentials['auth_token'] ?? config('services.twilio.token') ?? env('TWILIO_TOKEN'));
+
+        $keySid = (string) ($credentials['twilio_api_key_sid'] ?? env('TWILIO_API_KEY_SID') ?? $accountSid);
+        $keySecret = (string) ($credentials['twilio_api_key_secret'] ?? env('TWILIO_API_KEY_SECRET') ?? $authToken);
+
+        $twimlAppSid = (string) ($credentials['twilio_twiml_app_sid'] ?? env('TWILIO_TWIML_APP_SID') ?? config('services.twilio.twiml_app_sid'));
+
+        if (!$accountSid || !$authToken) {
+            return response()->json(['error' => ['code' => 'TWILIO_NOT_CONFIGURED', 'message' => 'Twilio is not configured for this company.']], 400);
+        }
+
+        if (!$twimlAppSid) {
+            return response()->json(['error' => ['code' => 'TWIML_APP_NOT_CONFIGURED', 'message' => 'Twilio TwiML App SID is not configured.']], 400);
+        }
+
+        $identity = 'agent-' . $agent->company_number;
+
+        $now = time();
+        $header = [
+            'typ' => 'JWT',
+            'alg' => 'HS256',
+            'cty' => 'twilio-fpa;v=1',
+        ];
+        $payload = [
+            'jti' => $keySid . '-' . uniqid(),
+            'iss' => $keySid,
+            'sub' => $accountSid,
+            'nbf' => $now - 10,
+            'exp' => $now + 3600,
+            'grants' => [
+                'identity' => $identity,
+                'voice' => [
+                    'incoming' => [
+                        'allow' => true,
+                    ],
+                    'outgoing' => [
+                        'application_sid' => $twimlAppSid,
+                    ],
+                ],
+            ],
+        ];
+
+        $base64UrlHeader = $this->base64UrlEncode(json_encode($header));
+        $base64UrlPayload = $this->base64UrlEncode(json_encode($payload));
+        $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, $keySecret, true);
+        $base64UrlSignature = $this->base64UrlEncode($signature);
+
+        $token = $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
+
+        return response()->json([
+            'data' => [
+                'token' => $token,
+                'identity' => $identity,
+                'twilio_twiml_app_sid' => $twimlAppSid,
+            ],
+        ]);
+    }
+
+    private function base64UrlEncode(string $data): string
+    {
+        return str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($data));
+    }
 }

@@ -566,7 +566,7 @@ class CorePhaseOneController extends Controller
             ->where('id', $threadId)
             ->firstOrFail();
 
-        $messages = \App\Models\Message::query()
+        $messages = Message::query()
             ->where('tenant_id', $tenant->id)
             ->where('thread_id', $thread->id)
             ->orderByDesc('sent_at')
@@ -602,7 +602,7 @@ class CorePhaseOneController extends Controller
             ->firstOrFail();
 
         // Delete all messages in the thread
-        \App\Models\Message::query()
+        Message::query()
             ->where('tenant_id', $tenant->id)
             ->where('thread_id', $thread->id)
             ->delete();
@@ -628,7 +628,7 @@ class CorePhaseOneController extends Controller
             ->firstOrFail();
 
         // Delete all messages in the thread
-        \App\Models\Message::query()
+        Message::query()
             ->where('tenant_id', $tenant->id)
             ->where('thread_id', $thread->id)
             ->delete();
@@ -883,7 +883,7 @@ class CorePhaseOneController extends Controller
             ->firstOrFail();
 
         // 1. Mark all inbound messages as read
-        \App\Models\Message::query()
+        Message::query()
             ->where('tenant_id', $tenant->id)
             ->where('thread_id', $thread->id)
             ->where('direction', 'inbound')

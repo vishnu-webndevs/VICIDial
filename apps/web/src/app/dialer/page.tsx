@@ -14,6 +14,8 @@ import {
   retryCall,
   setCallMuted,
   setCallOnHold,
+  getTwilioToken,
+  updateAgent,
 } from "@/lib/product-api";
 import { useLiveCalls } from "@/hooks/use-live-calls";
 import type { AgentEntity } from "@/types/product";
@@ -62,6 +64,10 @@ export default function DialerPage() {
   const [agents, setAgents] = useState<AgentEntity[]>([]);
   const [selectedAgentId, setSelectedAgentId] = useState("");
   const [toNumber, setToNumber] = useState("");
+  const [callingMethod, setCallingMethod] = useState<"webrtc" | "phone">("phone");
+  const [device, setDevice] = useState<any | null>(null);
+  const [deviceReady, setDeviceReady] = useState(false);
+  const [twilioCall, setTwilioCall] = useState<any | null>(null);
 
   function getDialerSessionId(): string {
     if (typeof window === "undefined") return "server-session";
@@ -95,7 +101,10 @@ export default function DialerPage() {
         const firstDialable = active.find((agent) => Boolean(agent.default_number?.phone_number) && Boolean(agent.destination_number))
           ?? active.find((agent) => Boolean(agent.default_number?.phone_number))
           ?? active[0];
-        if (firstDialable) setSelectedAgentId(firstDialable.id);
+        if (firstDialable) {
+          setSelectedAgentId(firstDialable.id);
+          setCallingMethod(firstDialable.calling_method ?? "phone");
+        }
       } catch { /* silently ignore */ }
     })();
   }, []);
@@ -122,6 +131,102 @@ export default function DialerPage() {
       window.clearInterval(interval);
     };
   }, [selectedAgentId]);
+
+  async function handleCallingMethodChange(method: "webrtc" | "phone") {
+    if (!selectedAgentId) return;
+    try {
+      const updated = await updateAgent(selectedAgentId, { calling_method: method });
+      setCallingMethod(method);
+      setAgents((prev) =>
+        prev.map((a) => (a.id === selectedAgentId ? { ...a, calling_method: method } : a))
+      );
+      setMessage(`Calling method updated to ${method === "webrtc" ? "WebRTC Webphone" : "Bridge Phone"}.`);
+      setMessageTone("success");
+    } catch (err) {
+      setMessage("Failed to update calling method.");
+      setMessageTone("error");
+    }
+  }
+
+  // Twilio WebRTC Device Lifecycle
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (callingMethod !== "webrtc" || !selectedAgentId) {
+      if (device) {
+        try {
+          device.destroy();
+        } catch {}
+        setDevice(null);
+        setDeviceReady(false);
+        setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "WebRTC Device unregistered" }, ...prev].slice(0, 20));
+      }
+      return;
+    }
+
+    let activeDevice: any = null;
+    let isCancelled = false;
+
+    async function initDevice() {
+      try {
+        setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Initializing WebRTC Device..." }, ...prev].slice(0, 20));
+        const { Device } = await import("@twilio/voice-sdk");
+        const tokenData = await getTwilioToken(selectedAgentId);
+        if (isCancelled) return;
+
+        const newDevice = new Device(tokenData.token, {
+          logLevel: "warn",
+          closeProtection: true,
+        });
+
+        newDevice.on("registered", () => {
+          setDeviceReady(true);
+          setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: `Webphone registered: ${tokenData.identity}` }, ...prev].slice(0, 20));
+        });
+
+        newDevice.on("unregistered", () => {
+          setDeviceReady(false);
+        });
+
+        newDevice.on("error", (error) => {
+          console.error("Twilio device error:", error);
+          setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: `WebRTC Error: ${error.message}` }, ...prev].slice(0, 20));
+        });
+
+        newDevice.on("incoming", (incomingCall) => {
+          setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Incoming WebRTC leg received, auto-answering..." }, ...prev].slice(0, 20));
+          setTwilioCall(incomingCall);
+          incomingCall.accept();
+
+          incomingCall.on("accept", () => {
+            setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "WebRTC call connected" }, ...prev].slice(0, 20));
+          });
+
+          incomingCall.on("disconnect", () => {
+            setTwilioCall(null);
+            setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "WebRTC call disconnected" }, ...prev].slice(0, 20));
+          });
+        });
+
+        await newDevice.register();
+        activeDevice = newDevice;
+        setDevice(newDevice);
+      } catch (err) {
+        console.error("Failed to initialize Twilio Device:", err);
+        setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Failed to initialize WebRTC Device" }, ...prev].slice(0, 20));
+      }
+    }
+
+    void initDevice();
+
+    return () => {
+      isCancelled = true;
+      if (activeDevice) {
+        try {
+          activeDevice.destroy();
+        } catch {}
+      }
+    };
+  }, [callingMethod, selectedAgentId]);
 
   const { liveCalls, calls, loading, error, refresh } = useLiveCalls();
   const selectedAgent = useMemo(
@@ -175,12 +280,11 @@ export default function DialerPage() {
       setMessageTone("error");
       return;
     }
-    if (!selectedAgent?.default_number?.phone_number) {
+    if (callingMethod === "phone" && !selectedAgent?.default_number?.phone_number) {
       setMessage("Selected agent does not have an active assigned validated number.");
       setMessageTone("error");
       return;
     }
-
 
     setSubmitting(true);
     setMessage("");
@@ -192,31 +296,72 @@ export default function DialerPage() {
         agent_id: selectedAgentId,
         metadata: { dial_mode: "normal" },
       });
-      recordAction("call.submit_succeeded", { call_id: customerCall.id, to: customerCall.to_number, mode: "normal" });
+      recordAction("call.submit_succeeded", { call_id: customerCall.id, to: customerCall.to_number, mode: callingMethod });
 
-      let customerDispatched = customerCall;
-      try {
-        customerDispatched = await dispatchCallNow(customerCall.id);
-        recordAction("call.dispatch_now_succeeded", { call_id: customerCall.id, to: customerCall.to_number });
-      } catch (dispatchError) {
-        captureErrorStack(dispatchError);
-        recordAction("call.dispatch_now_failed", { call_id: customerCall.id, message: dispatchError instanceof Error ? dispatchError.message : "unknown_error" });
+      if (callingMethod === "webrtc") {
+        if (!device || !deviceReady) {
+          throw new Error("WebRTC webphone is not registered or ready yet.");
+        }
+
+        const callConnection = await device.connect({
+          params: {
+            To: to,
+            agent_id: selectedAgentId,
+            call_session_id: customerCall.id,
+          },
+        });
+
+        setTwilioCall(callConnection);
+
+        callConnection.on("accept", () => {
+          setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Direct WebRTC call connected" }, ...prev].slice(0, 20));
+        });
+
+        callConnection.on("disconnect", () => {
+          setTwilioCall(null);
+          setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Direct WebRTC call disconnected" }, ...prev].slice(0, 20));
+        });
+
+        setActiveCall({
+          callId: customerCall.id,
+          relatedCallIds: [customerCall.id],
+          status: "ringing",
+          muted: false,
+          onHold: false,
+        });
+        setCallStartedAt(Date.now());
+        setMessage(`Direct outbound call started to ${customerCall.to_number}.`);
+        setMessageTone("success");
+        setEventLog((prev) => [
+          { at: new Date().toLocaleTimeString(), text: `Direct WebRTC to ${customerCall.to_number}` },
+          ...prev,
+        ].slice(0, 20));
+      } else {
+        let customerDispatched = customerCall;
+        try {
+          customerDispatched = await dispatchCallNow(customerCall.id);
+          recordAction("call.dispatch_now_succeeded", { call_id: customerCall.id, to: customerCall.to_number });
+        } catch (dispatchError) {
+          captureErrorStack(dispatchError);
+          recordAction("call.dispatch_now_failed", { call_id: customerCall.id, message: dispatchError instanceof Error ? dispatchError.message : "unknown_error" });
+        }
+
+        setActiveCall({
+          callId: customerDispatched.id,
+          relatedCallIds: [customerDispatched.id],
+          status: customerDispatched.status,
+          muted: customerDispatched.controls?.muted ?? false,
+          onHold: customerDispatched.controls?.on_hold ?? false,
+        });
+        setCallStartedAt(Date.now());
+        setMessage(`Outbound call started to ${customerCall.to_number}.`);
+        setMessageTone("success");
+        setEventLog((prev) => [
+          { at: new Date().toLocaleTimeString(), text: `Outbound call to ${customerCall.to_number}` },
+          ...prev,
+        ].slice(0, 20));
       }
 
-      setActiveCall({
-        callId: customerDispatched.id,
-        relatedCallIds: [customerDispatched.id],
-        status: customerDispatched.status,
-        muted: customerDispatched.controls?.muted ?? false,
-        onHold: customerDispatched.controls?.on_hold ?? false,
-      });
-      setCallStartedAt(Date.now());
-      setMessage(`Outbound call started to ${customerCall.to_number}.`);
-      setMessageTone("success");
-      setEventLog((prev) => [
-        { at: new Date().toLocaleTimeString(), text: `Outbound call to ${customerCall.to_number}` },
-        ...prev,
-      ].slice(0, 20));
       setToNumber("");
       await refresh();
     } catch (err) {
@@ -277,9 +422,13 @@ export default function DialerPage() {
     if (!viewedCall) return;
     if (ending) return;
     try {
-      const next = await setCallMuted(viewedCall.id, !activeCall.muted);
-      setActiveCall((prev) => ({ ...prev, callId: next.id, status: next.status, muted: next.controls?.muted ?? !prev.muted }));
-      setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: next.controls?.muted ? "Muted call audio" : "Unmuted call audio" }, ...prev].slice(0, 20));
+      const nextMuted = !activeCall.muted;
+      if (callingMethod === "webrtc" && twilioCall) {
+        twilioCall.mute(nextMuted);
+      }
+      const next = await setCallMuted(viewedCall.id, nextMuted);
+      setActiveCall((prev) => ({ ...prev, callId: next.id, status: next.status, muted: next.controls?.muted ?? nextMuted }));
+      setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: nextMuted ? "Muted call audio" : "Unmuted call audio" }, ...prev].slice(0, 20));
       await refresh();
     } catch (err) { captureErrorStack(err); setMessage(err instanceof Error ? err.message : "Unable to update mute state."); setMessageTone("error"); }
   }
@@ -305,6 +454,13 @@ export default function DialerPage() {
     try {
       setEnding(true);
       recordAction("call.end_requested", { call_id: viewedCall.id });
+
+      if (callingMethod === "webrtc" && twilioCall) {
+        try {
+          twilioCall.disconnect();
+        } catch {}
+      }
+
       const relatedIds = activeCall.relatedCallIds.length > 0 ? activeCall.relatedCallIds : (activeCall.callId ? [activeCall.callId] : []);
       const endableIds = calls
         .filter((item) => relatedIds.includes(item.id) && ENDABLE_STATUSES.has(item.status))
@@ -404,7 +560,14 @@ export default function DialerPage() {
               required
               label="Agent"
               value={selectedAgentId}
-              onChange={(e) => setSelectedAgentId(e.target.value)}
+              onChange={(e) => {
+                const id = e.target.value;
+                setSelectedAgentId(id);
+                const agent = agents.find((a) => a.id === id);
+                if (agent) {
+                  setCallingMethod(agent.calling_method ?? "phone");
+                }
+              }}
               disabled={agents.length === 0}
               helperText={
                 agents.length === 0
@@ -421,6 +584,26 @@ export default function DialerPage() {
                   {!agent.destination_number ? " (no destination)" : ""}
                 </MenuItem>
               ))}
+            </TextField>
+
+            <TextField
+              select
+              size="medium"
+              required
+              label="Calling Method"
+              value={callingMethod}
+              onChange={(e) => handleCallingMethodChange(e.target.value as "webrtc" | "phone")}
+              disabled={!selectedAgentId}
+              helperText={
+                callingMethod === "webrtc"
+                  ? deviceReady
+                    ? "🟢 WebRTC Webphone is ready"
+                    : "⏳ Initializing WebRTC Webphone..."
+                  : "📞 Bridged to agent destination number"
+              }
+            >
+              <MenuItem value="phone">Bridge Phone (Standard)</MenuItem>
+              <MenuItem value="webrtc">WebRTC Webphone (Browser)</MenuItem>
             </TextField>
 
             {/* Destination number */}

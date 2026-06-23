@@ -53,6 +53,7 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             Route::get('/me', [AuthController::class, 'me']);
             Route::patch('/me', [AuthController::class, 'updateMe']);
             Route::post('/delete-account', [AuthController::class, 'requestAccountDeletion']);
+            Route::get('/twilio-token', [AuthController::class, 'twilioToken']);
         });
 
         Route::get('/tenant', [TenantController::class, 'show'])
@@ -618,7 +619,27 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
         ->where('tenant_id', $call->tenant_id)
         ->where('id', $agentId)
         ->first();
-    $destination = (string) ((array) ($agent?->metadata ?? []))['destination_number'] ?? '';
+
+    $agentMetadata = (array) ($agent?->metadata ?? []);
+    $callingMethod = (string) ($agentMetadata['calling_method'] ?? 'phone');
+
+    $callerId = htmlspecialchars((string) ($call->from_number ?? ''), ENT_QUOTES);
+
+    if ($callingMethod === 'webrtc') {
+        $clientIdentity = 'agent-' . $agent->company_number;
+        $twiml = implode('', [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<Response>',
+            '<Say voice="Polly.Joanna">Connecting you now.</Say>',
+            '<Dial timeout="25" callerId="' . $callerId . '">',
+            '<Client>' . htmlspecialchars($clientIdentity, ENT_QUOTES) . '</Client>',
+            '</Dial>',
+            '</Response>',
+        ]);
+        return response($twiml, 200, ['Content-Type' => 'text/xml']);
+    }
+
+    $destination = (string) ($agentMetadata['destination_number'] ?? '');
     if ($destination === '') {
         $destination = (string) ($call->from_number ?? '');
     }
@@ -628,7 +649,6 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
         return response($twiml, 200, ['Content-Type' => 'text/xml']);
     }
 
-    $callerId = htmlspecialchars((string) ($call->from_number ?? ''), ENT_QUOTES);
     $dest = htmlspecialchars($destination, ENT_QUOTES);
     $twiml = implode('', [
         '<?xml version="1.0" encoding="UTF-8"?>',
@@ -663,6 +683,7 @@ Route::get('/webhooks/vonage/ncco/outbound', function (\Illuminate\Http\Request 
 Route::post('/webhooks/twilio/voice', [TwilioVoiceWebhookController::class, 'inbound']);
 Route::post('/webhooks/twilio/voice/voicemail', [TwilioVoiceWebhookController::class, 'voicemail']);
 Route::post('/webhooks/twilio/voice/transfer', [TwilioVoiceWebhookController::class, 'transfer']);
+Route::match(['GET', 'POST'], '/webhooks/twilio/voice/outbound-client', [TwilioVoiceWebhookController::class, 'outboundClient']);
 Route::post('/webhooks/twilio/gather-result', [TwilioVoiceWebhookController::class, 'gatherResult']);
 Route::post('/webhooks/twilio', [ProviderWebhookController::class, 'twilio']);
 Route::post('/webhooks/vonage', [ProviderWebhookController::class, 'vonage']);
