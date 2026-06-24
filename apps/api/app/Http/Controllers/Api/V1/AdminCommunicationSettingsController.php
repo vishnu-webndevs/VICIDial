@@ -42,6 +42,9 @@ class AdminCommunicationSettingsController extends Controller
                 'last_error_code' => $provider->last_error_code,
                 'last_error_message' => $provider->last_error_message,
                 'numbers' => $provider->phoneNumbers->map(fn (ProviderPhoneNumber $number) => $this->serializeNumber($number))->values(),
+                'credentials' => collect((array) $provider->credentials_encrypted)
+                    ->map(fn ($val, $key) => in_array($key, ['auth_token', 'twilio_api_key_secret', 'api_secret'], true) ? '••••••••••••••••' : $val)
+                    ->all(),
             ])
             ->values();
 
