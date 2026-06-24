@@ -1,0 +1,94 @@
+#9 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1233): Illuminate\Foundation\Application->make('Illuminate\\Cont...')
+#10 /var/www/html/artisan(16): Illuminate\Foundation\Application->handleCommand(Object(Symfony\Component\Console\Input\ArgvInput))
+#11 {main}
+thrown in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php on line 674
+Fatal error: Uncaught TypeError: Illuminate\Foundation\Configuration\Middleware::trustProxies(): Argument #2 ($headers) must be of type ?int, array given, called in /var/www/html/bootstrap/app.php on line 51 and defined in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php:674
+Stack trace:
+#0 /var/www/html/bootstrap/app.php(51): Illuminate\Foundation\Configuration\Middleware->trustProxies(NULL, Array)
+#1 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(308): {closure}(Object(Illuminate\Foundation\Configuration\Middleware))
+#2 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\Foundation\Configuration\ApplicationBuilder->Illuminate\Foundation\Configuration\{closure}(Object(Illuminate\Foundation\Console\Kernel), Object(Illuminate\Foundation\Application))
+#3 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\Container\Container->fireCallbackArray(Object(Illuminate\Foundation\Console\Kernel), Array)
+#4 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\Container\Container->fireAfterResolvingCallbacks('Illuminate\\Cont...', Object(Illuminate\Foundation\Console\Kernel))
+#5 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\Container\Container->fireResolvingCallbacks('Illuminate\\Cont...', Object(Illuminate\Foundation\Console\Kernel))
+#6 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\Container\Container->resolve('Illuminate\\Cont...', Array, true)
+#7 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\Foundation\Application->resolve('Illuminate\\Cont...', Array)
+#8 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\Container\Container->make('Illuminate\\Cont...', Array)
+#9 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1233): Illuminate\Foundation\Application->make('Illuminate\\Cont...')
+#10 /var/www/html/artisan(16): Illuminate\Foundation\Application->handleCommand(Object(Symfony\Component\Console\Input\ArgvInput))
+#11 {main}
+thrown in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php on line 674
+Fatal error: Uncaught TypeError: Illuminate\Foundation\Configuration\Middleware::trustProxies(): Argument #2 ($headers) must be of type ?int, array given, called in /var/www/html/bootstrap/app.php on line 51 and defined in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php:674
+Stack trace:
+#0 /var/www/html/bootstrap/app.php(51): Illuminate\Foundation\Configuration\Middleware->trustProxies(NULL, Array)
+#1 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(308): {closure}(Object(Illuminate\Foundation\Configuration\Middleware))
+#2 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\Foundation\Configuration\ApplicationBuilder->Illuminate\Foundation\Configuration\{closure}(Object(Illuminate\Foundation\Console\Kernel), Object(Illuminate\Foundation\Application))
+#3 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\Container\Container->fireCallbackArray(Object(Illuminate\Foundation\Console\Kernel), Array)
+#4 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\Container\Container->fireAfterResolvingCallbacks('Illuminate\\Cont...', Object(Illuminate\Foundation\Console\Kernel))
+#5 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\Container\Container->fireResolvingCallbacks('Illuminate\\Cont...', Object(Illuminate\Foundation\Console\Kernel))
+#6 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\Container\Container->resolve('Illuminate\\Cont...', Array, true)
+#7 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\Foundation\Application->resolve('Illuminate\\Cont...', Array)
+#8 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\Container\Container->make('Illuminate\\Cont...', Array)
+#9 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1233): Illuminate\Foundation\Application->make('Illuminate\\Cont...')
+#10 /var/www/html/artisan(16): Illuminate\Foundation\Application->handleCommand(Object(Symfony\Component\Console\Input\ArgvInput))
+#11 {main}
+thrown in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php on line 674
+Fatal error: Uncaught TypeError: Illuminate\Foundation\Configuration\Middleware::trustProxies(): Argument #2 ($headers) must be of type ?int, array given, called in /var/www/html/bootstrap/app.php on line 51 and defined in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php:674
+Stack trace:
+#0 /var/www/html/bootstrap/app.php(51): Illuminate\Foundation\Configuration\Middleware->trustProxies(NULL, Array)
+#1 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(308): {closure}(Object(Illuminate\Foundation\Configuration\Middleware))
+#2 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\Foundation\Configuration\ApplicationBuilder->Illuminate\Foundation\Configuration\{closure}(Object(Illuminate\Foundation\Console\Kernel), Object(Illuminate\Foundation\Application))
+#3 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\Container\Container->fireCallbackArray(Object(Illuminate\Foundation\Console\Kernel), Array)
+#4 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\Container\Container->fireAfterResolvingCallbacks('Illuminate\\Cont...', Object(Illuminate\Foundation\Console\Kernel))
+#5 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\Container\Container->fireResolvingCallbacks('Illuminate\\Cont...', Object(Illuminate\Foundation\Console\Kernel))
+#6 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\Container\Container->resolve('Illuminate\\Cont...', Array, true)
+#7 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\Foundation\Application->resolve('Illuminate\\Cont...', Array)
+#8 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\Container\Container->make('Illuminate\\Cont...', Array)
+#9 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1233): Illuminate\Foundation\Application->make('Illuminate\\Cont...')
+#10 /var/www/html/artisan(16): Illuminate\Foundation\Application->handleCommand(Object(Symfony\Component\Console\Input\ArgvInput))
+#11 {main}
+thrown in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php on line 674
+Fatal error: Uncaught TypeError: Illuminate\Foundation\Configuration\Middleware::trustProxies(): Argument #2 ($headers) must be of type ?int, array given, called in /var/www/html/bootstrap/app.php on line 51 and defined in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php:674
+Stack trace:
+#0 /var/www/html/bootstrap/app.php(51): Illuminate\Foundation\Configuration\Middleware->trustProxies(NULL, Array)
+#1 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(308): {closure}(Object(Illuminate\Foundation\Configuration\Middleware))
+#2 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\Foundation\Configuration\ApplicationBuilder->Illuminate\Foundation\Configuration\{closure}(Object(Illuminate\Foundation\Console\Kernel), Object(Illuminate\Foundation\Application))
+#3 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\Container\Container->fireCallbackArray(Object(Illuminate\Foundation\Console\Kernel), Array)
+#4 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\Container\Container->fireAfterResolvingCallbacks('Illuminate\\Cont...', Object(Illuminate\Foundation\Console\Kernel))
+#5 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\Container\Container->fireResolvingCallbacks('Illuminate\\Cont...', Object(Illuminate\Foundation\Console\Kernel))
+#6 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\Container\Container->resolve('Illuminate\\Cont...', Array, true)
+#7 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\Foundation\Application->resolve('Illuminate\\Cont...', Array)
+#8 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\Container\Container->make('Illuminate\\Cont...', Array)
+#9 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1233): Illuminate\Foundation\Application->make('Illuminate\\Cont...')
+#10 /var/www/html/artisan(16): Illuminate\Foundation\Application->handleCommand(Object(Symfony\Component\Console\Input\ArgvInput))
+#11 {main}
+thrown in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php on line 674
+Fatal error: Uncaught TypeError: Illuminate\Foundation\Configuration\Middleware::trustProxies(): Argument #2 ($headers) must be of type ?int, array given, called in /var/www/html/bootstrap/app.php on line 51 and defined in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php:674
+Stack trace:
+#0 /var/www/html/bootstrap/app.php(51): Illuminate\Foundation\Configuration\Middleware->trustProxies(NULL, Array)
+#1 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(308): {closure}(Object(Illuminate\Foundation\Configuration\Middleware))
+#2 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\Foundation\Configuration\ApplicationBuilder->Illuminate\Foundation\Configuration\{closure}(Object(Illuminate\Foundation\Console\Kernel), Object(Illuminate\Foundation\Application))
+#3 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\Container\Container->fireCallbackArray(Object(Illuminate\Foundation\Console\Kernel), Array)
+#4 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\Container\Container->fireAfterResolvingCallbacks('Illuminate\\Cont...', Object(Illuminate\Foundation\Console\Kernel))
+#5 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\Container\Container->fireResolvingCallbacks('Illuminate\\Cont...', Object(Illuminate\Foundation\Console\Kernel))
+#6 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\Container\Container->resolve('Illuminate\\Cont...', Array, true)
+#7 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\Foundation\Application->resolve('Illuminate\\Cont...', Array)
+#8 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\Container\Container->make('Illuminate\\Cont...', Array)
+#9 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1233): Illuminate\Foundation\Application->make('Illuminate\\Cont...')
+#10 /var/www/html/artisan(16): Illuminate\Foundation\Application->handleCommand(Object(Symfony\Component\Console\Input\ArgvInput))
+#11 {main}
+thrown in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php on line 674
+Fatal error: Uncaught TypeError: Illuminate\Foundation\Configuration\Middleware::trustProxies(): Argument #2 ($headers) must be of type ?int, array given, called in /var/www/html/bootstrap/app.php on line 51 and defined in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php:674
+Stack trace:
+#0 /var/www/html/bootstrap/app.php(51): Illuminate\Foundation\Configuration\Middleware->trustProxies(NULL, Array)
+#1 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/ApplicationBuilder.php(308): {closure}(Object(Illuminate\Foundation\Configuration\Middleware))
+#2 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1618): Illuminate\Foundation\Configuration\ApplicationBuilder->Illuminate\Foundation\Configuration\{closure}(Object(Illuminate\Foundation\Console\Kernel), Object(Illuminate\Foundation\Application))
+#3 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1556): Illuminate\Container\Container->fireCallbackArray(Object(Illuminate\Foundation\Console\Kernel), Array)
+#4 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(1542): Illuminate\Container\Container->fireAfterResolvingCallbacks('Illuminate\\Cont...', Object(Illuminate\Foundation\Console\Kernel))
+#5 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(951): Illuminate\Container\Container->fireResolvingCallbacks('Illuminate\\Cont...', Object(Illuminate\Foundation\Console\Kernel))
+#6 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1078): Illuminate\Container\Container->resolve('Illuminate\\Cont...', Array, true)
+#7 /var/www/html/vendor/laravel/framework/src/Illuminate/Container/Container.php(864): Illuminate\Foundation\Application->resolve('Illuminate\\Cont...', Array)
+#8 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1058): Illuminate\Container\Container->make('Illuminate\\Cont...', Array)
+#9 /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Application.php(1233): Illuminate\Foundation\Application->make('Illuminate\\Cont...')
+#10 /var/www/html/artisan(16): Illuminate\Foundation\Application->handleCommand(Object(Symfony\Component\Console\Input\ArgvInput))
+#11 {main}
+thrown in /var/www/html/vendor/laravel/framework/src/Illuminate/Foundation/Configuration/Middleware.php on line 674
