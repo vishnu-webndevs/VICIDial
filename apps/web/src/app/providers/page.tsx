@@ -80,6 +80,8 @@ export default function ProvidersPage() {
   const [fromNumber, setFromNumber] = useState("");
   const [whatsappFrom, setWhatsappFrom] = useState("");
   const [twimlAppSid, setTwimlAppSid] = useState("");
+  const [apiKeySid, setApiKeySid] = useState("");
+  const [apiKeySecret, setApiKeySecret] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -143,6 +145,8 @@ export default function ProvidersPage() {
     setFromNumber("");
     setWhatsappFrom("");
     setTwimlAppSid("");
+    setApiKeySid("");
+    setApiKeySecret("");
   }
 
   async function saveProvider(event: FormEvent<HTMLFormElement>) {
@@ -150,7 +154,7 @@ export default function ProvidersPage() {
     setMessage("");
     try {
       const { token, tenantId } = getTenantContext();
-      const credentialUpdateRequested = Boolean(accountSid || authToken || fromNumber || whatsappFrom || twimlAppSid);
+      const credentialUpdateRequested = Boolean(accountSid || authToken || fromNumber || whatsappFrom || twimlAppSid || apiKeySid || apiKeySecret);
       if (editingProviderId) {
         await apiRequest(`/providers/${editingProviderId}`, {
           method: "PATCH",
@@ -166,6 +170,8 @@ export default function ProvidersPage() {
                     from_number: fromNumber,
                     whatsapp_from: whatsappFrom,
                     twilio_twiml_app_sid: twimlAppSid,
+                    twilio_api_key_sid: apiKeySid,
+                    twilio_api_key_secret: apiKeySecret,
                   },
                 }
               : {}),
@@ -186,6 +192,8 @@ export default function ProvidersPage() {
               from_number: fromNumber,
               whatsapp_from: whatsappFrom,
               twilio_twiml_app_sid: twimlAppSid,
+              twilio_api_key_sid: apiKeySid,
+              twilio_api_key_secret: apiKeySecret,
             },
           },
         });
@@ -207,6 +215,8 @@ export default function ProvidersPage() {
     setFromNumber(provider.credentials?.from_number ?? "");
     setWhatsappFrom(provider.credentials?.whatsapp_from ?? "");
     setTwimlAppSid(provider.credentials?.twilio_twiml_app_sid ?? "");
+    setApiKeySid(provider.credentials?.twilio_api_key_sid ?? "");
+    setApiKeySecret(provider.credentials?.twilio_api_key_secret ?? "");
     setMessage("Editing provider.");
   }
 
@@ -446,12 +456,27 @@ export default function ProvidersPage() {
               placeholder="whatsapp:+14155238886"
             />
             {providerType === "twilio" && (
-              <FormTextField
-                value={twimlAppSid}
-                onChange={(event) => setTwimlAppSid(event.target.value)}
-                label="Twilio TwiML App SID"
-                placeholder="APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              />
+              <>
+                <FormTextField
+                  value={twimlAppSid}
+                  onChange={(event) => setTwimlAppSid(event.target.value)}
+                  label="Twilio TwiML App SID"
+                  placeholder="APxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                />
+                <FormTextField
+                  value={apiKeySid}
+                  onChange={(event) => setApiKeySid(event.target.value)}
+                  label="Twilio API Key SID"
+                  placeholder="SKxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                />
+                <FormTextField
+                  value={apiKeySecret}
+                  onChange={(event) => setApiKeySecret(event.target.value)}
+                  label="Twilio API Key Secret"
+                  type="password"
+                  placeholder="Twilio API key secret"
+                />
+              </>
             )}
             {editingProviderId ? (
               <MuiButton type="button" variant="text" onClick={resetProviderForm}>
