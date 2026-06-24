@@ -16,6 +16,7 @@ import {
   setCallOnHold,
   getTwilioToken,
   updateAgent,
+  uploadCallRecording,
 } from "@/lib/product-api";
 import { useLiveCalls } from "@/hooks/use-live-calls";
 import type { AgentEntity } from "@/types/product";
@@ -59,6 +60,13 @@ export default function DialerPage() {
   const statusTransitionsRef = useRef<Array<{ atMs: number; status: string }>>([]);
   const loopReportedRef = useRef<Record<string, number>>({});
   const lastErrorStackRef = useRef<string>("");
+
+  // Recording state refs
+  const mediaRecorderRef = useRef<any>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
+  const recordingStartTimeRef = useRef<number>(0);
 
   // Agent state
   const [agents, setAgents] = useState<AgentEntity[]>([]);
@@ -199,11 +207,23 @@ export default function DialerPage() {
 
           incomingCall.on("accept", () => {
             setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "WebRTC call connected" }, ...prev].slice(0, 20));
+            let callSessionId = "";
+            if (incomingCall.customParameters) {
+              if (typeof incomingCall.customParameters.get === "function") {
+                callSessionId = incomingCall.customParameters.get("call_session_id") || "";
+              } else {
+                callSessionId = (incomingCall.customParameters as any).call_session_id || "";
+              }
+            }
+            if (callSessionId) {
+              void startBrowserRecording(incomingCall, callSessionId);
+            }
           });
 
           incomingCall.on("disconnect", () => {
             setTwilioCall(null);
             setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "WebRTC call disconnected" }, ...prev].slice(0, 20));
+            stopBrowserRecording();
           });
         });
 
@@ -248,6 +268,86 @@ export default function DialerPage() {
     const lastKnown = related.sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
     return lastKnown;
   }, [calls, relatedIds]);
+
+  async function uploadBrowserRecording(audioBlob: Blob, callSessionId: string) {
+    try {
+      const durationSeconds = recordingStartTimeRef.current > 0 ? (Date.now() - recordingStartTimeRef.current) / 1000 : 0;
+      setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Uploading call recording..." }, ...prev].slice(0, 20));
+      await uploadCallRecording(callSessionId, audioBlob, durationSeconds);
+      setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Call recording uploaded successfully" }, ...prev].slice(0, 20));
+    } catch (uploadError) {
+      console.error("Failed to upload browser recording:", uploadError);
+      setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Failed to upload call recording" }, ...prev].slice(0, 20));
+    }
+  }
+
+  async function startBrowserRecording(call: any, callSessionId: string) {
+    try {
+      if (!call || typeof call.getRemoteStream !== "function") {
+        console.warn("getRemoteStream is not a function on the Twilio call object.");
+        return;
+      }
+      const remoteStream = call.getRemoteStream();
+      if (!remoteStream) {
+        console.warn("No remote stream available to record.");
+        return;
+      }
+
+      const localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      localStreamRef.current = localStream;
+
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const audioContext = new AudioContextClass();
+      audioContextRef.current = audioContext;
+
+      const localSource = audioContext.createMediaStreamSource(localStream);
+      const remoteSource = audioContext.createMediaStreamSource(remoteStream);
+      const dest = audioContext.createMediaStreamDestination();
+
+      localSource.connect(dest);
+      remoteSource.connect(dest);
+
+      const mediaRecorder = new MediaRecorder(dest.stream, { mimeType: "audio/webm" });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+      recordingStartTimeRef.current = Date.now();
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        if (audioBlob.size > 1000) {
+          await uploadBrowserRecording(audioBlob, callSessionId);
+        }
+        
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach((track) => track.stop());
+          localStreamRef.current = null;
+        }
+        if (audioContextRef.current) {
+          audioContextRef.current.close().catch(() => {});
+          audioContextRef.current = null;
+        }
+      };
+
+      mediaRecorder.start();
+      setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Call recording started locally" }, ...prev].slice(0, 20));
+    } catch (error) {
+      console.error("Failed to start browser call recording:", error);
+      setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: `Recording failed to start: ${error instanceof Error ? error.message : String(error)}` }, ...prev].slice(0, 20));
+    }
+  }
+
+  function stopBrowserRecording() {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      mediaRecorderRef.current.stop();
+      mediaRecorderRef.current = null;
+    }
+  }
 
   const hasActiveDialerCall =
     relatedIds.length > 0 &&
@@ -315,11 +415,13 @@ export default function DialerPage() {
 
         callConnection.on("accept", () => {
           setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Direct WebRTC call connected" }, ...prev].slice(0, 20));
+          void startBrowserRecording(callConnection, customerCall.id);
         });
 
         callConnection.on("disconnect", () => {
           setTwilioCall(null);
           setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Direct WebRTC call disconnected" }, ...prev].slice(0, 20));
+          stopBrowserRecording();
         });
 
         setActiveCall({

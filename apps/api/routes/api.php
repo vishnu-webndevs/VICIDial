@@ -150,6 +150,8 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:call.view');
         Route::get('/calls/{id}/recording', [CallController::class, 'recording'])
             ->middleware('permission:call.view');
+        Route::post('/calls/{id}/recording', [CallController::class, 'uploadRecording'])
+            ->middleware('permission:call.initiate');
         Route::post('/calls/{id}/tag', [CallController::class, 'tag'])
             ->middleware('permission:call.initiate');
         Route::post('/calls/{id}/retry', [CallController::class, 'retry'])
@@ -632,7 +634,7 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
             '<Response>',
             '<Say voice="Polly.Joanna">Connecting you now.</Say>',
             '<Dial timeout="25" callerId="' . $callerId . '">',
-            '<Client>' . htmlspecialchars($clientIdentity, ENT_QUOTES) . '</Client>',
+            '<Client>' . htmlspecialchars($clientIdentity, ENT_QUOTES) . '<Parameter name="call_session_id" value="' . htmlspecialchars($callSessionId, ENT_QUOTES) . '" /></Client>',
             '</Dial>',
             '</Response>',
         ]);

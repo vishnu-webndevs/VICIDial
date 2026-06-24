@@ -1582,3 +1582,23 @@ export async function replayWebhookEvent(source: "provider" | "stripe", id: stri
     body: { source, id },
   });
 }
+
+export async function uploadCallRecording(
+  callId: string,
+  audioBlob: Blob,
+  durationSeconds?: number
+): Promise<void> {
+  const { token, tenantId } = getTenantContext();
+  const formData = new FormData();
+  formData.append("audio", audioBlob, "recording.webm");
+  if (durationSeconds !== undefined) {
+    formData.append("duration", String(Math.round(durationSeconds)));
+  }
+
+  await apiRequest(`/calls/${callId}/recording`, {
+    method: "POST",
+    token,
+    tenantId,
+    body: formData,
+  });
+}

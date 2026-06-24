@@ -1081,6 +1081,35 @@ class CallController extends Controller
         ]);
     }
 
+    public function uploadRecording(Request $request, string $id): JsonResponse
+    {
+        $tenant = $request->attributes->get('tenant');
+        $call = $this->resolveTenantCall($tenant->id, $id);
+
+        $request->validate([
+            'audio' => ['required', 'file', 'max:51200'],
+            'duration' => ['nullable', 'numeric'],
+        ]);
+
+        $file = $request->file('audio');
+        $disk = config('filesystems.default', 'local');
+        $path = $file->store("recordings/{$tenant->id}", $disk);
+
+        $call->recording_url = $path;
+        if ($request->has('duration')) {
+            $call->recording_duration = (int) $request->input('duration');
+        }
+        $call->save();
+
+        return response()->json([
+            'data' => [
+                'call_id' => $call->id,
+                'recording_url' => $this->resolvePlaybackUrl($path),
+                'recording_duration' => $call->recording_duration,
+            ],
+        ]);
+    }
+
     public function tag(Request $request, string $id): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');
