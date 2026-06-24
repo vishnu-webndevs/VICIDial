@@ -564,12 +564,12 @@ class TwilioVoiceWebhookController extends Controller
             }
 
             $dialTwiML = '<Dial callerId="' . htmlspecialchars($callerId, ENT_QUOTES) . '" timeout="30"';
-            if ($callSessionId !== '') {
-                $statusCallbackUrl = url('/api/webhooks/twilio') . '?call_session_id=' . $callSessionId;
-                $dialTwiML .= ' statusCallback="' . htmlspecialchars($statusCallbackUrl, ENT_QUOTES) . '"';
-                $dialTwiML .= ' statusCallbackMethod="POST"';
-                $dialTwiML .= ' statusCallbackEvent="initiated ringing answered completed"';
-            }
+        if ($callSessionId !== '') {
+            $statusCallbackUrl = url('/webhooks/twilio') . '?call_session_id=' . $callSessionId;
+            $dialTwiML .= ' statusCallback="' . htmlspecialchars($statusCallbackUrl, ENT_QUOTES) . '"';
+            $dialTwiML .= ' statusCallbackMethod="POST"';
+            $dialTwiML .= ' statusCallbackEvent="initiated ringing answered completed"';
+        }
             $dialTwiML .= '>';
             $dialTwiML .= '<Number>' . htmlspecialchars($to, ENT_QUOTES) . '</Number>';
             $dialTwiML .= '</Dial>';
