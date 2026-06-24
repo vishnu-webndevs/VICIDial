@@ -495,85 +495,97 @@ class TwilioVoiceWebhookController extends Controller
 
     public function outboundClient(Request $request): Response
     {
-        $payload = $request->all();
-        \Illuminate\Support\Facades\Log::info('outboundClient webhook triggered', [
-            'payload' => $payload,
-            'method' => $request->method(),
-            'url' => $request->fullUrl(),
-            'headers' => $request->headers->all(),
-        ]);
+        try {
+            $payload = $request->all();
+            \Illuminate\Support\Facades\Log::info('outboundClient webhook triggered', [
+                'payload' => $payload,
+                'method' => $request->method(),
+                'url' => $request->fullUrl(),
+                'headers' => $request->headers->all(),
+            ]);
 
-        $to = (string) ($payload['To'] ?? '');
-        $agentId = (string) ($payload['agent_id'] ?? '');
-        $callSessionId = (string) ($payload['call_session_id'] ?? '');
-        $callSid = (string) ($payload['CallSid'] ?? '');
+            $to = (string) ($payload['To'] ?? '');
+            $agentId = (string) ($payload['agent_id'] ?? '');
+            $callSessionId = (string) ($payload['call_session_id'] ?? '');
+            $callSid = (string) ($payload['CallSid'] ?? '');
 
-        \Illuminate\Support\Facades\Log::info('outboundClient parameters', [
-            'to' => $to,
-            'agentId' => $agentId,
-            'callSessionId' => $callSessionId,
-            'callSid' => $callSid,
-        ]);
+            \Illuminate\Support\Facades\Log::info('outboundClient parameters', [
+                'to' => $to,
+                'agentId' => $agentId,
+                'callSessionId' => $callSessionId,
+                'callSid' => $callSid,
+            ]);
 
-        if ($callSessionId !== '' && $callSid !== '') {
-            $call = \App\Models\CallSession::find($callSessionId);
-            if ($call) {
-                $call->provider_call_id = $callSid;
-                $call->status = 'ringing';
-                $call->save();
+            if ($callSessionId !== '' && $callSid !== '') {
+                $call = \App\Models\CallSession::find($callSessionId);
+                if ($call) {
+                    $call->provider_call_id = $callSid;
+                    $call->status = 'ringing';
+                    $call->save();
 
-                CallEvent::query()->create([
-                    'tenant_id' => $call->tenant_id,
-                    'call_session_id' => $call->id,
-                    'provider_account_id' => $call->provider_account_id,
-                    'event_type' => 'call.ringing',
-                    'provider_event_type' => 'webrtc.outbound_started',
-                    'status_after' => 'ringing',
-                    'payload' => ['provider_call_id' => $callSid],
-                    'occurred_at' => now(),
-                ]);
+                    if ($call->tenant_id) {
+                        CallEvent::query()->create([
+                            'tenant_id' => $call->tenant_id,
+                            'call_session_id' => $call->id,
+                            'provider_account_id' => $call->provider_account_id,
+                            'event_type' => 'call.ringing',
+                            'provider_event_type' => 'webrtc.outbound_started',
+                            'status_after' => 'ringing',
+                            'payload' => ['provider_call_id' => $callSid],
+                            'occurred_at' => now(),
+                        ]);
+                    }
+                }
             }
-        }
 
-        // Resolve caller ID
-        $callerId = '';
-        if ($agentId !== '') {
-            $agent = \App\Models\Agent::query()->with('phoneAssignments.number')->find($agentId);
-            if ($agent) {
-                $callerId = (string) ($agent->phoneAssignments->first()?->number?->phone_number ?? '');
-                \Illuminate\Support\Facades\Log::info('outboundClient: found agent with caller id from phone assignment', ['agentId' => $agentId, 'callerId' => $callerId]);
+            // Resolve caller ID
+            $callerId = '';
+            if ($agentId !== '') {
+                $agent = \App\Models\Agent::query()->with('phoneAssignments.number')->find($agentId);
+                if ($agent) {
+                    $callerId = (string) ($agent->phoneAssignments->first()?->number?->phone_number ?? '');
+                    \Illuminate\Support\Facades\Log::info('outboundClient: found agent with caller id from phone assignment', ['agentId' => $agentId, 'callerId' => $callerId]);
+                }
             }
+
+            if ($callerId === '') {
+                $callerId = (string) (config('services.twilio.from') ?? env('TWILIO_FROM') ?? '');
+                \Illuminate\Support\Facades\Log::info('outboundClient: using fallback caller id', ['callerId' => $callerId]);
+            }
+
+            if ($to === '') {
+                \Illuminate\Support\Facades\Log::error('outboundClient: No destination number specified');
+                return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Error: No destination number specified.</Say><Hangup/>'));
+            }
+
+            if ($callerId === '') {
+                \Illuminate\Support\Facades\Log::error('outboundClient: No outbound caller ID is configured');
+                return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Error: No outbound caller ID is configured.</Say><Hangup/>'));
+            }
+
+            $dialTwiML = '<Dial callerId="' . htmlspecialchars($callerId, ENT_QUOTES) . '" timeout="30"';
+            if ($callSessionId !== '') {
+                $statusCallbackUrl = url('/api/webhooks/twilio') . '?call_session_id=' . $callSessionId;
+                $dialTwiML .= ' statusCallback="' . htmlspecialchars($statusCallbackUrl, ENT_QUOTES) . '"';
+                $dialTwiML .= ' statusCallbackMethod="POST"';
+                $dialTwiML .= ' statusCallbackEvent="initiated ringing answered completed"';
+            }
+            $dialTwiML .= '>';
+            $dialTwiML .= '<Number>' . htmlspecialchars($to, ENT_QUOTES) . '</Number>';
+            $dialTwiML .= '</Dial>';
+
+            $twiml = $this->wrapTwiml($dialTwiML);
+            \Illuminate\Support\Facades\Log::info('outboundClient returning TwiML', ['twiml' => $twiml]);
+
+            return $this->twimlResponse($twiml);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('outboundClient Exception', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Error: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES) . '</Say><Hangup/>'));
         }
-
-        if ($callerId === '') {
-            $callerId = (string) (config('services.twilio.from') ?? env('TWILIO_FROM') ?? '');
-            \Illuminate\Support\Facades\Log::info('outboundClient: using fallback caller id', ['callerId' => $callerId]);
-        }
-
-        if ($to === '') {
-            \Illuminate\Support\Facades\Log::error('outboundClient: No destination number specified');
-            return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Error: No destination number specified.</Say><Hangup/>'));
-        }
-
-        if ($callerId === '') {
-            \Illuminate\Support\Facades\Log::error('outboundClient: No outbound caller ID is configured');
-            return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Error: No outbound caller ID is configured.</Say><Hangup/>'));
-        }
-
-        $dialTwiML = '<Dial callerId="' . htmlspecialchars($callerId, ENT_QUOTES) . '" timeout="30"';
-        if ($callSessionId !== '') {
-            $statusCallbackUrl = url('/api/webhooks/twilio') . '?call_session_id=' . $callSessionId;
-            $dialTwiML .= ' statusCallback="' . htmlspecialchars($statusCallbackUrl, ENT_QUOTES) . '"';
-            $dialTwiML .= ' statusCallbackMethod="POST"';
-            $dialTwiML .= ' statusCallbackEvent="initiated ringing answered completed"';
-        }
-        $dialTwiML .= '>';
-        $dialTwiML .= '<Number>' . htmlspecialchars($to, ENT_QUOTES) . '</Number>';
-        $dialTwiML .= '</Dial>';
-
-        $twiml = $this->wrapTwiml($dialTwiML);
-        \Illuminate\Support\Facades\Log::info('outboundClient returning TwiML', ['twiml' => $twiml]);
-
-        return $this->twimlResponse($twiml);
     }
 }
