@@ -5,7 +5,6 @@ import { AppShell, EmptyState, ErrorState, LoadingState, SectionCard, StatusBadg
 import { apiRequest } from "@/lib/api";
 import { getTenantContext } from "@/lib/tenant-context";
 import { listCampaigns } from "@/lib/product-api";
-import { InputAdornment } from "@mui/material";
 import {
   Box,
   Button,
@@ -13,7 +12,6 @@ import {
   FormControlLabel,
   FormSelect,
   FormTextField,
-  IconButton,
   MuiButton,
   Paper,
   Stack,
@@ -85,8 +83,6 @@ export default function ProvidersPage() {
   const [apiKeySid, setApiKeySid] = useState("");
   const [apiKeySecret, setApiKeySecret] = useState("");
   const [message, setMessage] = useState("");
-  const [showAuthToken, setShowAuthToken] = useState(false);
-  const [showApiKeySecret, setShowApiKeySecret] = useState(false);
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -151,44 +147,6 @@ export default function ProvidersPage() {
     setTwimlAppSid("");
     setApiKeySid("");
     setApiKeySecret("");
-    setShowAuthToken(false);
-    setShowApiKeySecret(false);
-  }
-
-  async function handleToggleAuthToken() {
-    if (!showAuthToken && authToken === "••••••••••••••••" && editingProviderId) {
-      try {
-        const response = await apiRequest<{ data: { credentials: Record<string, string> } }>(
-          `/admin/settings/communication/providers/${editingProviderId}/reveal`,
-          getTenantContext()
-        );
-        const realToken = response.data?.credentials?.auth_token;
-        if (realToken) {
-          setAuthToken(realToken);
-        }
-      } catch (error) {
-        console.error("Failed to reveal auth token", error);
-      }
-    }
-    setShowAuthToken(!showAuthToken);
-  }
-
-  async function handleToggleApiKeySecret() {
-    if (!showApiKeySecret && apiKeySecret === "••••••••••••••••" && editingProviderId) {
-      try {
-        const response = await apiRequest<{ data: { credentials: Record<string, string> } }>(
-          `/admin/settings/communication/providers/${editingProviderId}/reveal`,
-          getTenantContext()
-        );
-        const realSecret = response.data?.credentials?.twilio_api_key_secret;
-        if (realSecret) {
-          setApiKeySecret(realSecret);
-        }
-      } catch (error) {
-        console.error("Failed to reveal API key secret", error);
-      }
-    }
-    setShowApiKeySecret(!showApiKeySecret);
   }
 
   async function saveProvider(event: FormEvent<HTMLFormElement>) {
@@ -206,16 +164,16 @@ export default function ProvidersPage() {
             display_name: displayName,
             ...(credentialUpdateRequested
               ? {
-                  credentials: {
-                    account_sid: accountSid,
-                    auth_token: authToken,
-                    from_number: fromNumber,
-                    whatsapp_from: whatsappFrom,
-                    twilio_twiml_app_sid: twimlAppSid,
-                    twilio_api_key_sid: apiKeySid,
-                    twilio_api_key_secret: apiKeySecret,
-                  },
-                }
+                credentials: {
+                  account_sid: accountSid,
+                  auth_token: authToken,
+                  from_number: fromNumber,
+                  whatsapp_from: whatsappFrom,
+                  twilio_twiml_app_sid: twimlAppSid,
+                  twilio_api_key_sid: apiKeySid,
+                  twilio_api_key_secret: apiKeySecret,
+                },
+              }
               : {}),
           },
         });
@@ -259,8 +217,6 @@ export default function ProvidersPage() {
     setTwimlAppSid(provider.credentials?.twilio_twiml_app_sid ?? "");
     setApiKeySid(provider.credentials?.twilio_api_key_sid ?? "");
     setApiKeySecret(provider.credentials?.twilio_api_key_secret ?? "");
-    setShowAuthToken(false);
-    setShowApiKeySecret(false);
     setMessage("Editing provider.");
   }
 
@@ -484,21 +440,8 @@ export default function ProvidersPage() {
               value={authToken}
               onChange={(event) => setAuthToken(event.target.value)}
               label="Twilio Auth Token"
-              type={showAuthToken ? "text" : "password"}
+              type="password"
               placeholder="Twilio auth token"
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      aria-label="toggle auth token visibility"
-                      onClick={handleToggleAuthToken}
-                      edge="end"
-                    >
-                      <i className={`bx ${showAuthToken ? "bx-hide" : "bx-show"}`} />
-                    </IconButton>
-                  </InputAdornment>
-                ),
-              }}
             />
             <FormTextField
               value={fromNumber}
@@ -530,21 +473,8 @@ export default function ProvidersPage() {
                   value={apiKeySecret}
                   onChange={(event) => setApiKeySecret(event.target.value)}
                   label="Twilio API Key Secret"
-                  type={showApiKeySecret ? "text" : "password"}
+                  type="password"
                   placeholder="Twilio API key secret"
-                  InputProps={{
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          aria-label="toggle api key secret visibility"
-                          onClick={handleToggleApiKeySecret}
-                          edge="end"
-                        >
-                          <i className={`bx ${showApiKeySecret ? "bx-hide" : "bx-show"}`} />
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                  }}
                 />
               </>
             )}
@@ -606,14 +536,14 @@ export default function ProvidersPage() {
                         control={
                           <Checkbox
                             size="medium"
-                        checked={Boolean(provider.is_fallback)}
-                        onChange={(event) =>
-                          setProviders((prev) =>
-                            prev.map((item) =>
-                              item.id === provider.id ? { ...item, is_fallback: event.target.checked } : item
-                            )
-                          )
-                        }
+                            checked={Boolean(provider.is_fallback)}
+                            onChange={(event) =>
+                              setProviders((prev) =>
+                                prev.map((item) =>
+                                  item.id === provider.id ? { ...item, is_fallback: event.target.checked } : item
+                                )
+                              )
+                            }
                           />
                         }
                       />

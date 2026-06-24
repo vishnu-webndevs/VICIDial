@@ -29,11 +29,11 @@ class AdminCommunicationSettingsController extends Controller
         $tenant = $request->attributes->get('tenant');
 
         $providers = ProviderAccount::query()
-            ->with(['phoneNumbers' => fn ($q) => $q->orderBy('phone_number')])
+            ->with(['phoneNumbers' => fn($q) => $q->orderBy('phone_number')])
             ->where('tenant_id', $tenant->id)
             ->latest('created_at')
             ->get()
-            ->map(fn (ProviderAccount $provider) => [
+            ->map(fn(ProviderAccount $provider) => [
                 'id' => $provider->id,
                 'provider_type' => $provider->provider_type,
                 'display_name' => $provider->display_name,
@@ -41,9 +41,9 @@ class AdminCommunicationSettingsController extends Controller
                 'last_tested_at' => $provider->last_tested_at?->toISOString(),
                 'last_error_code' => $provider->last_error_code,
                 'last_error_message' => $provider->last_error_message,
-                'numbers' => $provider->phoneNumbers->map(fn (ProviderPhoneNumber $number) => $this->serializeNumber($number))->values(),
+                'numbers' => $provider->phoneNumbers->map(fn(ProviderPhoneNumber $number) => $this->serializeNumber($number))->values(),
                 'credentials' => collect((array) $provider->credentials_encrypted)
-                    ->map(fn ($val, $key) => in_array($key, ['auth_token', 'twilio_api_key_secret', 'api_secret'], true) ? '••••••••••••••••' : $val)
+                    ->map(fn($val, $key) => in_array($key, ['auth_token', 'twilio_api_key_secret', 'api_secret'], true) ? '••••••••••••••••' : $val)
                     ->all(),
             ])
             ->values();
@@ -126,7 +126,7 @@ class AdminCommunicationSettingsController extends Controller
             ->where('provider_account_id', $provider->id)
             ->orderBy('phone_number')
             ->get()
-            ->map(fn (ProviderPhoneNumber $number) => $this->serializeNumber($number))
+            ->map(fn(ProviderPhoneNumber $number) => $this->serializeNumber($number))
             ->values();
 
         $this->auditLogger->log(
@@ -169,7 +169,7 @@ class AdminCommunicationSettingsController extends Controller
         $provider->save();
 
         $numberResult = null;
-        if (! empty($validated['provider_phone_number_id'])) {
+        if (!empty($validated['provider_phone_number_id'])) {
             $number = ProviderPhoneNumber::query()
                 ->where('tenant_id', $tenant->id)
                 ->where('provider_account_id', $provider->id)
@@ -196,7 +196,7 @@ class AdminCommunicationSettingsController extends Controller
             actorId: $request->user()?->id,
             newValues: [
                 'provider_ok' => (bool) ($providerResult['ok'] ?? false),
-                'number_tested' => ! empty($validated['provider_phone_number_id']),
+                'number_tested' => !empty($validated['provider_phone_number_id']),
             ],
             request: $request
         );
@@ -232,9 +232,9 @@ class AdminCommunicationSettingsController extends Controller
             ->where('id', $validated['provider_phone_number_id'])
             ->firstOrFail();
 
-        if (! $number->is_validated) {
+        if (!$number->is_validated) {
             $provider = $number->providerAccount;
-            if (! $provider) {
+            if (!$provider) {
                 return response()->json([
                     'error' => [
                         'code' => 'PROVIDER_NOT_FOUND',
@@ -297,7 +297,7 @@ class AdminCommunicationSettingsController extends Controller
             ->where('tenant_id', $tenant->id)
             ->latest('updated_at')
             ->get()
-            ->map(fn (AgentPhoneAssignment $row) => $this->serializeAgentAssignment($row))
+            ->map(fn(AgentPhoneAssignment $row) => $this->serializeAgentAssignment($row))
             ->values();
 
         return response()->json(['data' => $rows]);
@@ -313,7 +313,7 @@ class AdminCommunicationSettingsController extends Controller
             ->where('status', 'active')
             ->orderBy('phone_number')
             ->get()
-            ->map(fn (ProviderPhoneNumber $number) => $this->serializeNumber($number))
+            ->map(fn(ProviderPhoneNumber $number) => $this->serializeNumber($number))
             ->values();
 
         return response()->json(['data' => $numbers]);
@@ -340,7 +340,7 @@ class AdminCommunicationSettingsController extends Controller
                 ->where('agent_id', $agent->id)
                 ->value('provider_phone_number_id');
 
-            if (! $numberId) {
+            if (!$numberId) {
                 return response()->json([
                     'error' => [
                         'code' => 'AGENT_NUMBER_NOT_ASSIGNED',
@@ -383,7 +383,7 @@ class AdminCommunicationSettingsController extends Controller
             ->where('campaign_id', $campaign->id)
             ->orderBy('created_at')
             ->get()
-            ->map(fn (CampaignAgentAssignment $row) => [
+            ->map(fn(CampaignAgentAssignment $row) => [
                 'id' => $row->id,
                 'campaign_id' => $row->campaign_id,
                 'agent' => $row->agent ? [
@@ -396,18 +396,6 @@ class AdminCommunicationSettingsController extends Controller
             ->values();
 
         return response()->json(['data' => $rows]);
-    }
-
-    public function revealCredentials(Request $request, string $providerId): JsonResponse
-    {
-        $tenant = $request->attributes->get('tenant');
-        $provider = $this->resolveProvider($tenant->id, $providerId);
-
-        return response()->json([
-            'data' => [
-                'credentials' => (array) $provider->credentials_encrypted,
-            ],
-        ]);
     }
 
     private function resolveProvider(string $tenantId, string $providerId): ProviderAccount

@@ -222,7 +222,6 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             Route::get('/communication/providers/{providerId}/twilio/numbers', [AdminCommunicationSettingsController::class, 'fetchProviderNumbers'])
                 ->middleware('throttle:provider.twilio');
             Route::post('/communication/providers/{providerId}/numbers/sync', [AdminCommunicationSettingsController::class, 'syncProviderNumbers']);
-            Route::post('/communication/providers/{providerId}/reveal', [AdminCommunicationSettingsController::class, 'revealCredentials']);
             Route::post('/communication/providers/{providerId}/test', [AdminCommunicationSettingsController::class, 'testProviderAndNumber'])
                 ->middleware('throttle:provider.twilio');
             Route::get('/communication/numbers/validated', [AdminCommunicationSettingsController::class, 'listValidatedNumbers']);
