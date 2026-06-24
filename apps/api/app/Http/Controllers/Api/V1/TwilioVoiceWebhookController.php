@@ -498,12 +498,22 @@ class TwilioVoiceWebhookController extends Controller
         $payload = $request->all();
         \Illuminate\Support\Facades\Log::info('outboundClient webhook triggered', [
             'payload' => $payload,
+            'method' => $request->method(),
+            'url' => $request->fullUrl(),
+            'headers' => $request->headers->all(),
         ]);
 
         $to = (string) ($payload['To'] ?? '');
         $agentId = (string) ($payload['agent_id'] ?? '');
         $callSessionId = (string) ($payload['call_session_id'] ?? '');
         $callSid = (string) ($payload['CallSid'] ?? '');
+
+        \Illuminate\Support\Facades\Log::info('outboundClient parameters', [
+            'to' => $to,
+            'agentId' => $agentId,
+            'callSessionId' => $callSessionId,
+            'callSid' => $callSid,
+        ]);
 
         if ($callSessionId !== '' && $callSid !== '') {
             $call = \App\Models\CallSession::find($callSessionId);
@@ -531,18 +541,22 @@ class TwilioVoiceWebhookController extends Controller
             $agent = \App\Models\Agent::query()->with('phoneAssignments.number')->find($agentId);
             if ($agent) {
                 $callerId = (string) ($agent->phoneAssignments->first()?->number?->phone_number ?? '');
+                \Illuminate\Support\Facades\Log::info('outboundClient: found agent with caller id from phone assignment', ['agentId' => $agentId, 'callerId' => $callerId]);
             }
         }
 
         if ($callerId === '') {
             $callerId = (string) (config('services.twilio.from') ?? env('TWILIO_FROM') ?? '');
+            \Illuminate\Support\Facades\Log::info('outboundClient: using fallback caller id', ['callerId' => $callerId]);
         }
 
         if ($to === '') {
+            \Illuminate\Support\Facades\Log::error('outboundClient: No destination number specified');
             return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Error: No destination number specified.</Say><Hangup/>'));
         }
 
         if ($callerId === '') {
+            \Illuminate\Support\Facades\Log::error('outboundClient: No outbound caller ID is configured');
             return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Error: No outbound caller ID is configured.</Say><Hangup/>'));
         }
 
@@ -557,6 +571,9 @@ class TwilioVoiceWebhookController extends Controller
         $dialTwiML .= '<Number>' . htmlspecialchars($to, ENT_QUOTES) . '</Number>';
         $dialTwiML .= '</Dial>';
 
-        return $this->twimlResponse($this->wrapTwiml($dialTwiML));
+        $twiml = $this->wrapTwiml($dialTwiML);
+        \Illuminate\Support\Facades\Log::info('outboundClient returning TwiML', ['twiml' => $twiml]);
+
+        return $this->twimlResponse($twiml);
     }
 }

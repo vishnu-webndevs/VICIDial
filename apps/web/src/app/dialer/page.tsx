@@ -414,15 +414,20 @@ export default function DialerPage() {
         setTwilioCall(callConnection);
 
         callConnection.on("accept", () => {
-          setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Direct WebRTC call connected" }, ...prev].slice(0, 20));
-          void startBrowserRecording(callConnection, customerCall.id);
-        });
+            setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Direct WebRTC call connected" }, ...prev].slice(0, 20));
+            void startBrowserRecording(callConnection, customerCall.id);
+          });
 
-        callConnection.on("disconnect", () => {
-          setTwilioCall(null);
-          setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Direct WebRTC call disconnected" }, ...prev].slice(0, 20));
-          stopBrowserRecording();
-        });
+          callConnection.on("error", (error: any) => {
+            console.error("Twilio call connection error:", error);
+            setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: `Call error: ${error.message || JSON.stringify(error)}` }, ...prev].slice(0, 20));
+          });
+
+          callConnection.on("disconnect", () => {
+            setTwilioCall(null);
+            setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Direct WebRTC call disconnected" }, ...prev].slice(0, 20));
+            stopBrowserRecording();
+          });
 
         setActiveCall({
           callId: customerCall.id,
