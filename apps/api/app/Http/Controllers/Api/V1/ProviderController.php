@@ -87,7 +87,7 @@ class ProviderController extends Controller
                     continue;
                 }
                 $trimmed = trim($value);
-                if ($trimmed === '') {
+                if ($trimmed === '' || $trimmed === '••••••••••••••••') {
                     continue;
                 }
                 $mergedCredentials[$key] = $trimmed;
@@ -263,6 +263,16 @@ class ProviderController extends Controller
 
     private function serializeProvider(ProviderAccount $provider): array
     {
+        $credentials = (array) $provider->credentials_encrypted;
+        $maskedCredentials = [];
+        foreach ($credentials as $key => $value) {
+            if (in_array($key, ['auth_token', 'twilio_api_key_secret', 'api_secret'], true)) {
+                $maskedCredentials[$key] = '••••••••••••••••';
+            } else {
+                $maskedCredentials[$key] = $value;
+            }
+        }
+
         return [
             'id' => $provider->id,
             'provider_type' => $provider->provider_type,
@@ -273,7 +283,8 @@ class ProviderController extends Controller
             'last_tested_at' => $provider->last_tested_at?->toISOString(),
             'last_error_code' => $provider->last_error_code,
             'last_error_message' => $provider->last_error_message,
-            'credential_fields' => array_keys((array) $provider->credentials_encrypted),
+            'credential_fields' => array_keys($credentials),
+            'credentials' => $maskedCredentials,
             'credentials_masked' => true,
             'created_at' => $provider->created_at?->toISOString(),
             'updated_at' => $provider->updated_at?->toISOString(),

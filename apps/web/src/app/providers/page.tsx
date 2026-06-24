@@ -41,6 +41,7 @@ type Provider = {
   status: string;
   failover_priority?: number;
   is_fallback?: boolean;
+  credentials?: Record<string, string>;
   numbers?: ProviderNumber[];
 };
 
@@ -201,12 +202,12 @@ export default function ProvidersPage() {
     setEditingProviderId(provider.id);
     setDisplayName(provider.display_name);
     setProviderType(provider.provider_type);
-    setAccountSid("");
-    setAuthToken("");
-    setFromNumber("");
-    setWhatsappFrom("");
-    setTwimlAppSid("");
-    setMessage("Editing provider. Fill credential fields only if you want to replace credentials.");
+    setAccountSid(provider.credentials?.account_sid ?? "");
+    setAuthToken(provider.credentials?.auth_token ?? "");
+    setFromNumber(provider.credentials?.from_number ?? "");
+    setWhatsappFrom(provider.credentials?.whatsapp_from ?? "");
+    setTwimlAppSid(provider.credentials?.twilio_twiml_app_sid ?? "");
+    setMessage("Editing provider.");
   }
 
   async function deleteProvider(providerId: string) {
