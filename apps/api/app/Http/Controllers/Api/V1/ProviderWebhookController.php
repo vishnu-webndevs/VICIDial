@@ -35,7 +35,23 @@ class ProviderWebhookController extends Controller
     private function handle(Request $request, string $providerType): JsonResponse
     {
         $payload = $request->all();
-        $provider = $this->resolveProvider($providerType, $payload);
+        $callSessionId = (string) $request->query('call_session_id', '');
+        $call = null;
+        $provider = null;
+
+        if ($callSessionId !== '') {
+            $call = CallSession::query()->where('id', $callSessionId)->first();
+            if ($call) {
+                $provider = ProviderAccount::query()
+                    ->where('id', (string) $call->provider_account_id)
+                    ->where('provider_type', $providerType)
+                    ->first();
+            }
+        }
+
+        if (! $provider) {
+            $provider = $this->resolveProvider($providerType, $payload);
+        }
         if (! $provider) {
             return response()->json(['message' => 'Provider account not found.'], 404);
         }
@@ -61,20 +77,12 @@ class ProviderWebhookController extends Controller
         }
 
         $normalized = $adapter->normalizeWebhookEvent($payload);
-        
-        $callSessionId = $request->query('call_session_id');
-        $call = null;
 
-        if ($callSessionId) {
-            $call = CallSession::query()
-                ->where('tenant_id', $provider->tenant_id)
-                ->where('id', $callSessionId)
-                ->first();
-
-            // If we found the call but its provider_call_id doesn't match the real one from webhook,
-            // it means the webhook arrived before the DispatchOutboundCallJob updated the DB.
-            if ($call && $call->provider_call_id !== $normalized['provider_call_id']) {
-                $call->provider_call_id = (string) $normalized['provider_call_id'];
+        if ($call && (string) ($normalized['provider_call_id'] ?? '') !== '') {
+            $current = (string) ($call->provider_call_id ?? '');
+            $next = (string) $normalized['provider_call_id'];
+            if ($current === '' || str_starts_with($current, 'call_') || $current !== $next) {
+                $call->provider_call_id = $next;
                 $call->save();
             }
         }
@@ -127,8 +135,12 @@ class ProviderWebhookController extends Controller
             ]);
         }
 
-        $call->status = (string) $normalized['status'];
-        $call->runtime_state = $this->mapRuntimeState($call->status);
+        $terminalStatuses = ['completed', 'failed', 'busy', 'no_answer', 'timeout', 'rejected', 'canceled'];
+        $newStatus = (string) $normalized['status'];
+        if (! in_array($call->status, $terminalStatuses, true) || in_array($newStatus, $terminalStatuses, true)) {
+            $call->status = $newStatus;
+            $call->runtime_state = $this->mapRuntimeState($call->status);
+        }
         if (! is_null($normalized['duration_seconds'])) {
             $call->duration_seconds = (int) $normalized['duration_seconds'];
         }
@@ -179,7 +191,6 @@ class ProviderWebhookController extends Controller
     {
         $providers = ProviderAccount::query()
             ->where('provider_type', $providerType)
-            ->where('status', 'active')
             ->get();
 
         foreach ($providers as $provider) {
