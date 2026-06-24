@@ -15,6 +15,7 @@ class NotificationController extends Controller
         $userId = $request->user()?->id;
         $notifications = Notification::query()
             ->where('tenant_id', $tenant->id)
+            ->where('type', 'conversation_reply')
             ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', $userId))
             ->when($request->boolean('unread_only'), fn ($q) => $q->whereNull('read_at'))
             ->latest('created_at')
@@ -31,6 +32,7 @@ class NotificationController extends Controller
                 ],
                 'unread_count' => Notification::query()
                     ->where('tenant_id', $tenant->id)
+                    ->where('type', 'conversation_reply')
                     ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', $userId))
                     ->whereNull('read_at')
                     ->count(),
@@ -45,6 +47,7 @@ class NotificationController extends Controller
         $notification = Notification::query()
             ->where('tenant_id', $tenant->id)
             ->where('id', $id)
+            ->where('type', 'conversation_reply')
             ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', $userId))
             ->firstOrFail();
 
@@ -61,6 +64,7 @@ class NotificationController extends Controller
 
         Notification::query()
             ->where('tenant_id', $tenant->id)
+            ->where('type', 'conversation_reply')
             ->where(fn ($q) => $q->whereNull('user_id')->orWhere('user_id', $userId))
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
