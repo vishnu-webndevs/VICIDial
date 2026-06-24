@@ -518,6 +518,34 @@ export default function CampaignsPage() {
     }
   }
 
+  async function onStartAgentDialer(campaign: Campaign) {
+    try {
+      setStartingCampaignId(campaign.id);
+      setMessage(`Starting Agent Dialer for "${campaign.name}"...`);
+      setMessageTone("neutral");
+      
+      const { token, tenantId } = getTenantContext();
+      const formData = new FormData();
+      formData.append("_method", "PATCH");
+      formData.append("dial_mode", "normal");
+      
+      await apiRequest(`/campaigns/${campaign.id}`, {
+        method: "POST",
+        token,
+        tenantId,
+        body: formData,
+      });
+
+      await onStartCampaign(campaign);
+      setPopup(null);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Failed to start agent dialer.");
+      setMessageTone("error");
+    } finally {
+      setStartingCampaignId(null);
+    }
+  }
+
   const hasRunningCampaign = campaigns.some((item) => ACTIVE_STATUSES.includes(item.status));
 
   return (
@@ -648,31 +676,46 @@ export default function CampaignsPage() {
                           {!isThisCampaignActive ? (
                             <>
                               {campaign.type === "outbound_call" || campaign.type === "auto" || campaign.type === "manual" ? (
+                                <>
+                                  <MuiButton
+                                    size="medium"
+                                    variant="outlined"
+                                    color="secondary"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      openAutoDialerPopup(campaign);
+                                    }}
+                                    disabled={Boolean(startingCampaignId)}
+                                  >
+                                    Auto Dialer
+                                  </MuiButton>
+                                  <MuiButton
+                                    size="medium"
+                                    variant="contained"
+                                    color="success"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      void onStartAgentDialer(campaign);
+                                    }}
+                                    disabled={Boolean(startingCampaignId)}
+                                  >
+                                    Agent Dialer
+                                  </MuiButton>
+                                </>
+                              ) : (
                                 <MuiButton
                                   size="medium"
-                                  variant="outlined"
-                                  color="secondary"
+                                  variant="contained"
+                                  color="success"
                                   onClick={(event) => {
                                     event.stopPropagation();
-                                    openAutoDialerPopup(campaign);
+                                    void onStartCampaign(campaign);
                                   }}
-                                  disabled={Boolean(startingCampaignId)}
+                                  disabled={startingCampaignId === campaign.id}
                                 >
-                                  Auto Dialer
+                                  {startingCampaignId === campaign.id ? "Starting..." : "Start"}
                                 </MuiButton>
-                              ) : null}
-                              <MuiButton
-                                size="medium"
-                                variant="contained"
-                                color="success"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void onStartCampaign(campaign);
-                                }}
-                                disabled={startingCampaignId === campaign.id}
-                              >
-                                {startingCampaignId === campaign.id ? "Starting..." : "Start"}
-                              </MuiButton>
+                              )}
                             </>
                           ) : (
                             <MuiButton
@@ -1200,13 +1243,33 @@ export default function CampaignsPage() {
             >
               Pause Campaign
             </MuiButton>
-            <MuiButton
-              variant="contained"
-              color="success"
-              onClick={() => { setAutoDialerCampaign(commandCampaign); setPopup("auto-dialer-setup"); }}
-            >
-              Auto Dialer
-            </MuiButton>
+            {commandCampaign && (commandCampaign.type === "outbound_call" || commandCampaign.type === "auto" || commandCampaign.type === "manual") ? (
+              <>
+                <MuiButton
+                  variant="contained"
+                  color="success"
+                  onClick={() => { setAutoDialerCampaign(commandCampaign); setPopup("auto-dialer-setup"); }}
+                >
+                  Auto Dialer
+                </MuiButton>
+                <MuiButton
+                  variant="contained"
+                  color="primary"
+                  onClick={() => void onStartAgentDialer(commandCampaign)}
+                  sx={{ mt: 1 }}
+                >
+                  Agent Dialer
+                </MuiButton>
+              </>
+            ) : (
+              <MuiButton
+                variant="contained"
+                color="success"
+                onClick={() => void onStartCampaign(commandCampaign)}
+              >
+                Start Campaign
+              </MuiButton>
+            )}
           </Box>
         )}
       </Modal>
