@@ -863,8 +863,15 @@ class CallController extends Controller
                 ], 502);
             }
 
-            $call->status = 'canceled';
             $call->ended_at = now();
+            if ($call->status === 'in_progress') {
+                $call->status = 'completed';
+                if ($call->started_at && !$call->duration_seconds) {
+                    $call->duration_seconds = max(0, $call->started_at->diffInSeconds($call->ended_at));
+                }
+            } else {
+                $call->status = 'canceled';
+            }
             $controls = $this->setControlState($call, 'on_hold', false, false);
             $call->save();
             $this->appendCallEvent(

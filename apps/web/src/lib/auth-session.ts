@@ -67,13 +67,5 @@ export function getRoleAwareRoute(
     return "/super-admin";
   }
 
-  if (role === "agency") {
-    return "/agency";
-  }
-
-  if (["admin", "company_owner", "company_admin"].includes(role)) {
-    return "/admin";
-  }
-
   return "/dashboard";
 }

@@ -546,7 +546,14 @@ class TwilioVoiceWebhookController extends Controller
             return $this->twimlResponse($this->wrapTwiml('<Say voice="Polly.Joanna">Error: No outbound caller ID is configured.</Say><Hangup/>'));
         }
 
-        $dialTwiML = '<Dial callerId="' . htmlspecialchars($callerId, ENT_QUOTES) . '" timeout="30">';
+        $dialTwiML = '<Dial callerId="' . htmlspecialchars($callerId, ENT_QUOTES) . '" timeout="30"';
+        if ($callSessionId !== '') {
+            $statusCallbackUrl = rtrim((string) config('app.url'), '/') . '/api/webhooks/twilio?call_session_id=' . $callSessionId;
+            $dialTwiML .= ' statusCallback="' . htmlspecialchars($statusCallbackUrl, ENT_QUOTES) . '"';
+            $dialTwiML .= ' statusCallbackMethod="POST"';
+            $dialTwiML .= ' statusCallbackEvent="initiated ringing answered completed"';
+        }
+        $dialTwiML .= '>';
         $dialTwiML .= '<Number>' . htmlspecialchars($to, ENT_QUOTES) . '</Number>';
         $dialTwiML .= '</Dial>';
 
