@@ -45,6 +45,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'api.version' => NegotiateApiVersion::class,
         ]);
         $middleware->redirectGuestsTo('/login');
+
+        // Trust all proxies and set HTTPS
+        $middleware->trustProxies(at: '*');
+        $middleware->trustProxies(headers: Illuminate\Http\Request::HEADER_X_FORWARDED_ALL);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (AuthenticationException $exception, Request $request) {
