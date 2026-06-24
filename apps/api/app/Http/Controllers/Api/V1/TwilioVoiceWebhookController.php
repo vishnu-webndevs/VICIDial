@@ -214,7 +214,7 @@ class TwilioVoiceWebhookController extends Controller
         ]);
 
         $policy = $this->resolveRecordingPolicy($provider->tenant_id, [$to]);
-        $action = rtrim((string) config('app.url'), '/') . '/api/webhooks/twilio/voice?mode=post_dial';
+        $action = url('/api/webhooks/twilio/voice') . '?mode=post_dial';
         $inner = '';
         if ($mode === 'warm') {
             $inner .= '<Say voice="Polly.Joanna">Please hold while we connect your call.</Say>';
@@ -294,7 +294,7 @@ class TwilioVoiceWebhookController extends Controller
 
     private function gatherTwiml(): string
     {
-        $action = rtrim((string) config('app.url'), '/') . '/api/webhooks/twilio/voice';
+        $action = url('/api/webhooks/twilio/voice');
 
         return $this->wrapTwiml(implode('', [
             '<Say voice="Polly.Joanna">Please enter your extension, then press pound.</Say>',
@@ -307,7 +307,7 @@ class TwilioVoiceWebhookController extends Controller
 
     private function dialRingGroupTwiml(string $tenantId, array $numbers): string
     {
-        $action = rtrim((string) config('app.url'), '/') . '/api/webhooks/twilio/voice?mode=post_dial';
+        $action = url('/api/webhooks/twilio/voice') . '?mode=post_dial';
         $policy = $this->resolveRecordingPolicy($tenantId, $numbers);
 
         $dialNouns = '';
@@ -329,7 +329,7 @@ class TwilioVoiceWebhookController extends Controller
 
     private function voicemailTwiml(string $callSid, ?string $prefixMessage = null): string
     {
-        $action = rtrim((string) config('app.url'), '/') . '/api/webhooks/twilio/voice/voicemail';
+        $action = url('/api/webhooks/twilio/voice/voicemail');
 
         $body = '';
         if ($prefixMessage) {
@@ -548,7 +548,7 @@ class TwilioVoiceWebhookController extends Controller
 
         $dialTwiML = '<Dial callerId="' . htmlspecialchars($callerId, ENT_QUOTES) . '" timeout="30"';
         if ($callSessionId !== '') {
-            $statusCallbackUrl = rtrim((string) config('app.url'), '/') . '/api/webhooks/twilio?call_session_id=' . $callSessionId;
+            $statusCallbackUrl = url('/api/webhooks/twilio') . '?call_session_id=' . $callSessionId;
             $dialTwiML .= ' statusCallback="' . htmlspecialchars($statusCallbackUrl, ENT_QUOTES) . '"';
             $dialTwiML .= ' statusCallbackMethod="POST"';
             $dialTwiML .= ' statusCallbackEvent="initiated ringing answered completed"';
