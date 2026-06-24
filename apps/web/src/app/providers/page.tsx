@@ -155,6 +155,42 @@ export default function ProvidersPage() {
     setShowApiKeySecret(false);
   }
 
+  async function handleToggleAuthToken() {
+    if (!showAuthToken && authToken === "••••••••••••••••" && editingProviderId) {
+      try {
+        const response = await apiRequest<{ data: { credentials: Record<string, string> } }>(
+          `/admin/settings/communication/providers/${editingProviderId}/reveal`,
+          getTenantContext()
+        );
+        const realToken = response.data?.credentials?.auth_token;
+        if (realToken) {
+          setAuthToken(realToken);
+        }
+      } catch (error) {
+        console.error("Failed to reveal auth token", error);
+      }
+    }
+    setShowAuthToken(!showAuthToken);
+  }
+
+  async function handleToggleApiKeySecret() {
+    if (!showApiKeySecret && apiKeySecret === "••••••••••••••••" && editingProviderId) {
+      try {
+        const response = await apiRequest<{ data: { credentials: Record<string, string> } }>(
+          `/admin/settings/communication/providers/${editingProviderId}/reveal`,
+          getTenantContext()
+        );
+        const realSecret = response.data?.credentials?.twilio_api_key_secret;
+        if (realSecret) {
+          setApiKeySecret(realSecret);
+        }
+      } catch (error) {
+        console.error("Failed to reveal API key secret", error);
+      }
+    }
+    setShowApiKeySecret(!showApiKeySecret);
+  }
+
   async function saveProvider(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
@@ -455,7 +491,7 @@ export default function ProvidersPage() {
                   <InputAdornment position="end">
                     <IconButton
                       aria-label="toggle auth token visibility"
-                      onClick={() => setShowAuthToken(!showAuthToken)}
+                      onClick={handleToggleAuthToken}
                       edge="end"
                     >
                       <i className={`bx ${showAuthToken ? "bx-hide" : "bx-show"}`} />
@@ -501,7 +537,7 @@ export default function ProvidersPage() {
                       <InputAdornment position="end">
                         <IconButton
                           aria-label="toggle api key secret visibility"
-                          onClick={() => setShowApiKeySecret(!showApiKeySecret)}
+                          onClick={handleToggleApiKeySecret}
                           edge="end"
                         >
                           <i className={`bx ${showApiKeySecret ? "bx-hide" : "bx-show"}`} />

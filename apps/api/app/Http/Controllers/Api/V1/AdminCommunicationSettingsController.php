@@ -398,6 +398,18 @@ class AdminCommunicationSettingsController extends Controller
         return response()->json(['data' => $rows]);
     }
 
+    public function revealCredentials(Request $request, string $providerId): JsonResponse
+    {
+        $tenant = $request->attributes->get('tenant');
+        $provider = $this->resolveProvider($tenant->id, $providerId);
+
+        return response()->json([
+            'data' => [
+                'credentials' => (array) $provider->credentials_encrypted,
+            ],
+        ]);
+    }
+
     private function resolveProvider(string $tenantId, string $providerId): ProviderAccount
     {
         return ProviderAccount::query()
