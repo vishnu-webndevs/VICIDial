@@ -524,7 +524,7 @@ class TwilioVoiceWebhookController extends Controller
                     $call->save();
 
                     if ($call->tenant_id) {
-                        CallEvent::query()->create([
+                        \App\Models\CallEvent::query()->create([
                             'tenant_id' => $call->tenant_id,
                             'call_session_id' => $call->id,
                             'provider_account_id' => $call->provider_account_id,
