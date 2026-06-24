@@ -5,6 +5,7 @@ import { AppShell, EmptyState, ErrorState, LoadingState, SectionCard, StatusBadg
 import { apiRequest } from "@/lib/api";
 import { getTenantContext } from "@/lib/tenant-context";
 import { listCampaigns } from "@/lib/product-api";
+import { InputAdornment } from "@mui/material";
 import {
   Box,
   Button,
@@ -12,6 +13,7 @@ import {
   FormControlLabel,
   FormSelect,
   FormTextField,
+  IconButton,
   MuiButton,
   Paper,
   Stack,
@@ -83,6 +85,8 @@ export default function ProvidersPage() {
   const [apiKeySid, setApiKeySid] = useState("");
   const [apiKeySecret, setApiKeySecret] = useState("");
   const [message, setMessage] = useState("");
+  const [showAuthToken, setShowAuthToken] = useState(false);
+  const [showApiKeySecret, setShowApiKeySecret] = useState(false);
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -147,6 +151,8 @@ export default function ProvidersPage() {
     setTwimlAppSid("");
     setApiKeySid("");
     setApiKeySecret("");
+    setShowAuthToken(false);
+    setShowApiKeySecret(false);
   }
 
   async function saveProvider(event: FormEvent<HTMLFormElement>) {
@@ -217,6 +223,8 @@ export default function ProvidersPage() {
     setTwimlAppSid(provider.credentials?.twilio_twiml_app_sid ?? "");
     setApiKeySid(provider.credentials?.twilio_api_key_sid ?? "");
     setApiKeySecret(provider.credentials?.twilio_api_key_secret ?? "");
+    setShowAuthToken(false);
+    setShowApiKeySecret(false);
     setMessage("Editing provider.");
   }
 
@@ -440,8 +448,21 @@ export default function ProvidersPage() {
               value={authToken}
               onChange={(event) => setAuthToken(event.target.value)}
               label="Twilio Auth Token"
-              type="password"
+              type={showAuthToken ? "text" : "password"}
               placeholder="Twilio auth token"
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      aria-label="toggle auth token visibility"
+                      onClick={() => setShowAuthToken(!showAuthToken)}
+                      edge="end"
+                    >
+                      <i className={`bx ${showAuthToken ? "bx-hide" : "bx-show"}`} />
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
             />
             <FormTextField
               value={fromNumber}
@@ -473,8 +494,21 @@ export default function ProvidersPage() {
                   value={apiKeySecret}
                   onChange={(event) => setApiKeySecret(event.target.value)}
                   label="Twilio API Key Secret"
-                  type="password"
+                  type={showApiKeySecret ? "text" : "password"}
                   placeholder="Twilio API key secret"
+                  InputProps={{
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label="toggle api key secret visibility"
+                          onClick={() => setShowApiKeySecret(!showApiKeySecret)}
+                          edge="end"
+                        >
+                          <i className={`bx ${showApiKeySecret ? "bx-hide" : "bx-show"}`} />
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
                 />
               </>
             )}
