@@ -146,22 +146,33 @@ class CallController extends Controller
             request: $request
         );
 
-        // Dispatch the actual outbound call asynchronously so this request returns immediately.
-        $baseUrl = rtrim((string) config('app.url'), '/');
-        $callMetadata = (array) ($call->metadata ?? []);
-        $twimlToken = (string) ($callMetadata['twiml_token'] ?? '');
-        $dialMode = (string) ($callMetadata['dial_mode'] ?? '');
-        $dialQuery = $dialMode !== '' ? '&dial_mode='.urlencode($dialMode) : '';
-        $scriptUrl = $provider->provider_type === 'vonage'
-            ? $baseUrl.'/api/webhooks/vonage/ncco/outbound?call_session_id='.$call->id
-            : $baseUrl.'/api/webhooks/twilio/twiml/outbound?call_session_id='.$call->id.'&token='.urlencode($twimlToken).$dialQuery;
-        $statusCallbackUrl = $baseUrl.'/api/webhooks/'.$provider->provider_type.'?call_session_id='.$call->id;
-        DispatchOutboundCallJob::dispatch(
-            callSessionId: $call->id,
-            providerAccountId: $provider->id,
-            twimlUrl: $scriptUrl,
-            statusCallbackUrl: $statusCallbackUrl,
-        );
+        $callingMethod = 'phone';
+        if (! empty($validated['agent_id'])) {
+            $agent = \App\Models\Agent::query()->find($validated['agent_id']);
+            if ($agent) {
+                $agentMetadata = (array) ($agent->metadata ?? []);
+                $callingMethod = (string) ($agentMetadata['calling_method'] ?? 'phone');
+            }
+        }
+
+        if ($callingMethod !== 'webrtc') {
+            // Dispatch the actual outbound call asynchronously so this request returns immediately.
+            $baseUrl = rtrim((string) config('app.url'), '/');
+            $callMetadata = (array) ($call->metadata ?? []);
+            $twimlToken = (string) ($callMetadata['twiml_token'] ?? '');
+            $dialMode = (string) ($callMetadata['dial_mode'] ?? '');
+            $dialQuery = $dialMode !== '' ? '&dial_mode='.urlencode($dialMode) : '';
+            $scriptUrl = $provider->provider_type === 'vonage'
+                ? $baseUrl.'/api/webhooks/vonage/ncco/outbound?call_session_id='.$call->id
+                : $baseUrl.'/api/webhooks/twilio/twiml/outbound?call_session_id='.$call->id.'&token='.urlencode($twimlToken).$dialQuery;
+            $statusCallbackUrl = $baseUrl.'/api/webhooks/'.$provider->provider_type.'?call_session_id='.$call->id;
+            DispatchOutboundCallJob::dispatch(
+                callSessionId: $call->id,
+                providerAccountId: $provider->id,
+                twimlUrl: $scriptUrl,
+                statusCallbackUrl: $statusCallbackUrl,
+            );
+        }
 
         $responseBody = [
             'data' => [
