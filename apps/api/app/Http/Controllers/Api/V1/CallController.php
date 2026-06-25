@@ -839,30 +839,6 @@ class CallController extends Controller
                 }
             }
 
-            if ($provider?->provider_type === 'twilio' && is_array($providerHangup) && ($providerHangup['ok'] ?? false) !== true) {
-                $this->appendCallEvent(
-                    call: $call,
-                    eventType: 'call.end_failed',
-                    providerEventType: 'agent.control',
-                    payload: [
-                        'ended_by' => (string) $request->user()?->id,
-                        'provider_hangup' => $providerHangup,
-                    ]
-                );
-
-                return response()->json([
-                    'error' => [
-                        'code' => 'PROVIDER_HANGUP_FAILED',
-                        'message' => 'Unable to end the provider call. Check provider_hangup for details.',
-                    ],
-                    'data' => [
-                        ...$this->serializeCall($call->fresh('providerAccount')),
-                        'controls' => (array) (($call->metadata ?? [])['controls'] ?? ['muted' => false, 'on_hold' => false]),
-                    ],
-                    'provider_hangup' => $providerHangup,
-                ], 502);
-            }
-
             $call->ended_at = now();
             if ($call->status === 'in_progress') {
                 $call->status = 'completed';
@@ -889,6 +865,7 @@ class CallController extends Controller
                     ...$this->serializeCall($call->fresh('providerAccount')),
                     'controls' => $controls,
                 ],
+                'provider_hangup' => $providerHangup,
             ]);
         }
 
