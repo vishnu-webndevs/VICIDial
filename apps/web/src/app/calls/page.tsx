@@ -35,6 +35,7 @@ export default function CallDashboardPage() {
   const [lastPage, setLastPage] = useState(1);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<"neutral" | "success" | "error">("neutral");
   const [exporting, setExporting] = useState(false);
   const [quotaWarning, setQuotaWarning] = useState("");
   const [selectedCallId, setSelectedCallId] = useState<string>("");
@@ -164,6 +165,7 @@ export default function CallDashboardPage() {
 
   return (
     <AppShell requiredPermissions={["call.view"]}>
+      {message ? <ToastMessage tone={messageTone} message={message} /> : null}
       <Box sx={{ display: "grid", gap: 2 }}>
         <SectionCard
           title="Live Calls Monitoring"
