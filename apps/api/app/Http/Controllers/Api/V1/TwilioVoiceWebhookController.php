@@ -238,7 +238,6 @@ class TwilioVoiceWebhookController extends Controller
 
         $providers = ProviderAccount::query()
             ->where('provider_type', 'twilio')
-            ->where('status', 'active')
             ->get();
 
         /** @var ProviderAccount $provider */
@@ -565,7 +564,7 @@ class TwilioVoiceWebhookController extends Controller
 
             $dialTwiML = '<Dial callerId="' . htmlspecialchars($callerId, ENT_QUOTES) . '" timeout="30"';
         if ($callSessionId !== '') {
-            $statusCallbackUrl = url('/webhooks/twilio') . '?call_session_id=' . $callSessionId;
+            $statusCallbackUrl = url('/api/webhooks/twilio') . '?call_session_id=' . $callSessionId;
             $dialTwiML .= ' statusCallback="' . htmlspecialchars($statusCallbackUrl, ENT_QUOTES) . '"';
             $dialTwiML .= ' statusCallbackMethod="POST"';
             $dialTwiML .= ' statusCallbackEvent="initiated ringing answered completed"';
