@@ -5,7 +5,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Box, MenuItem, MuiButton, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@/ui";
 import { AppShell, EmptyState, ErrorState, LoadingState, SectionCard, StatusBadge } from "@/components/app-shell";
 import { Chip, ToastMessage } from "@/components/ui-primitives";
-import { listCalls } from "@/lib/product-api";
+import { listCalls, endCall } from "@/lib/product-api";
 import { API_BASE_URL } from "@/lib/runtime-config";
 import { useLiveCalls } from "@/hooks/use-live-calls";
 import type { CallRecord } from "@/types/product";
@@ -150,6 +150,18 @@ export default function CallDashboardPage() {
     setFilters((prev) => ({ ...prev, status }));
   }
 
+  async function handleEndCall(callId: string) {
+    try {
+      await endCall(callId);
+      setMessage("Call ended successfully");
+      setMessageTone("success");
+      await Promise.all([loadHistory(), refresh()]);
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to end call");
+      setMessageTone("error");
+    }
+  }
+
   return (
     <AppShell requiredPermissions={["call.view"]}>
       <Box sx={{ display: "grid", gap: 2 }}>
@@ -166,7 +178,17 @@ export default function CallDashboardPage() {
                 <Paper key={call.id} variant="outlined" sx={{ p: 1.5 }}>
                   <Box sx={{ mb: 0.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <StatusBadge label={call.status} />
-                    <MuiButton component={Link} href={`/calls/${call.id}`} variant="text" size="medium">Open</MuiButton>
+                    <Box sx={{ display: "flex", gap: 0.5 }}>
+                      <MuiButton component={Link} href={`/calls/${call.id}`} variant="text" size="small">Open</MuiButton>
+                      <MuiButton
+                        variant="contained"
+                        color="error"
+                        size="small"
+                        onClick={() => handleEndCall(call.id)}
+                      >
+                        End
+                      </MuiButton>
+                    </Box>
                   </Box>
                   <Typography variant="body2">From: {call.from_number}</Typography>
                   <Typography variant="body2">To: {call.to_number}</Typography>
