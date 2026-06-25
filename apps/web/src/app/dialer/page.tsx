@@ -77,6 +77,12 @@ export default function DialerPage() {
   const [deviceReady, setDeviceReady] = useState(false);
   const [twilioCall, setTwilioCall] = useState<any | null>(null);
 
+  const isToNumberInvalid = useMemo(() => {
+    if (!toNumber) return false;
+    const normalized = normalizePhone(toNumber);
+    return !E164_REGEX.test(normalized);
+  }, [toNumber]);
+
   function getDialerSessionId(): string {
     if (typeof window === "undefined") return "server-session";
     const key = "wnd_dialer_session_id";
@@ -713,15 +719,24 @@ export default function DialerPage() {
               <MenuItem value="webrtc">WebRTC Webphone (Browser)</MenuItem>
             </TextField>
 
-            {/* Destination number */}
             <TextField
               required
+              type="tel"
               size="medium"
               label="To (Destination Number)"
               placeholder="+14155552671"
               value={toNumber}
-              onChange={(e) => setToNumber(e.target.value)}
-              helperText="E.164 format, e.g. +14155552671"
+              onChange={(e) => {
+                const value = e.target.value;
+                const sanitized = value.replace(/[^0-9+\s\-()]/g, "");
+                setToNumber(sanitized);
+              }}
+              error={isToNumberInvalid}
+              helperText={
+                isToNumberInvalid
+                  ? "Invalid E.164 format. Must start with + and followed by 8-15 digits (e.g. +919876543210)."
+                  : "E.164 format, e.g. +14155552671"
+              }
             />
 
             <Box sx={{ width: "100%" }}>
