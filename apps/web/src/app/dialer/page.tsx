@@ -230,6 +230,20 @@ export default function DialerPage() {
             setTwilioCall(null);
             setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "WebRTC call disconnected" }, ...prev].slice(0, 20));
             stopBrowserRecording();
+            let callSessionId = "";
+            if (incomingCall.customParameters) {
+              if (typeof incomingCall.customParameters.get === "function") {
+                callSessionId = incomingCall.customParameters.get("call_session_id") || "";
+              } else {
+                callSessionId = (incomingCall.customParameters as any).call_session_id || "";
+              }
+            }
+            if (callSessionId) {
+              void endCall(callSessionId).catch(console.error);
+            }
+            setActiveCall({ callId: null, relatedCallIds: [], status: "idle", muted: false, onHold: false });
+            setCallStartedAt(null);
+            setElapsedSeconds(0);
           });
         });
 
@@ -433,6 +447,12 @@ export default function DialerPage() {
             setTwilioCall(null);
             setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Direct WebRTC call disconnected" }, ...prev].slice(0, 20));
             stopBrowserRecording();
+            if (customerCall.id) {
+              void endCall(customerCall.id).catch(console.error);
+            }
+            setActiveCall({ callId: null, relatedCallIds: [], status: "idle", muted: false, onHold: false });
+            setCallStartedAt(null);
+            setElapsedSeconds(0);
           });
 
         setActiveCall({
