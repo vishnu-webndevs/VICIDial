@@ -363,8 +363,13 @@ export default function DialerPage() {
   }
 
   function stopBrowserRecording() {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop();
+    try {
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+        mediaRecorderRef.current.stop();
+      }
+    } catch (err) {
+      console.error("Error stopping media recorder:", err);
+    } finally {
       mediaRecorderRef.current = null;
     }
   }
@@ -649,6 +654,23 @@ export default function DialerPage() {
     ].slice(0, 50);
     setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: `Status: ${viewedCall.status}` }, ...prev].slice(0, 20));
   }, [viewedCall?.id, viewedCall?.status]);
+
+  useEffect(() => {
+    if (!viewedCall?.status) return;
+    const terminalStatuses = ["completed", "failed", "busy", "no_answer", "timeout", "rejected", "canceled"];
+    if (terminalStatuses.includes(viewedCall.status)) {
+      if (activeCall.status !== viewedCall.status) {
+        setActiveCall((prev) => ({
+          ...prev,
+          status: viewedCall.status,
+        }));
+        setCallStartedAt(null);
+        setElapsedSeconds(0);
+        setTwilioCall(null);
+      }
+    }
+  }, [viewedCall?.status, activeCall.status]);
+
 
   useEffect(() => {
     if (!error) return;

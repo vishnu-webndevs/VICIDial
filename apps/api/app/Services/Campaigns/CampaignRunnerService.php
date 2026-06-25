@@ -143,6 +143,27 @@ class CampaignRunnerService
             return;
         }
 
+        if ($requiresAgents) {
+            $totalAgentCapacity = 0;
+            foreach ($agents as $agentSession) {
+                $totalAgentCapacity += max(0, (int) $agentSession->capacity - (int) $agentSession->active_assignments);
+            }
+            $dispatchable = min($dispatchable, $totalAgentCapacity);
+
+            if ($dispatchable <= 0) {
+                $this->writeCallCampaignLog('info', 'Call campaign tick no dispatch slots due to agent capacity constraints.', [
+                    'tenant_id' => $campaign->tenant_id,
+                    'campaign_id' => $campaign->id,
+                    'campaign_run_id' => $run->id,
+                    'total_agent_capacity' => $totalAgentCapacity,
+                ]);
+                $run->last_tick_at = Carbon::now();
+                $run->save();
+
+                return;
+            }
+        }
+
         $queueItems = DialQueueItem::query()
             ->where('tenant_id', $campaign->tenant_id)
             ->where('campaign_id', $campaign->id)
