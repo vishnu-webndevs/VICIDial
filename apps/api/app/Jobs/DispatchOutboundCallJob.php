@@ -46,6 +46,30 @@ class DispatchOutboundCallJob implements ShouldQueue
         }
 
         $from = (string) ($call->from_number ?? '');
+        $to = (string) ($call->to_number ?? '');
+        $metadata = (array) ($call->metadata ?? []);
+        $dialMode = (string) ($metadata['dial_mode'] ?? 'normal');
+
+        if ($provider->provider_type === 'twilio' && $dialMode === 'normal') {
+            $agentId = (string) ($metadata['agent_id'] ?? '');
+            if ($agentId !== '') {
+                $agent = \App\Models\Agent::query()->find($agentId);
+                if ($agent) {
+                    $agentMetadata = (array) ($agent->metadata ?? []);
+                    $callingMethod = (string) ($agentMetadata['calling_method'] ?? 'phone');
+                    if ($callingMethod === 'webrtc') {
+                        $to = 'client:agent-' . $agent->company_number;
+                    } else {
+                        $to = (string) ($agentMetadata['destination_number'] ?? '');
+                    }
+                }
+            }
+        }
+
+        if ($to === '') {
+            $this->failCall($call, 'No valid destination number or agent configured.');
+            return;
+        }
 
         // #region debug-point A:provider-dispatch
         $this->debugReport('A', 'call.dispatch.start', [
@@ -53,7 +77,7 @@ class DispatchOutboundCallJob implements ShouldQueue
             'call_session_id' => (string) $call->id,
             'provider_account_id' => (string) $provider->id,
             'provider_type' => (string) $provider->provider_type,
-            'to' => (string) ($call->to_number ?? ''),
+            'to' => (string) $to,
             'from' => (string) $from,
             'twiml_url' => (string) $this->twimlUrl,
             'status_callback_url' => (string) $this->statusCallbackUrl,
@@ -64,7 +88,7 @@ class DispatchOutboundCallJob implements ShouldQueue
             ->for($provider->provider_type)
             ->makeOutboundCall(
                 credentials: (array) $provider->credentials_encrypted,
-                to: $call->to_number,
+                to: $to,
                 from: $from,
                 twimlUrl: $this->twimlUrl,
                 statusCallbackUrl: $this->statusCallbackUrl,

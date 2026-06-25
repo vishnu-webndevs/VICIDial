@@ -538,6 +538,7 @@ export default function CampaignsPage() {
 
       await onStartCampaign(campaign);
       setPopup(null);
+      window.location.href = "/dialer";
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to start agent dialer.");
       setMessageTone("error");

@@ -223,6 +223,14 @@ export default function DialerPage() {
             }
             if (callSessionId) {
               void startBrowserRecording(incomingCall, callSessionId);
+              setActiveCall({
+                callId: callSessionId,
+                relatedCallIds: [callSessionId],
+                status: "in_progress",
+                muted: false,
+                onHold: false,
+              });
+              setCallStartedAt(Date.now());
             }
           });
 

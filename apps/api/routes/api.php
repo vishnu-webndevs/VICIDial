@@ -521,6 +521,25 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
         return response('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>', 200, ['Content-Type' => 'text/xml']);
     }
 
+    if ($dialMode === 'normal') {
+        $callerId = htmlspecialchars((string) ($call->from_number ?? ''), ENT_QUOTES);
+        $to = htmlspecialchars((string) ($call->to_number ?? ''), ENT_QUOTES);
+        $statusCallbackUrl = url('/api/webhooks/twilio') . '?call_session_id=' . $callSessionId;
+        if (str_starts_with(config('app.url'), 'https://') && str_starts_with($statusCallbackUrl, 'http://')) {
+            $statusCallbackUrl = str_replace('http://', 'https://', $statusCallbackUrl);
+        }
+
+        $twiml = implode('', [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<Response>',
+            '<Dial timeout="30" callerId="' . $callerId . '" statusCallback="' . htmlspecialchars($statusCallbackUrl, ENT_QUOTES) . '" statusCallbackMethod="POST" statusCallbackEvent="initiated ringing answered completed">',
+            '<Number>' . $to . '</Number>',
+            '</Dial>',
+            '</Response>',
+        ]);
+        return response($twiml, 200, ['Content-Type' => 'text/xml']);
+    }
+
     if ($dialMode === 'missed_call') {
         $twiml = implode('', [
             '<?xml version="1.0" encoding="UTF-8"?>',
