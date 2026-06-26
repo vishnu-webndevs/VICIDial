@@ -17,7 +17,10 @@ import {
   getTwilioToken,
   updateAgent,
   uploadCallRecording,
+  startCampaign,
 } from "@/lib/product-api";
+import { apiRequest } from "@/lib/api";
+import { getTenantContext } from "@/lib/tenant-context";
 import { useLiveCalls } from "@/hooks/use-live-calls";
 import type { AgentEntity } from "@/types/product";
 
@@ -143,8 +146,49 @@ export default function DialerPage() {
     return () => {
       cancelled = true;
       window.clearInterval(interval);
+      void sendHeartbeat("offline");
     };
   }, [selectedAgentId]);
+
+  // Auto-start campaign if redirect parameter is present and agent calling method is ready
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const searchParams = new URLSearchParams(window.location.search);
+    const startCampaignId = searchParams.get("start_campaign_id");
+    if (!startCampaignId || !selectedAgentId) return;
+
+    const isReady = callingMethod === "phone" || (callingMethod === "webrtc" && deviceReady);
+    if (!isReady) return;
+
+    // Remove the query parameter from URL so it doesn't trigger again on page refreshes
+    const newUrl = window.location.pathname;
+    window.history.replaceState({}, "", newUrl);
+
+    void (async () => {
+      try {
+        setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Starting campaign Agent Dialer..." }, ...prev].slice(0, 20));
+        
+        const { token, tenantId } = getTenantContext();
+        const formData = new FormData();
+        formData.append("_method", "PATCH");
+        formData.append("dial_mode", "normal");
+        
+        await apiRequest(`/campaigns/${startCampaignId}`, {
+          method: "POST",
+          token,
+          tenantId,
+          body: formData,
+        });
+
+        await startCampaign(startCampaignId);
+        
+        setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Campaign started successfully! Standing by for calls..." }, ...prev].slice(0, 20));
+      } catch (err) {
+        console.error("Failed to start campaign from dialer page:", err);
+        setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Failed to start campaign." }, ...prev].slice(0, 20));
+      }
+    })();
+  }, [selectedAgentId, callingMethod, deviceReady]);
 
   async function handleCallingMethodChange(method: "webrtc" | "phone") {
     if (!selectedAgentId) return;

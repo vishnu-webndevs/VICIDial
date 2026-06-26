@@ -519,32 +519,7 @@ export default function CampaignsPage() {
   }
 
   async function onStartAgentDialer(campaign: Campaign) {
-    try {
-      setStartingCampaignId(campaign.id);
-      setMessage(`Starting Agent Dialer for "${campaign.name}"...`);
-      setMessageTone("neutral");
-      
-      const { token, tenantId } = getTenantContext();
-      const formData = new FormData();
-      formData.append("_method", "PATCH");
-      formData.append("dial_mode", "normal");
-      
-      await apiRequest(`/campaigns/${campaign.id}`, {
-        method: "POST",
-        token,
-        tenantId,
-        body: formData,
-      });
-
-      await onStartCampaign(campaign);
-      setPopup(null);
-      window.location.href = "/dialer";
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to start agent dialer.");
-      setMessageTone("error");
-    } finally {
-      setStartingCampaignId(null);
-    }
+    window.location.href = `/dialer?start_campaign_id=${campaign.id}`;
   }
 
   const hasRunningCampaign = campaigns.some((item) => ACTIVE_STATUSES.includes(item.status));
