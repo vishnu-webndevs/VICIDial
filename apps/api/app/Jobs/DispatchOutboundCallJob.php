@@ -50,21 +50,8 @@ class DispatchOutboundCallJob implements ShouldQueue
         $metadata = (array) ($call->metadata ?? []);
         $dialMode = (string) ($metadata['dial_mode'] ?? 'normal');
 
-        if ($provider->provider_type === 'twilio' && $dialMode === 'normal') {
-            $agentId = (string) ($metadata['agent_id'] ?? '');
-            if ($agentId !== '') {
-                $agent = \App\Models\Agent::query()->find($agentId);
-                if ($agent) {
-                    $agentMetadata = (array) ($agent->metadata ?? []);
-                    $callingMethod = (string) ($agentMetadata['calling_method'] ?? 'phone');
-                    if ($callingMethod === 'webrtc') {
-                        $to = 'client:agent-' . $agent->company_number;
-                    } else {
-                        $to = (string) ($agentMetadata['destination_number'] ?? '');
-                    }
-                }
-            }
-        }
+
+
 
         if ($to === '') {
             $this->failCall($call, 'No valid destination number or agent configured.');

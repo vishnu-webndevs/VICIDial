@@ -522,22 +522,44 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/twiml/outbound', function (\Illu
     }
 
     if ($dialMode === 'normal') {
-        $callerId = htmlspecialchars((string) ($call->from_number ?? ''), ENT_QUOTES);
-        $to = htmlspecialchars((string) ($call->to_number ?? ''), ENT_QUOTES);
-        $statusCallbackUrl = url('/api/webhooks/twilio') . '?call_session_id=' . $callSessionId;
-        if (str_starts_with(config('app.url'), 'https://') && str_starts_with($statusCallbackUrl, 'http://')) {
-            $statusCallbackUrl = str_replace('http://', 'https://', $statusCallbackUrl);
-        }
+        $agentId = (string) ($metadata['agent_id'] ?? '');
+        if ($agentId !== '') {
+            $agent = \App\Models\Agent::query()->find($agentId);
+            if ($agent) {
+                $agentMetadata = (array) ($agent->metadata ?? []);
+                $callingMethod = (string) ($agentMetadata['calling_method'] ?? 'phone');
+                $callerId = htmlspecialchars((string) ($call->from_number ?? ''), ENT_QUOTES);
+                $statusCallbackUrl = url('/api/webhooks/twilio') . '?call_session_id=' . $callSessionId;
+                if (str_starts_with(config('app.url'), 'https://') && str_starts_with($statusCallbackUrl, 'http://')) {
+                    $statusCallbackUrl = str_replace('http://', 'https://', $statusCallbackUrl);
+                }
 
-        $twiml = implode('', [
-            '<?xml version="1.0" encoding="UTF-8"?>',
-            '<Response>',
-            '<Dial timeout="30" callerId="' . $callerId . '" statusCallback="' . htmlspecialchars($statusCallbackUrl, ENT_QUOTES) . '" statusCallbackMethod="POST" statusCallbackEvent="initiated ringing answered completed">',
-            '<Number>' . $to . '</Number>',
-            '</Dial>',
-            '</Response>',
-        ]);
-        return response($twiml, 200, ['Content-Type' => 'text/xml']);
+                if ($callingMethod === 'webrtc') {
+                    $clientIdentity = 'agent-' . $agent->company_number;
+                    $twiml = implode('', [
+                        '<?xml version="1.0" encoding="UTF-8"?>',
+                        '<Response>',
+                        '<Dial timeout="25" callerId="' . $callerId . '" statusCallback="' . htmlspecialchars($statusCallbackUrl, ENT_QUOTES) . '" statusCallbackMethod="POST" statusCallbackEvent="initiated ringing answered completed">',
+                        '<Client>' . htmlspecialchars($clientIdentity, ENT_QUOTES) . '<Parameter name="call_session_id" value="' . htmlspecialchars($callSessionId, ENT_QUOTES) . '" /></Client>',
+                        '</Dial>',
+                        '</Response>',
+                    ]);
+                    return response($twiml, 200, ['Content-Type' => 'text/xml']);
+                } else {
+                    $dest = (string) ($agentMetadata['destination_number'] ?? '');
+                    $twiml = implode('', [
+                        '<?xml version="1.0" encoding="UTF-8"?>',
+                        '<Response>',
+                        '<Dial timeout="25" callerId="' . $callerId . '" statusCallback="' . htmlspecialchars($statusCallbackUrl, ENT_QUOTES) . '" statusCallbackMethod="POST" statusCallbackEvent="initiated ringing answered completed">',
+                        '<Number>' . $dest . '</Number>',
+                        '</Dial>',
+                        '</Response>',
+                    ]);
+                    return response($twiml, 200, ['Content-Type' => 'text/xml']);
+                }
+            }
+        }
+        return response('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>', 200, ['Content-Type' => 'text/xml']);
     }
 
     if ($dialMode === 'missed_call') {
