@@ -71,6 +71,16 @@ class AgentSessionController extends Controller
             ]
         );
 
+        try {
+            $session->active_assignments = app(\App\Services\Campaigns\CampaignRunnerService::class)
+                ->syncAgentSessionActiveAssignments($tenant->id, (string) $session->id);
+            if ($session->active_assignments < $session->capacity && $session->status === 'available') {
+                $session->available_since = $session->available_since ?: now();
+            }
+            $session->save();
+        } catch (\Throwable) {
+        }
+
         $session->loadMissing('agent:id,company_number,status');
 
         return response()->json(['data' => $this->serializeSession($session)]);

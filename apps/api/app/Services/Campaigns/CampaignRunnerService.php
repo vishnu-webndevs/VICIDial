@@ -625,7 +625,7 @@ class CampaignRunnerService
         $session->save();
     }
 
-    private function syncAgentSessionActiveAssignments(string $tenantId, string $agentSessionId): int
+    public function syncAgentSessionActiveAssignments(string $tenantId, string $agentSessionId): int
     {
         $liveStatuses = ['queued', 'ringing', 'in_progress', 'connected'];
         $staleCutoff = now()->subSeconds(120);

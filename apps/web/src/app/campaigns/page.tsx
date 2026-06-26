@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Box,
   Checkbox,
@@ -93,6 +94,7 @@ function campaignTypeLabel(type: Campaign["type"]): string {
 }
 
 export default function CampaignsPage() {
+  const router = useRouter();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [leadLists, setLeadLists] = useState<LeadList[]>([]);
   const [agents, setAgents] = useState<AgentEntity[]>([]);
@@ -519,7 +521,7 @@ export default function CampaignsPage() {
   }
 
   async function onStartAgentDialer(campaign: Campaign) {
-    window.location.href = `/dialer?start_campaign_id=${campaign.id}`;
+    router.push(`/dialer?start_campaign_id=${campaign.id}`);
   }
 
   const hasRunningCampaign = campaigns.some((item) => ACTIVE_STATUSES.includes(item.status));
