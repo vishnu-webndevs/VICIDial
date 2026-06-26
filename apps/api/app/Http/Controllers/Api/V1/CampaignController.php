@@ -338,6 +338,12 @@ class CampaignController extends Controller
                 ->where('id', $id)
                 ->firstOrFail();
 
+            \Illuminate\Support\Facades\Log::info('CampaignController::start hit', [
+                'campaign_id' => $id,
+                'tenant_id' => $tenant->id,
+                'status_before' => $campaign->status,
+            ]);
+
             $settings = (array) ($campaign->settings ?? []);
             $channel = (string) ($settings['channel'] ?? '');
             $isMessageCampaign = in_array($campaign->type, ['sms', 'whatsapp', 'outreach'], true);
@@ -369,6 +375,9 @@ class CampaignController extends Controller
                 ->first();
 
             if (! $run || $run->status === 'completed' || $run->status === 'stopped') {
+                \Illuminate\Support\Facades\Log::info('CampaignController::start - creating new campaign run', [
+                    'campaign_id' => $campaign->id,
+                ]);
                 $run = CampaignRun::query()->create([
                     'tenant_id' => $tenant->id,
                     'campaign_id' => $campaign->id,
@@ -382,9 +391,16 @@ class CampaignController extends Controller
                 if ($isMessageCampaign) {
                     $this->dispatchMessageCampaign($campaign, $run, $channel);
                 } else {
+                    \Illuminate\Support\Facades\Log::info('CampaignController::start - seeding queue for new run', [
+                        'run_id' => $run->id,
+                    ]);
                     $this->seedQueue($campaign, $run);
                 }
             } else {
+                \Illuminate\Support\Facades\Log::info('CampaignController::start - resuming existing campaign run', [
+                    'run_id' => $run->id,
+                    'run_status_before' => $run->status,
+                ]);
                 $run->status = 'running';
                 $run->paused_at = null;
                 $run->started_by = $run->started_by ?: $request->user()?->id;
@@ -403,6 +419,11 @@ class CampaignController extends Controller
                 ->filter()
                 ->unique()
                 ->values();
+
+            \Illuminate\Support\Facades\Log::info('CampaignController::start - assigned agents', [
+                'count' => $assignedAgentIds->count(),
+                'agent_ids' => $assignedAgentIds->all(),
+            ]);
 
             foreach ($assignedAgentIds as $agentId) {
                 AgentSession::query()->updateOrCreate(
@@ -435,6 +456,9 @@ class CampaignController extends Controller
                     request: $request
                 );
 
+                \Illuminate\Support\Facades\Log::info('CampaignController::start - dispatching RunCampaignTickJob', [
+                    'run_id' => $run->id,
+                ]);
                 RunCampaignTickJob::dispatch($run->id);
             }
 
