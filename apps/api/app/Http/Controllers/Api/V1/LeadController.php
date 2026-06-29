@@ -60,7 +60,7 @@ class LeadController extends Controller
             $query->where('engagement_score', '<=', (int) $validated['score_max']);
         }
 
-        $paginator = $query->latest('updated_at')->paginate($perPage);
+        $paginator = $query->with('lists:id')->latest('updated_at')->paginate($perPage);
 
         return response()->json([
             'data' => $paginator->items(),

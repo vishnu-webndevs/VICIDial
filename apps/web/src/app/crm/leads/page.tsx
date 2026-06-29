@@ -232,6 +232,42 @@ export default function LeadsPage() {
     }
   }, [activeTab, loadLists]);
 
+  // Sync selectedLeadIdsForList with leads currently in the selected list
+  useEffect(() => {
+    if (selectedListId && leads.length > 0) {
+      if (listMode === "remove") {
+        setSelectedLeadIdsForList(leads.map((l) => l.id));
+      } else {
+        const initiallyAttached = leads
+          .filter((lead) => lead.lists?.some((l) => l.id === selectedListId))
+          .map((lead) => lead.id);
+        setSelectedLeadIdsForList(initiallyAttached);
+      }
+    } else {
+      setSelectedLeadIdsForList([]);
+    }
+  }, [selectedListId, leads, listMode]);
+
+  const initialAttachedIds = useMemo(() => {
+    if (!selectedListId || leads.length === 0) return [];
+    if (listMode === "remove") {
+      return leads.map((l) => l.id);
+    }
+    return leads
+      .filter((lead) => lead.lists?.some((l) => l.id === selectedListId))
+      .map((lead) => lead.id);
+  }, [leads, selectedListId, listMode]);
+
+  const toAttach = useMemo(() => {
+    return selectedLeadIdsForList.filter((id) => !initialAttachedIds.includes(id));
+  }, [selectedLeadIdsForList, initialAttachedIds]);
+
+  const toDetach = useMemo(() => {
+    return initialAttachedIds.filter((id) => !selectedLeadIdsForList.includes(id));
+  }, [selectedLeadIdsForList, initialAttachedIds]);
+
+  const hasChanges = toAttach.length > 0 || toDetach.length > 0;
+
   async function onCreateList(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
@@ -248,32 +284,28 @@ export default function LeadsPage() {
     }
   }
 
-  async function onAttachLeads() {
-    if (!selectedListId || selectedLeadIdsForList.length === 0) return;
+  async function onSaveListLeads() {
+    if (!selectedListId) return;
     setMessage("");
     try {
-      const response = await attachLeadsToList(selectedListId, selectedLeadIdsForList);
-      setMessage(`${response.attached_count} leads attached to selected list.`);
-      setMessageTone("success");
-      setSelectedLeadIdsForList([]);
-      await loadLists();
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Failed to attach leads.");
-      setMessageTone("error");
-    }
-  }
+      let attachMsg = "";
+      let detachMsg = "";
 
-  async function onDetachLeads() {
-    if (!selectedListId || selectedLeadIdsForList.length === 0) return;
-    setMessage("");
-    try {
-      const response = await detachLeadsFromList(selectedListId, selectedLeadIdsForList);
-      setMessage(`${response.detached_count} leads removed from selected list.`);
+      if (toAttach.length > 0) {
+        const response = await attachLeadsToList(selectedListId, toAttach);
+        attachMsg = `${response.attached_count} leads attached`;
+      }
+      if (toDetach.length > 0) {
+        const response = await detachLeadsFromList(selectedListId, toDetach);
+        detachMsg = `${response.detached_count} leads removed`;
+      }
+
+      const msg = [attachMsg, detachMsg].filter(Boolean).join(" and ") + ".";
+      setMessage(msg || "No changes saved.");
       setMessageTone("success");
-      setSelectedLeadIdsForList([]);
       await loadLists();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Failed to remove leads from list.");
+      setMessage(err instanceof Error ? err.message : "Failed to save lead list changes.");
       setMessageTone("error");
     }
   }
@@ -1257,25 +1289,27 @@ export default function LeadsPage() {
                       </Table>
                     </Paper>
                     <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-                      {listMode === "remove" ? (
-                        <MuiButton
-                          variant="contained"
-                          color="error"
-                          onClick={() => void onDetachLeads()}
-                          disabled={!selectedListId || selectedLeadIdsForList.length === 0}
-                        >
-                          Remove {selectedLeadIdsForList.length} Leads
-                        </MuiButton>
-                      ) : (
-                        <MuiButton
-                          variant="contained"
-                          onClick={() => void onAttachLeads()}
-                          disabled={!selectedListId || selectedLeadIdsForList.length === 0}
-                        >
-                          Attach {selectedLeadIdsForList.length} Leads
-                        </MuiButton>
-                      )}
-                      <MuiButton variant="outlined" onClick={() => setSelectedLeadIdsForList([])}>Clear</MuiButton>
+                      <MuiButton
+                        variant="contained"
+                        color={toDetach.length > 0 && toAttach.length === 0 ? "error" : "primary"}
+                        onClick={() => void onSaveListLeads()}
+                        disabled={!selectedListId || !hasChanges}
+                      >
+                        {toAttach.length > 0 && toDetach.length > 0
+                          ? `Save Changes (Attach ${toAttach.length}, Remove ${toDetach.length})`
+                          : toAttach.length > 0
+                          ? `Attach ${toAttach.length} Lead${toAttach.length > 1 ? "s" : ""}`
+                          : toDetach.length > 0
+                          ? `Remove ${toDetach.length} Lead${toDetach.length > 1 ? "s" : ""}`
+                          : "Save Changes"}
+                      </MuiButton>
+                      <MuiButton
+                        variant="outlined"
+                        onClick={() => setSelectedLeadIdsForList(initialAttachedIds)}
+                        disabled={!hasChanges}
+                      >
+                        Clear
+                      </MuiButton>
                     </Stack>
                   </>
                 )}

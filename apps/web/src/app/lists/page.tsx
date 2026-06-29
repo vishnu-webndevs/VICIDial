@@ -45,6 +45,42 @@ export default function ListsPage() {
     void loadData();
   }, [loadData]);
 
+  // Sync selectedLeadIds with leads currently in the selected list
+  useEffect(() => {
+    if (selectedListId && leads.length > 0) {
+      if (mode === "remove") {
+        setSelectedLeadIds(leads.map((l) => l.id));
+      } else {
+        const initiallyAttached = leads
+          .filter((lead) => lead.lists?.some((l) => l.id === selectedListId))
+          .map((lead) => lead.id);
+        setSelectedLeadIds(initiallyAttached);
+      }
+    } else {
+      setSelectedLeadIds([]);
+    }
+  }, [selectedListId, leads, mode]);
+
+  const initialAttachedIds = useMemo(() => {
+    if (!selectedListId || leads.length === 0) return [];
+    if (mode === "remove") {
+      return leads.map((l) => l.id);
+    }
+    return leads
+      .filter((lead) => lead.lists?.some((l) => l.id === selectedListId))
+      .map((lead) => lead.id);
+  }, [leads, selectedListId, mode]);
+
+  const toAttach = useMemo(() => {
+    return selectedLeadIds.filter((id) => !initialAttachedIds.includes(id));
+  }, [selectedLeadIds, initialAttachedIds]);
+
+  const toDetach = useMemo(() => {
+    return initialAttachedIds.filter((id) => !selectedLeadIds.includes(id));
+  }, [selectedLeadIds, initialAttachedIds]);
+
+  const hasChanges = toAttach.length > 0 || toDetach.length > 0;
+
   async function onCreateList(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage("");
@@ -61,32 +97,28 @@ export default function ListsPage() {
     }
   }
 
-  async function onAttachLeads() {
-    if (!selectedListId || selectedLeadIds.length === 0) return;
+  async function onSaveListLeads() {
+    if (!selectedListId) return;
     setMessage("");
     try {
-      const response = await attachLeadsToList(selectedListId, selectedLeadIds);
-      setMessage(`${response.attached_count} leads attached to selected list.`);
-      setMessageTone("success");
-      setSelectedLeadIds([]);
-      await loadData();
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Failed to attach leads.");
-      setMessageTone("error");
-    }
-  }
+      let attachMsg = "";
+      let detachMsg = "";
 
-  async function onDetachLeads() {
-    if (!selectedListId || selectedLeadIds.length === 0) return;
-    setMessage("");
-    try {
-      const response = await detachLeadsFromList(selectedListId, selectedLeadIds);
-      setMessage(`${response.detached_count} leads removed from selected list.`);
+      if (toAttach.length > 0) {
+        const response = await attachLeadsToList(selectedListId, toAttach);
+        attachMsg = `${response.attached_count} leads attached`;
+      }
+      if (toDetach.length > 0) {
+        const response = await detachLeadsFromList(selectedListId, toDetach);
+        detachMsg = `${response.detached_count} leads removed`;
+      }
+
+      const msg = [attachMsg, detachMsg].filter(Boolean).join(" and ") + ".";
+      setMessage(msg || "No changes saved.");
       setMessageTone("success");
-      setSelectedLeadIds([]);
       await loadData();
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Failed to remove leads from list.");
+      setMessage(err instanceof Error ? err.message : "Failed to save lead list changes.");
       setMessageTone("error");
     }
   }
@@ -234,7 +266,7 @@ export default function ListsPage() {
                     <Table size="medium" sx={{ minWidth: 920 }}>
                       <TableHead>
                         <TableRow sx={{ bgcolor: "action.hover" }}>
-                          <TableCell />
+                          <TableCell sx={{ width: 40 }} />
                           <TableCell>Name</TableCell>
                           <TableCell>Phone</TableCell>
                           <TableCell>Status</TableCell>
@@ -247,8 +279,26 @@ export default function ListsPage() {
                           return (
                             <TableRow key={lead.id} hover onClick={() => {
                               setSelectedLeadIds((prev) => selected ? prev.filter((id) => id !== lead.id) : [...prev, lead.id]);
-                            }} sx={{ cursor: "pointer" }}>
-                              <TableCell>{selected ? "x" : ""}</TableCell>
+                            }} sx={{ cursor: "pointer", bgcolor: selected ? "action.selected" : "inherit" }}>
+                              <TableCell>
+                                <Box
+                                  sx={{
+                                    width: 18,
+                                    height: 18,
+                                    borderRadius: 0.5,
+                                    border: 2,
+                                    borderColor: selected ? "primary.main" : "divider",
+                                    bgcolor: selected ? "primary.main" : "transparent",
+                                    display: "grid",
+                                    placeItems: "center",
+                                    color: "#fff",
+                                    fontSize: "0.7rem",
+                                    fontWeight: 700,
+                                  }}
+                                >
+                                  {selected ? "✓" : ""}
+                                </Box>
+                              </TableCell>
                               <TableCell>{lead.full_name}</TableCell>
                               <TableCell>{lead.phone}</TableCell>
                               <TableCell>{lead.status}</TableCell>
@@ -260,25 +310,27 @@ export default function ListsPage() {
                     </Table>
                   </Paper>
                   <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
-                    {mode === "remove" ? (
-                      <MuiButton
-                        variant="contained"
-                        color="error"
-                        onClick={() => void onDetachLeads()}
-                        disabled={!selectedListId || selectedLeadIds.length === 0}
-                      >
-                        Remove {selectedLeadIds.length} Leads
-                      </MuiButton>
-                    ) : (
-                      <MuiButton
-                        variant="contained"
-                        onClick={() => void onAttachLeads()}
-                        disabled={!selectedListId || selectedLeadIds.length === 0}
-                      >
-                        Attach {selectedLeadIds.length} Leads
-                      </MuiButton>
-                    )}
-                    <MuiButton variant="outlined" onClick={() => setSelectedLeadIds([])}>Clear</MuiButton>
+                    <MuiButton
+                      variant="contained"
+                      color={toDetach.length > 0 && toAttach.length === 0 ? "error" : "primary"}
+                      onClick={() => void onSaveListLeads()}
+                      disabled={!selectedListId || !hasChanges}
+                    >
+                      {toAttach.length > 0 && toDetach.length > 0
+                        ? `Save Changes (Attach ${toAttach.length}, Remove ${toDetach.length})`
+                        : toAttach.length > 0
+                        ? `Attach ${toAttach.length} Lead${toAttach.length > 1 ? "s" : ""}`
+                        : toDetach.length > 0
+                        ? `Remove ${toDetach.length} Lead${toDetach.length > 1 ? "s" : ""}`
+                        : "Save Changes"}
+                    </MuiButton>
+                    <MuiButton
+                      variant="outlined"
+                      onClick={() => setSelectedLeadIds(initialAttachedIds)}
+                      disabled={!hasChanges}
+                    >
+                      Clear
+                    </MuiButton>
                   </Stack>
                 </>
               )}

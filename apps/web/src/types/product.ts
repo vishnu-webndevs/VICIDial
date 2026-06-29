@@ -73,6 +73,7 @@ export type Lead = {
   tags: string[];
   notes: string[];
   updated_at: string;
+  lists?: Array<{ id: string }>;
 };
 
 export type LeadImportStatus = {
