@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { Box, Button as MuiButton, Card, CardContent, Divider, Paper, Stack, Typography, CircularProgress } from "@mui/material";
 import { AppShell } from "@/components/app-shell";
@@ -18,7 +18,7 @@ type Plan = {
   yearly_price_cents?: number | null;
 };
 
-export default function PaymentPage() {
+function PaymentPageContent() {
   const searchParams = useSearchParams();
   const planSlug = searchParams.get("plan");
   const cycle = searchParams.get("cycle") || "monthly";
@@ -230,5 +230,21 @@ export default function PaymentPage() {
         )}
       </Box>
     </AppShell>
+  );
+}
+
+export default function PaymentPage() {
+  return (
+    <Suspense
+      fallback={
+        <AppShell>
+          <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "70vh" }}>
+            <CircularProgress color="primary" />
+          </Box>
+        </AppShell>
+      }
+    >
+      <PaymentPageContent />
+    </Suspense>
   );
 }
