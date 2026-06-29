@@ -46,6 +46,19 @@ class SubscriptionController extends Controller
             ->firstOrFail();
         $targetPlan = Plan::query()->where('slug', $validated['plan_slug'])->where('is_active', true)->firstOrFail();
 
+        $isInactive = $subscription->status === 'canceled' ||
+                      $subscription->status === 'unpaid' ||
+                      ($subscription->status === 'trialing' && $subscription->trial_ends_at && $subscription->trial_ends_at->isPast());
+
+        $isPlanChanging = $subscription->plan_id !== $targetPlan->id;
+        $isCycleChanging = isset($validated['billing_cycle']) && $subscription->billing_cycle !== $validated['billing_cycle'];
+
+        if ($isPlanChanging || $isCycleChanging || $isInactive) {
+            return response()->json([
+                'message' => 'Online payment integration is currently under maintenance. Please contact support to upgrade or reactivate your plan.',
+            ], 402);
+        }
+
         DB::transaction(function () use ($subscription, $targetPlan, $validated, $request, $tenant) {
             $oldPlanId = $subscription->plan_id;
             $oldCycle = $subscription->billing_cycle;

@@ -109,35 +109,7 @@ export default function BillingPage() {
 
   async function onSaveSubscription() {
     if (!selectedPlanSlug) return;
-
-    setSaving(true);
-    setMessage("");
-
-    try {
-      const { token, tenantId } = getTenantContext();
-      const response = await apiRequest<{ data: Subscription }>("/subscription", {
-        method: "PUT",
-        token,
-        tenantId,
-        body: {
-          plan_slug: selectedPlanSlug,
-          billing_cycle: billingCycle,
-        },
-      });
-
-      setSubscription(response.data);
-      setSelectedPlanSlug(response.data.plan.slug);
-      setBillingCycle(response.data.billing_cycle);
-      setMessage("Plan updated successfully. Redirecting...");
-      clearSessionCache();
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 1000);
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to update plan.");
-    } finally {
-      setSaving(false);
-    }
+    window.location.href = `/billing/payment?plan=${selectedPlanSlug}&cycle=${billingCycle}`;
   }
 
   return (
