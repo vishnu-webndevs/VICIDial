@@ -355,31 +355,79 @@ export default function DialerPage() {
 
   async function startBrowserRecording(call: any, callSessionId: string) {
     try {
-      if (!call || typeof call.getRemoteStream !== "function") {
-        console.warn("getRemoteStream is not a function on the Twilio call object.");
-        return;
-      }
-      const remoteStream = call.getRemoteStream();
-      if (!remoteStream) {
-        console.warn("No remote stream available to record.");
+      if (!callSessionId) {
+        console.warn("No callSessionId provided for recording.");
         return;
       }
 
-      const localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      localStreamRef.current = localStream;
+      // Capture Local Agent Microphone Stream
+      let localStream: MediaStream | null = null;
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        localStreamRef.current = localStream;
+      } catch (e) {
+        console.warn("Could not capture local microphone stream for recording:", e);
+      }
 
+      // Capture Remote Customer WebRTC Audio Stream
+      let remoteStream: MediaStream | null = null;
+      if (call) {
+        if (call.remoteStream instanceof MediaStream) {
+          remoteStream = call.remoteStream;
+        } else if (call._mediaHandler && call._mediaHandler.remoteStream instanceof MediaStream) {
+          remoteStream = call._mediaHandler.remoteStream;
+        }
+      }
+
+      // Fallback: Check active HTMLAudioElements on the DOM attached by Twilio SDK
+      if (!remoteStream && typeof document !== "undefined") {
+        const audioElems = Array.from(document.querySelectorAll("audio")) as HTMLAudioElement[];
+        for (const elem of audioElems) {
+          if (elem.srcObject instanceof MediaStream && elem.srcObject.getAudioTracks().length > 0) {
+            remoteStream = elem.srcObject;
+            break;
+          }
+        }
+      }
+
+      // Set up Web Audio Context for mixing streams
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       const audioContext = new AudioContextClass();
       audioContextRef.current = audioContext;
 
-      const localSource = audioContext.createMediaStreamSource(localStream);
-      const remoteSource = audioContext.createMediaStreamSource(remoteStream);
       const dest = audioContext.createMediaStreamDestination();
 
-      localSource.connect(dest);
-      remoteSource.connect(dest);
+      let hasTracks = false;
+      if (localStream && localStream.getAudioTracks().length > 0) {
+        const localSource = audioContext.createMediaStreamSource(localStream);
+        localSource.connect(dest);
+        hasTracks = true;
+      }
 
-      const mediaRecorder = new MediaRecorder(dest.stream, { mimeType: "audio/webm" });
+      if (remoteStream && remoteStream.getAudioTracks().length > 0) {
+        const remoteSource = audioContext.createMediaStreamSource(remoteStream);
+        remoteSource.connect(dest);
+        hasTracks = true;
+      }
+
+      if (!hasTracks) {
+        console.warn("No audio tracks available to record.");
+        return;
+      }
+
+      // Choose supported MIME type
+      let options: MediaRecorderOptions = {};
+      if (typeof MediaRecorder !== "undefined" && typeof MediaRecorder.isTypeSupported === "function") {
+        if (MediaRecorder.isTypeSupported("audio/webm;codecs=opus")) {
+          options = { mimeType: "audio/webm;codecs=opus" };
+        } else if (MediaRecorder.isTypeSupported("audio/webm")) {
+          options = { mimeType: "audio/webm" };
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          options = { mimeType: "audio/mp4" };
+        }
+      }
+
+      const mediaRecorder = new MediaRecorder(dest.stream, options);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
       recordingStartTimeRef.current = Date.now();
@@ -391,7 +439,8 @@ export default function DialerPage() {
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        const mimeType = options.mimeType || "audio/webm";
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType });
         if (audioBlob.size > 1000) {
           await uploadBrowserRecording(audioBlob, callSessionId);
         }
@@ -406,7 +455,7 @@ export default function DialerPage() {
         }
       };
 
-      mediaRecorder.start();
+      mediaRecorder.start(1000);
       setEventLog((prev) => [{ at: new Date().toLocaleTimeString(), text: "Call recording started locally" }, ...prev].slice(0, 20));
     } catch (error) {
       console.error("Failed to start browser call recording:", error);

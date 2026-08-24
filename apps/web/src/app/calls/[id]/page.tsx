@@ -153,6 +153,22 @@ export default function CallDetailPage() {
                   </span>
                 </div>
               </div>
+
+              {call.recording_url && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 shadow-sm">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 flex items-center gap-1.5">
+                      🎵 Call Recording Playback
+                    </span>
+                    {call.recording_duration ? (
+                      <span className="text-xs font-medium text-indigo-600">
+                        Duration: {call.recording_duration}s
+                      </span>
+                    ) : null}
+                  </div>
+                  <audio controls src={call.recording_url} className="w-full h-10 rounded-md" />
+                </div>
+              )}
             </div>
           ) : null}
         </SectionCard>

@@ -409,6 +409,15 @@ export default function CallDashboardPage() {
                     {selectedCall.ended_at ? new Date(selectedCall.ended_at).toLocaleString() : "N/A"}
                   </Typography>
 
+                  {selectedCall.recording_url ? (
+                    <Box sx={{ mt: 1, p: 1.5, borderRadius: 1.5, bgcolor: "action.hover", border: "1px solid", borderColor: "divider" }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, display: "block", mb: 0.5, color: "primary.main" }}>
+                        🎵 Call Recording
+                      </Typography>
+                      <audio controls src={selectedCall.recording_url} style={{ width: "100%", height: "36px" }} />
+                    </Box>
+                  ) : null}
+
                   <MuiButton component={Link} href={`/calls/${selectedCall.id}`} variant="outlined" color="primary" fullWidth sx={{ mt: 1 }}>
                     Open Full Detail
                   </MuiButton>

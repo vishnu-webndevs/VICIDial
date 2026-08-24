@@ -49,7 +49,7 @@ const adminNavGroups: NavGroup[] = [
     group: "Operations",
     items: [
       { href: "/dialer", label: "Dialer", icon: "bx-phone-call" },
-      { href: "/calls", label: "Calls", icon: "bx-phone" },
+      { href: "/calls", label: "Calls & Recordings", icon: "bx-microphone" },
       { href: "/conversations", label: "Conversations", icon: "bx-message-rounded-dots" },
       { href: "/agents", label: "Agents", icon: "bx-id-card" },
     ],
@@ -68,6 +68,7 @@ const adminNavGroups: NavGroup[] = [
     group: "Insights",
     items: [
       { href: "/analytics", label: "Analytics", icon: "bx-bar-chart-alt-2" },
+      { href: "/calls", label: "Call Recordings", icon: "bx-music" },
       { href: "/reports", label: "Reports", icon: "bx-line-chart" },
       { href: "/audit-logs", label: "Audit Logs", icon: "bx-history" },
     ],

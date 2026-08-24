@@ -5,6 +5,14 @@ import { ThemeProvider } from "@/ui/theme/ThemeProvider";
 export const metadata: Metadata = {
   title: "WND Dialer",
   description: "Multi-tenant dialer platform",
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/icon.svg", type: "image/svg+xml" },
+    ],
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
   robots: {
     index: false,
     follow: false,

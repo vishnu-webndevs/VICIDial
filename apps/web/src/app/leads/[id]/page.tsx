@@ -307,9 +307,9 @@ export default function LeadDetailPage() {
                       <TableCell>
                         {entry.content || entry.disposition || "-"}
                         {entry.recording_url ? (
-                          <Typography variant="caption" display="block" color="text.secondary">
-                            Recording available
-                          </Typography>
+                          <Box sx={{ mt: 0.5 }}>
+                            <audio controls src={entry.recording_url} style={{ width: "180px", height: "30px" }} />
+                          </Box>
                         ) : null}
                       </TableCell>
                       <TableCell>{entry.agent ?? "System"}</TableCell>

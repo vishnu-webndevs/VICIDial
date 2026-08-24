@@ -1140,7 +1140,7 @@ class CallController extends Controller
             'from_number' => $call->from_number,
             'to_number' => $call->to_number,
             'duration_seconds' => $call->duration_seconds,
-            'recording_url' => $call->recording_url,
+            'recording_url' => $call->recording_url ? $this->resolvePlaybackUrl((string) $call->recording_url) : null,
             'recording_duration' => $call->recording_duration,
             'recording_tags' => $call->recording_tags,
             'recording_notes' => $call->recording_notes,
