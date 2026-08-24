@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  Alert,
   Box,
   Checkbox,
   FormControlLabel,
@@ -190,6 +191,12 @@ export default function CampaignsPage() {
 
   const activeProviders = useMemo(() => providers.filter((p) => p.status === "active"), [providers]);
 
+  const selectedProvider = useMemo(
+    () => activeProviders.find((p) => p.id === campaignForm.preferred_provider_account_id),
+    [activeProviders, campaignForm.preferred_provider_account_id]
+  );
+  const isMetaWhatsappProvider = selectedProvider?.provider_type === "meta_whatsapp";
+
   const loadTemplates = useCallback(async (channel: "sms" | "whatsapp") => {
     try {
       const items = await listMessageTemplates({ channel, active: true });
@@ -298,9 +305,9 @@ export default function CampaignsPage() {
         setMessageTone("error");
         return;
       }
-      if (campaignForm.message_use_meta_template) {
+      if (isMetaWhatsappProvider || campaignForm.message_use_meta_template) {
         if (!campaignForm.message_meta_template_id.trim()) {
-          setMessage("Please select a Meta template.");
+          setMessage("Meta WhatsApp provider requires selecting an approved Meta Template.");
           setMessageTone("error");
           return;
         }
@@ -335,15 +342,16 @@ export default function CampaignsPage() {
         if (campaignForm.preferred_provider_account_id) {
           formData.append("preferred_provider_account_id", campaignForm.preferred_provider_account_id);
         }
-        if (campaignForm.message_content.trim()) {
+        if (campaignForm.message_content.trim() && !isMetaWhatsappProvider) {
           formData.append("message_content", campaignForm.message_content.trim());
         }
-        if (campaignForm.message_template_key.trim()) {
+        if (campaignForm.message_template_key.trim() && !isMetaWhatsappProvider) {
           formData.append("message_template_key", campaignForm.message_template_key.trim());
         }
-        formData.append("message_channel", campaignForm.type === "outreach" ? resolvedMessageChannel : (campaignForm.type === "whatsapp" ? "whatsapp" : "sms"));
-        formData.append("message_use_meta_template", campaignForm.type === "whatsapp" && campaignForm.message_use_meta_template ? "1" : "0");
-        if (campaignForm.type === "whatsapp" && campaignForm.message_use_meta_template && campaignForm.message_meta_template_id) {
+        formData.append("message_channel", campaignForm.type === "outreach" ? resolvedMessageChannel : (campaignForm.type === "whatsapp" || isMetaWhatsappProvider ? "whatsapp" : "sms"));
+        const shouldUseMetaTemplate = isMetaWhatsappProvider || (campaignForm.type === "whatsapp" && campaignForm.message_use_meta_template);
+        formData.append("message_use_meta_template", shouldUseMetaTemplate ? "1" : "0");
+        if (shouldUseMetaTemplate && campaignForm.message_meta_template_id) {
           formData.append("message_meta_template_id", campaignForm.message_meta_template_id);
         }
         if (campaignForm.message_media_file) {
@@ -878,7 +886,16 @@ export default function CampaignsPage() {
                     size="medium"
                     label="Provider / Connection"
                     value={campaignForm.preferred_provider_account_id}
-                    onChange={(e) => setCampaignForm((p) => ({ ...p, preferred_provider_account_id: e.target.value }))}
+                    onChange={(e) => {
+                      const newProviderId = e.target.value;
+                      const newProv = activeProviders.find((p) => p.id === newProviderId);
+                      const isMeta = newProv?.provider_type === "meta_whatsapp";
+                      setCampaignForm((p) => ({
+                        ...p,
+                        preferred_provider_account_id: newProviderId,
+                        message_use_meta_template: isMeta,
+                      }));
+                    }}
                   >
                     <MenuItem value="">Select Provider</MenuItem>
                     {activeProviders
@@ -890,7 +907,13 @@ export default function CampaignsPage() {
                       ))}
                   </TextField>
 
-                  {!campaignForm.message_use_meta_template && (
+                  {isMetaWhatsappProvider && (
+                    <Alert severity="info" sx={{ fontSize: "0.85rem", py: 0.75 }}>
+                      <strong>Meta WhatsApp Selected:</strong> Meta Cloud API requires using an approved <strong>Meta Template</strong> for outbound campaign messages. Free-text custom messages are disabled.
+                    </Alert>
+                  )}
+
+                  {!isMetaWhatsappProvider && (
                     <TextField
                       select
                       size="medium"
@@ -923,8 +946,8 @@ export default function CampaignsPage() {
 
                   <TextField
                     size="medium"
-                    label="Message Content (optional)"
-                    value={campaignForm.message_content}
+                    label={isMetaWhatsappProvider ? "Message Content (Disabled for Meta WhatsApp)" : "Message Content (optional)"}
+                    value={isMetaWhatsappProvider ? "" : campaignForm.message_content}
                     onChange={(e) =>
                       setCampaignForm((p) => ({
                         ...p,
@@ -934,41 +957,50 @@ export default function CampaignsPage() {
                     }
                     multiline
                     minRows={4}
-                    placeholder={"Hi {{first_name}},\n\nThis is {{company_name}}."}
-                    disabled={campaignForm.message_use_meta_template}
+                    placeholder={isMetaWhatsappProvider ? "Free-text custom message is not allowed by Meta. Select an approved Meta Template below." : "Hi {{first_name}},\n\nThis is {{company_name}}."}
+                    disabled={isMetaWhatsappProvider}
+                    helperText={isMetaWhatsappProvider ? "Meta Cloud API blocks plain text campaign messages. You must select a Meta Template below." : ""}
                   />
 
-                  {campaignForm.type === "whatsapp" && (
-                    <Box sx={{ border: 1, borderColor: "primary.light", borderRadius: 1, p: 1.5, bgcolor: "action.hover" }}>
+                  {isMetaWhatsappProvider && (
+                    <Box sx={{ border: 1, borderColor: "primary.main", borderRadius: 1, p: 1.5, bgcolor: "action.selected" }}>
                       <FormControlLabel
                         control={
                           <Checkbox
                             size="small"
-                            checked={campaignForm.message_use_meta_template}
-                            onChange={(e) => setCampaignForm((p) => ({ ...p, message_use_meta_template: e.target.checked }))}
+                            checked={true}
+                            disabled={true}
                           />
                         }
                         label={
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                            Use Meta-Approved Template
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: "primary.main" }}>
+                            Use Meta-Approved Template (Required for Meta WhatsApp)
                           </Typography>
                         }
                       />
-                      {campaignForm.message_use_meta_template && (
+                      {(campaignForm.message_use_meta_template || isMetaWhatsappProvider) && (
                         <Box sx={{ mt: 1, display: "grid", gap: 1.25 }}>
                           <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
                             <TextField
                               select
                               fullWidth
                               size="small"
-                              label="Select Meta Template"
+                              required={isMetaWhatsappProvider}
+                              error={isMetaWhatsappProvider && !campaignForm.message_meta_template_id}
+                              label="Select Meta Template *"
                               value={campaignForm.message_meta_template_id}
                               onChange={(e) => setCampaignForm((p) => ({ ...p, message_meta_template_id: e.target.value }))}
                               sx={{ flexGrow: 1 }}
                               helperText={
-                                <Typography variant="caption" color="text.secondary" component="span" sx={{ display: "inline-flex", gap: 0.5 }}>
-                                  Cannot find it? <Link href="/templates" target="_blank" sx={{ color: "primary.main", textDecoration: "underline" }}>Create or Edit Meta Templates</Link>
-                                </Typography>
+                                isMetaWhatsappProvider && !campaignForm.message_meta_template_id ? (
+                                  <Typography variant="caption" color="error.main" component="span" sx={{ fontWeight: 600 }}>
+                                    * Required: Please select an approved Meta template for Meta WhatsApp
+                                  </Typography>
+                                ) : (
+                                  <Typography variant="caption" color="text.secondary" component="span" sx={{ display: "inline-flex", gap: 0.5 }}>
+                                    Cannot find it? <Link href="/templates" target="_blank" sx={{ color: "primary.main", textDecoration: "underline" }}>Create or Edit Meta Templates</Link>
+                                  </Typography>
+                                )
                               }
                             >
                               <MenuItem value="">Choose a template...</MenuItem>

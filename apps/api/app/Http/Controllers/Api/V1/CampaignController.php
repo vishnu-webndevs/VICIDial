@@ -14,6 +14,7 @@ use App\Models\LeadList;
 use App\Models\LeadTimelineItem;
 use App\Models\Message;
 use App\Models\MessageThread;
+use App\Models\ProviderAccount;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -125,6 +126,24 @@ class CampaignController extends Controller
                         'message' => 'Select a provider/connection for this campaign.',
                     ],
                 ], 422);
+            }
+
+            $providerAcc = ProviderAccount::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('id', $validated['preferred_provider_account_id'])
+                ->first();
+
+            if ($providerAcc && $providerAcc->provider_type === 'meta_whatsapp') {
+                $useMetaTemplate = (bool) ($validated['message_use_meta_template'] ?? false);
+                $metaTemplateId = trim((string) ($validated['message_meta_template_id'] ?? ''));
+                if (! $useMetaTemplate || $metaTemplateId === '') {
+                    return response()->json([
+                        'error' => [
+                            'code' => 'META_TEMPLATE_REQUIRED',
+                            'message' => 'Meta WhatsApp provider requires an approved Meta Template to be selected.',
+                        ],
+                    ], 422);
+                }
             }
 
             $mediaUrl = null;
@@ -319,6 +338,27 @@ class CampaignController extends Controller
             if (array_key_exists('message_meta_template_id', $validated)) {
                 $settings['message_meta_template_id'] = trim((string) ($validated['message_meta_template_id'] ?? '')) ?: null;
             }
+
+            $providerId = $validated['preferred_provider_account_id'] ?? ($settings['provider_account_id'] ?? null);
+            if ($providerId) {
+                $providerAcc = ProviderAccount::query()
+                    ->where('tenant_id', $tenant->id)
+                    ->where('id', $providerId)
+                    ->first();
+                if ($providerAcc && $providerAcc->provider_type === 'meta_whatsapp') {
+                    $useMetaTemplate = (bool) ($settings['message_use_meta_template'] ?? false);
+                    $metaTemplateId = trim((string) ($settings['message_meta_template_id'] ?? ''));
+                    if (! $useMetaTemplate || $metaTemplateId === '') {
+                        return response()->json([
+                            'error' => [
+                                'code' => 'META_TEMPLATE_REQUIRED',
+                                'message' => 'Meta WhatsApp provider requires an approved Meta Template to be selected.',
+                            ],
+                        ], 422);
+                    }
+                }
+            }
+
             $validated['settings'] = $settings;
         }
 
@@ -1502,6 +1542,18 @@ class CampaignController extends Controller
                 if ($waFrom === '') {
                     return ['ok' => false, 'code' => 'WHATSAPP_FROM_MISSING', 'message' => 'WhatsApp From is missing. Set whatsapp_from in provider credentials (example: whatsapp:+14155238886).'];
                 }
+            }
+        }
+
+        if ($provider->provider_type === 'meta_whatsapp') {
+            $useMetaTemplate = (bool) ($settings['message_use_meta_template'] ?? false);
+            $metaTemplateId = trim((string) ($settings['message_meta_template_id'] ?? ''));
+            if (! $useMetaTemplate || $metaTemplateId === '') {
+                return [
+                    'ok' => false,
+                    'code' => 'META_TEMPLATE_REQUIRED',
+                    'message' => 'Meta WhatsApp provider requires an approved Meta Template to be selected in campaign settings.',
+                ];
             }
         }
 

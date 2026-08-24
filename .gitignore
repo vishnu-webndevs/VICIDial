@@ -20,6 +20,7 @@ Thumbs.db
 
 # Ignore specific build artifacts and logs inside apps
 apps/api/vendor/
+apps/api/composer.phar
 apps/api/public/build/
 apps/api/public/hot
 apps/api/public/storage
