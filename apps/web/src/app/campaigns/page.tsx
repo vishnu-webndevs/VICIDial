@@ -265,9 +265,7 @@ export default function CampaignsPage() {
     });
     setSelectedLists(campaign.lead_list_ids ?? []);
     setSelectedFromAgentId("");
-    if (campaign.type === "outbound_call" || campaign.type === "auto" || campaign.type === "manual") {
-      void prefillFromAgentIdentity(campaign.id);
-    }
+    void prefillFromAgentIdentity(campaign.id);
   }
 
   async function prefillFromAgentIdentity(campaignId: string) {
@@ -367,12 +365,9 @@ export default function CampaignsPage() {
         body: formData,
       });
 
-      if (isOutboundCallCampaign && selectedFromAgentId) {
+      if (selectedFromAgentId) {
         const selectedAgent = agents.find((agent) => agent.id === selectedFromAgentId);
         const selectedNumberId = selectedAgent?.default_number?.id;
-        if (!selectedNumberId) {
-          throw new Error("Selected From Agent does not have an assigned validated number.");
-        }
         await apiRequest(`/campaigns/${createOrUpdateResponse.data.id}/agent-assignments`, {
           method: "PUT",
           token,
@@ -381,7 +376,7 @@ export default function CampaignsPage() {
             assignments: [
               {
                 agent_id: selectedFromAgentId,
-                provider_phone_number_id: selectedNumberId,
+                ...(selectedNumberId ? { provider_phone_number_id: selectedNumberId } : {}),
               },
             ],
           },
@@ -843,7 +838,7 @@ export default function CampaignsPage() {
                   ))
                 )}
               </Box>
-              {isOutboundCallCampaign ? (
+              {isOutboundCallCampaign && (
                 <Box sx={{ borderTop: 1, borderColor: "divider", pt: 1.25, mt: 0.25 }}>
                   <Typography variant="caption" color="text.secondary">From Agent (Identity)</Typography>
                   <TextField
@@ -866,7 +861,9 @@ export default function CampaignsPage() {
                     Agent is stored as identity; outbound caller ID is taken from that agent&apos;s assigned validated number.
                   </Typography>
                 </Box>
-              ) : (
+              )}
+
+              {!isOutboundCallCampaign && (
                 <Box sx={{ borderTop: 1, borderColor: "divider", pt: 1.25, mt: 0.25, display: "grid", gap: 1.25 }}>
                   {campaignForm.type === "outreach" ? (
                     <TextField

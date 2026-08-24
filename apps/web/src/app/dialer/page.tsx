@@ -108,19 +108,39 @@ export default function DialerPage() {
     lastErrorStackRef.current = typeof error === "string" ? error : "Unknown dialer error";
   }
 
-  // Load active agents for manual outbound calling.
+  // Load active agents for manual outbound calling & auto-sync campaign assigned agent.
   useEffect(() => {
     void (async () => {
       try {
         const all = await listAgents();
         const active = all.filter((agent) => agent.status === "active");
         setAgents(active);
-        const firstDialable = active.find((agent) => Boolean(agent.default_number?.phone_number) && Boolean(agent.destination_number))
-          ?? active.find((agent) => Boolean(agent.default_number?.phone_number))
-          ?? active[0];
-        if (firstDialable) {
-          setSelectedAgentId(firstDialable.id);
-          setCallingMethod(firstDialable.calling_method ?? "phone");
+
+        let campaignAgentId = "";
+        if (typeof window !== "undefined") {
+          const searchParams = new URLSearchParams(window.location.search);
+          const startCampaignId = searchParams.get("start_campaign_id");
+          if (startCampaignId) {
+            try {
+              const { token, tenantId } = getTenantContext();
+              const res = await apiRequest<{ data: Array<{ agent: { id: string } | null }> }>(
+                `/campaigns/${startCampaignId}/agent-assignments`,
+                { token, tenantId }
+              );
+              campaignAgentId = res.data?.[0]?.agent?.id || "";
+            } catch { /* ignore */ }
+          }
+        }
+
+        const targetAgent =
+          (campaignAgentId && active.find((a) => a.id === campaignAgentId)) ||
+          active.find((agent) => Boolean(agent.default_number?.phone_number) && Boolean(agent.destination_number)) ||
+          active.find((agent) => Boolean(agent.default_number?.phone_number)) ||
+          active[0];
+
+        if (targetAgent) {
+          setSelectedAgentId(targetAgent.id);
+          setCallingMethod(targetAgent.calling_method ?? "phone");
         }
       } catch { /* silently ignore */ }
     })();
