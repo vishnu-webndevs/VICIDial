@@ -18,6 +18,10 @@ export type CallRecord = {
   from_number: string;
   to_number: string;
   duration_seconds: number;
+  recording_url?: string | null;
+  recording_duration?: number | null;
+  recording_tags?: string[] | null;
+  recording_notes?: string | null;
   retry_count: number;
   failure_reason: string | null;
   provider: {
