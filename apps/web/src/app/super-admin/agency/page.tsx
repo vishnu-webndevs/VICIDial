@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Box, MuiButton, Paper, Stack, Typography } from "@/ui";
 import { AppShell, SectionCard } from "@/components/app-shell";
 import { EmptyPanel, KpiCard, ToastMessage } from "@/components/ui-primitives";
+import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import { getTenantContext } from "@/lib/tenant-context";
 
@@ -90,58 +91,90 @@ export default function SuperAdminAgencyPage() {
       requiredRoles={["platform_super_admin", "super_admin"]}
     >
       {message ? <ToastMessage tone="error" message={message} /> : null}
-      <Box sx={{ display: "grid", gap: 2 }}>
-        <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(4, 1fr)" } }}>
+      <Box sx={{ display: "grid", gap: 2.5 }}>
+        {/* Header */}
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 1.5 }}>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: "#1e293b" }}>
+              Agency Reseller Workspace
+            </Typography>
+            <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
+              Monitor managed companies, active campaign volume, and agency team activities.
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* Navigation Quick Links */}
+        <Paper variant="outlined" sx={{ p: 1.5, display: "flex", gap: 1, flexWrap: "wrap", bgcolor: "#ffffff", borderRadius: 2 }}>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin">Overview</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/companies">Companies</MuiButton>
+          <MuiButton size="small" variant="contained" sx={{ bgcolor: "#6366f1" }}>Agencies</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/plans">Plans</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/settings">Settings</MuiButton>
+        </Paper>
+
+        <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" } }}>
           <KpiCard label="Total Companies" value={summary.totalCompanies} />
           <KpiCard label="Active Campaigns" value={summary.activeCampaigns} />
           <KpiCard label="Agents Online" value={summary.agentsOnline} />
           <KpiCard label="Calls Today" value={summary.callsToday} />
         </Box>
 
-        <SectionCard title="Companies" subtitle="Expand a company to view campaigns and team members.">
+        <SectionCard title="Managed Companies" subtitle="Expand a company to view active campaigns and team roster.">
           {companies.length === 0 ? <EmptyPanel title="No companies" description="No companies are linked to this agency." /> : null}
-          <Stack spacing={1.25}>
+          <Stack spacing={1.5}>
             {companies.map((company) => {
               const isExpanded = expanded === company.id;
               return (
-                <Paper key={company.id} variant="outlined" sx={{ p: 1.5 }}>
-                  <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
-                    <Box sx={{ display: "grid", gap: 0.4 }}>
-                      <Typography variant="subtitle2">{company.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        {company.active_campaigns} active campaigns | {company.agents} agents | {company.calls_today} calls today | {company.conversion_rate}%
-                        {" "}conversion
+                <Paper key={company.id} variant="outlined" sx={{ p: 2, borderRadius: 2 }}>
+                  <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 1.5 }}>
+                    <Box sx={{ display: "grid", gap: 0.5 }}>
+                      <Typography variant="subtitle1" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                        {company.name}
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: "#64748b" }}>
+                        {company.active_campaigns} active campaigns | {company.agents} active agents | {company.calls_today} calls today | {company.conversion_rate}% conversion
                       </Typography>
                     </Box>
                     <MuiButton size="medium" variant="outlined" onClick={() => setExpanded(isExpanded ? "" : company.id)}>
-                      {isExpanded ? "Collapse" : "Expand"}
+                      {isExpanded ? "Hide Details" : "View Details"}
                     </MuiButton>
                   </Box>
 
                   {isExpanded ? (
-                    <Box sx={{ mt: 1.25, display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", lg: "1fr 1fr" } }}>
-                      <Paper variant="outlined" sx={{ p: 1 }}>
-                        <Typography variant="subtitle2" sx={{ mb: 0.75 }}>Campaigns</Typography>
+                    <Box sx={{ mt: 2, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" } }}>
+                      <Paper variant="outlined" sx={{ p: 2, bgcolor: "#f8fafc", borderRadius: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: "#1e293b" }}>
+                          Active Campaigns ({company.campaigns?.length ?? 0})
+                        </Typography>
                         {(company.campaigns ?? []).length === 0 ? (
                           <Typography variant="body2" color="text.secondary">No campaigns listed.</Typography>
                         ) : (
                           (company.campaigns ?? []).map((campaign) => (
-                            <Typography key={campaign.id} variant="body2">
-                              {campaign.name} ({campaign.status})
-                            </Typography>
+                            <Box key={campaign.id} sx={{ py: 0.5, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>{campaign.name}</Typography>
+                              <Typography variant="caption" sx={{ textTransform: "capitalize", px: 1, py: 0.25, borderRadius: 1, bgcolor: "#e2e8f0" }}>
+                                {campaign.status}
+                              </Typography>
+                            </Box>
                           ))
                         )}
                       </Paper>
 
-                      <Paper variant="outlined" sx={{ p: 1 }}>
-                        <Typography variant="subtitle2" sx={{ mb: 0.75 }}>Team Members</Typography>
+                      <Paper variant="outlined" sx={{ p: 2, bgcolor: "#f8fafc", borderRadius: 2 }}>
+                        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: "#1e293b" }}>
+                          Team Roster ({company.team_members?.length ?? 0})
+                        </Typography>
                         {(company.team_members ?? []).length === 0 ? (
                           <Typography variant="body2" color="text.secondary">No team members listed.</Typography>
                         ) : (
                           (company.team_members ?? []).map((member) => (
-                            <Typography key={member.id} variant="body2">
-                              {member.name} - {member.role} ({member.status})
-                            </Typography>
+                            <Box key={member.id} sx={{ py: 0.5, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                              <Typography variant="body2" sx={{ fontWeight: 500 }}>{member.name}</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {member.role} ({member.status})
+                              </Typography>
+                            </Box>
                           ))
                         )}
                       </Paper>

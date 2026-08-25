@@ -100,6 +100,7 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             Route::get('/companies', [PlanManagementController::class, 'listCompanies']);
             Route::get('/companies/{id}/plan', [PlanManagementController::class, 'companyPlan']);
             Route::put('/companies/{id}/plan', [PlanManagementController::class, 'updateCompanyPlan']);
+            Route::put('/companies/{id}/expiry', [PlanManagementController::class, 'updateCompanyExpiry']);
             Route::get('/companies/{id}/usage', [PlanManagementController::class, 'companyUsage']);
         });
         Route::get('/org/units', [OrgHierarchyController::class, 'index'])

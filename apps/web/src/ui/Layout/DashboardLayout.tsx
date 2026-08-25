@@ -65,10 +65,11 @@ export function DashboardLayout({
         <Box
           component="main"
           sx={{
-            px: { xs: 3, md: 4 },
-            py: { xs: 3, md: 4 },
+            px: { xs: 2, sm: 3, md: 4 },
+            py: { xs: 2, sm: 3, md: 4 },
             flex: 1,
-            overflow: "auto",
+            overflowX: "hidden",
+            overflowY: "auto",
           }}
         >
           {children}

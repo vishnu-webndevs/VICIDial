@@ -113,40 +113,56 @@ export default function CommandCenterPage() {
       {message ? <ToastMessage tone={messageTone} message={message} /> : null}
       <Box sx={{ display: "grid", gap: 2 }}>
         <SectionCard title="Campaign Selection" subtitle="Monitor live queue and control agents by campaign.">
-          <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems="center">
-            <TextField
-              select
-              size="medium"
-              value={selectedCampaignId}
-              onChange={(event) => setSelectedCampaignId(event.target.value)}
-              sx={{ minWidth: 300 }}
-            >
-              {campaigns.map((campaign) => (
-                <MenuItem key={campaign.id} value={campaign.id}>
-                  {campaign.name}
-                </MenuItem>
-              ))}
-            </TextField>
-            <MuiButton variant="outlined" onClick={() => void loadData()} disabled={loading}>
-              Refresh
-            </MuiButton>
-            {selectedCampaign && ["running", "paused"].includes(selectedCampaign.status) ? (
-              <MuiButton variant="outlined" color="error" onClick={() => void handleStopCampaign()} disabled={loading}>
-                Stop Campaign
-              </MuiButton>
+          <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5, width: "100%" }}>
+            <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1.5, alignItems: { xs: "stretch", sm: "center" }, width: "100%" }}>
+              <TextField
+                select
+                fullWidth
+                size="medium"
+                value={selectedCampaignId}
+                onChange={(event) => setSelectedCampaignId(event.target.value)}
+                sx={{ width: "100%", maxWidth: "100%" }}
+              >
+                {campaigns.map((campaign) => (
+                  <MenuItem key={campaign.id} value={campaign.id}>
+                    {campaign.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", width: { xs: "100%", sm: "auto" } }}>
+                <MuiButton
+                  variant="outlined"
+                  onClick={() => void loadData()}
+                  disabled={loading}
+                  sx={{ flex: { xs: 1, sm: "initial" } }}
+                >
+                  Refresh
+                </MuiButton>
+                {selectedCampaign && ["running", "paused"].includes(selectedCampaign.status) ? (
+                  <MuiButton
+                    variant="outlined"
+                    color="error"
+                    onClick={() => void handleStopCampaign()}
+                    disabled={loading}
+                    sx={{ flex: { xs: 1, sm: "initial" } }}
+                  >
+                    Stop Campaign
+                  </MuiButton>
+                ) : null}
+              </Box>
+            </Box>
+            {selectedCampaign ? (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", mt: 0.5 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, color: "#1e293b" }}>
+                  {selectedCampaign.name}
+                </Typography>
+                <StatusBadge label={selectedCampaign.status} />
+              </Box>
             ) : null}
-          </Stack>
-          {selectedCampaign ? (
-            <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 1 }}>
-              <Typography variant="body2" color="text.secondary">
-                {selectedCampaign.name}
-              </Typography>
-              <StatusBadge label={selectedCampaign.status} />
-            </Stack>
-          ) : null}
+          </Box>
         </SectionCard>
 
-        <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", xl: "repeat(4, 1fr)" } }}>
+        <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" } }}>
           <KpiCard label="Queue Depth" value={queueDepth} />
           <KpiCard label="Active Calls" value={activeCalls} />
           <KpiCard label="Connect Rate" value={`${Math.round(connectRate * 100)}%`} />
@@ -159,8 +175,8 @@ export default function CommandCenterPage() {
           ) : agentStatuses.length === 0 ? (
             <EmptyPanel title="No active agents" description="Agents will appear once they have active or recent sessions." />
           ) : (
-            <Paper variant="outlined" sx={{ overflowX: "auto" }}>
-              <Table size="medium">
+            <Paper variant="outlined" sx={{ overflowX: "auto", width: "100%", maxWidth: "100%", minWidth: 0 }}>
+              <Table size="medium" sx={{ minWidth: 550, width: "100%" }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: "action.hover" }}>
                     <TableCell>Agent</TableCell>

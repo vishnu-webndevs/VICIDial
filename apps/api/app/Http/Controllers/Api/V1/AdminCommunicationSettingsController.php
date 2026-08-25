@@ -340,6 +340,13 @@ class AdminCommunicationSettingsController extends Controller
                 ->where('agent_id', $agent->id)
                 ->value('provider_phone_number_id');
 
+            if (! $numberId) {
+                $numberId = ProviderPhoneNumber::query()
+                    ->where('tenant_id', $tenant->id)
+                    ->where('status', 'active')
+                    ->value('id');
+            }
+
             if (!$numberId) {
                 return response()->json([
                     'error' => [

@@ -16,6 +16,7 @@ import {
   OutlinedInput,
   TextField,
   Toolbar,
+  Typography,
 } from "@mui/material";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -41,6 +42,7 @@ export function Navbar({
   const router = useRouter();
   const { unreadCount } = useNotifications();
   const [searchFocused, setSearchFocused] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -181,13 +183,15 @@ export function Navbar({
         <Toolbar
           sx={{
             justifyContent: "space-between",
+            alignItems: "center",
             minHeight: "64px !important",
-            px: { xs: 3, sm: 4 },
-            gap: 2,
-            flexWrap: { xs: "wrap", sm: "nowrap" },
-            bgcolor: mode === "dark" ? "rgba(30, 41, 59, 0.6)" : "rgba(255, 255, 255, 0.7)",
-            backdropFilter: "blur(12px)",
-            borderRadius: { xs: 0, md: "10px" },
+            px: { xs: 2.5, sm: 3.5, md: 4 },
+            py: 1,
+            gap: { xs: 1, sm: 2 },
+            flexWrap: "nowrap",
+            bgcolor: mode === "dark" ? "rgba(30, 41, 59, 0.85)" : "rgba(255, 255, 255, 0.9)",
+            backdropFilter: "blur(16px)",
+            borderRadius: { xs: 0, md: "12px" },
             border: "1px solid",
             borderColor: mode === "dark" ? "rgba(255, 255, 255, 0.08)" : "rgba(226, 232, 240, 0.8)",
             boxShadow:
@@ -196,153 +200,244 @@ export function Navbar({
                 : "0 4px 20px rgba(161, 172, 184, 0.12)",
           }}
         >
-          {/* Left section: Menu toggle + Search */}
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 2,
-              flex: 1,
-              minWidth: 0,
-              flexBasis: { xs: "100%", sm: "auto" },
-            }}
-          >
-            <IconButton
-              edge="start"
-              onClick={onMenuClick}
-              sx={{
-                display: { lg: "none" },
-                color: "#64748b",
-              }}
-            >
-              <i className="bx bx-menu" style={{ fontSize: "1.5rem" }} />
-            </IconButton>
-
-            {/* Search Bar */}
-            <OutlinedInput
-              placeholder="Search (Ctrl+/)"
-              startAdornment={
-                <InputAdornment position="start">
-                  <i
-                    className="bx bx-search"
-                    style={{
-                      color: "#64748b",
-                      fontSize: "1.375rem",
-                    }}
-                  />
-                </InputAdornment>
-              }
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              sx={{
-                width: { xs: "100%", sm: 280, md: 320 },
-                height: 38,
-                borderRadius: "8px",
-                fontSize: "0.9375rem",
-                "& .MuiOutlinedInput-input": {
-                  py: 1,
-                  "&::placeholder": {
-                    color: "#94a3b8",
-                    opacity: 1,
-                  },
-                },
-                "& .MuiOutlinedInput-notchedOutline": {
-                  borderColor: searchFocused ? "#6366f1" : (mode === "dark" ? "rgba(255, 255, 255, 0.12)" : "#e2e8f0"),
-                },
-                "&:hover .MuiOutlinedInput-notchedOutline": {
-                  borderColor: searchFocused ? "#6366f1" : (mode === "dark" ? "rgba(255, 255, 255, 0.2)" : "#cbd5e1"),
-                },
-              }}
-            />
-          </Box>
-
-          {/* Right section: Actions */}
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1,
-              flexBasis: { xs: "100%", sm: "auto" },
-              justifyContent: { xs: "flex-end", sm: "flex-start" },
-            }}
-          >
-            {/* Dark Mode Toggle */}
-            <IconButton
-              onClick={onToggleMode}
-              aria-label="Toggle dark mode"
-              sx={{
-                color: "#64748b",
-                "&:hover": {
-                  bgcolor: mode === "dark" ? "rgba(255, 255, 255, 0.05)" : "rgba(15, 23, 42, 0.05)",
-                },
-              }}
-            >
-              <i
-                className={mode === "dark" ? "bx bx-sun" : "bx bx-moon"}
-                style={{ fontSize: "1.375rem" }}
-              />
-            </IconButton>
-
-            {/* Notification bell */}
-            <IconButton
-              onClick={() => router.push("/notifications")}
-              sx={{
-                color: "#64748b",
-                position: "relative",
-                "&:hover": {
-                  bgcolor: mode === "dark" ? "rgba(255, 255, 255, 0.05)" : "rgba(15, 23, 42, 0.05)",
-                },
-                ...(unreadCount > 0 ? {
-                  animation: "bellPulse 2s ease-in-out infinite",
-                  "@keyframes bellPulse": {
-                    "0%, 100%": { transform: "scale(1)" },
-                    "50%": { transform: "scale(1.1)" },
-                  },
-                } : {}),
-              }}
-            >
-              <Badge
-                badgeContent={unreadCount}
-                color="error"
-                max={99}
-                sx={{
-                  "& .MuiBadge-badge": {
-                    fontSize: "0.65rem",
-                    minWidth: 18,
-                    height: 18,
-                    fontWeight: 700,
-                  },
-                }}
-              >
-                <i className="bx bx-bell" style={{ fontSize: "1.375rem" }} />
-              </Badge>
-            </IconButton>
-
-            {/* User avatar */}
+          {/* Mobile Overlay Search Bar (when mobileSearchOpen is true) */}
+          {mobileSearchOpen ? (
             <Box
               sx={{
-                ml: 1,
-                width: 40,
-                height: 40,
-                borderRadius: "50%",
-                bgcolor: "#6366f1",
-                display: "flex",
+                display: { xs: "flex", md: "none" },
                 alignItems: "center",
-                justifyContent: "center",
-                color: "#fff",
-                fontSize: "0.875rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                transition: "transform 0.2s, box-shadow 0.2s",
-                "&:hover": {
-                  transform: "scale(1.05)",
-                  boxShadow: "0 4px 12px rgba(99, 102, 241, 0.3)",
-                },
+                gap: 1,
+                width: "100%",
+                px: 0.5,
               }}
-              onClick={(event) => setMenuAnchor(event.currentTarget)}
             >
-              {tenantName ? tenantName.charAt(0).toUpperCase() : "U"}
+              <OutlinedInput
+                autoFocus
+                placeholder="Search..."
+                startAdornment={
+                  <InputAdornment position="start">
+                    <i className="bx bx-search" style={{ color: "#6366f1", fontSize: "1.25rem" }} />
+                  </InputAdornment>
+                }
+                sx={{
+                  flex: 1,
+                  height: 40,
+                  borderRadius: "10px",
+                  fontSize: "0.875rem",
+                  bgcolor: mode === "dark" ? "rgba(15, 23, 42, 0.6)" : "#f8fafc",
+                }}
+              />
+              <IconButton size="small" onClick={() => setMobileSearchOpen(false)}>
+                <i className="bx bx-x" style={{ fontSize: "1.5rem", color: "#64748b" }} />
+              </IconButton>
             </Box>
+          ) : (
+            <>
+              {/* Left section: Menu toggle + Desktop Search + Mobile Title */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: { xs: 1, sm: 2 },
+                  flex: 1,
+                  minWidth: 0,
+                }}
+              >
+                <IconButton
+                  edge="start"
+                  onClick={onMenuClick}
+                  sx={{
+                    display: { md: "none" },
+                    color: "#64748b",
+                    ml: { xs: 0.5, sm: 1 },
+                    p: { xs: 0.75, sm: 1 },
+                    "&:hover": { color: "#6366f1", bgcolor: "rgba(99, 102, 241, 0.08)" },
+                  }}
+                >
+                  <i className="bx bx-menu" style={{ fontSize: "1.5rem" }} />
+                </IconButton>
+
+                {/* Mobile Logo Title */}
+                <Box
+                  sx={{
+                    display: { xs: "flex", md: "none" },
+                    alignItems: "center",
+                    gap: 1,
+                  }}
+                >
+                  <img src="/favicon.svg" alt="Logo" style={{ width: 26, height: 26, borderRadius: 6 }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 800, color: "#1e293b", fontSize: "0.9rem" }}>
+                    WND<span style={{ color: "#6366f1" }}>Dialer</span>
+                  </Typography>
+                </Box>
+
+                {/* Desktop Search Bar */}
+                <OutlinedInput
+                  placeholder="Search (Ctrl+/)"
+                  startAdornment={
+                    <InputAdornment position="start">
+                      <i
+                        className="bx bx-search"
+                        style={{
+                          color: "#64748b",
+                          fontSize: "1.25rem",
+                        }}
+                      />
+                    </InputAdornment>
+                  }
+                  endAdornment={
+                    <InputAdornment position="end">
+                      <Box
+                        sx={{
+                          px: 0.75,
+                          py: 0.25,
+                          borderRadius: "4px",
+                          bgcolor: mode === "dark" ? "rgba(255,255,255,0.08)" : "#f1f5f9",
+                          color: "#94a3b8",
+                          fontSize: "0.7rem",
+                          fontWeight: 700,
+                          border: "1px solid",
+                          borderColor: mode === "dark" ? "rgba(255,255,255,0.12)" : "#cbd5e1",
+                        }}
+                      >
+                        ⌘K
+                      </Box>
+                    </InputAdornment>
+                  }
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  sx={{
+                    display: { xs: "none", md: "flex" },
+                    width: { sm: 260, md: 320 },
+                    height: 38,
+                    borderRadius: "10px",
+                    fontSize: "0.875rem",
+                    bgcolor: mode === "dark" ? "rgba(15, 23, 42, 0.4)" : "#f8fafc",
+                    "& .MuiOutlinedInput-input": {
+                      py: 0.75,
+                      px: 1,
+                      "&::placeholder": {
+                        color: "#94a3b8",
+                        opacity: 1,
+                      },
+                    },
+                    "& .MuiOutlinedInput-notchedOutline": {
+                      borderColor: searchFocused ? "#6366f1" : (mode === "dark" ? "rgba(255, 255, 255, 0.12)" : "#e2e8f0"),
+                    },
+                    "&:hover .MuiOutlinedInput-notchedOutline": {
+                      borderColor: searchFocused ? "#6366f1" : (mode === "dark" ? "rgba(255, 255, 255, 0.2)" : "#cbd5e1"),
+                    },
+                  }}
+                />
+              </Box>
+
+              {/* Right section: Actions */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: { xs: 0.5, sm: 1 },
+                }}
+              >
+                {/* Mobile Search Icon Button */}
+                <IconButton
+                  onClick={() => setMobileSearchOpen(true)}
+                  aria-label="Open mobile search"
+                  sx={{
+                    display: { xs: "flex", md: "none" },
+                    color: "#64748b",
+                    p: { xs: 0.75, sm: 1 },
+                    "&:hover": { color: "#6366f1", bgcolor: "rgba(99, 102, 241, 0.08)" },
+                  }}
+                >
+                  <i className="bx bx-search" style={{ fontSize: "1.35rem" }} />
+                </IconButton>
+
+                {/* Dark Mode Toggle */}
+                <IconButton
+                  onClick={onToggleMode}
+                  aria-label="Toggle dark mode"
+                  sx={{
+                    color: "#64748b",
+                    p: { xs: 0.75, sm: 1 },
+                    "&:hover": {
+                      color: "#6366f1",
+                      bgcolor: mode === "dark" ? "rgba(255, 255, 255, 0.05)" : "rgba(99, 102, 241, 0.08)",
+                    },
+                  }}
+                >
+                  <i
+                    className={mode === "dark" ? "bx bx-sun" : "bx bx-moon"}
+                    style={{ fontSize: "1.35rem" }}
+                  />
+                </IconButton>
+
+                {/* Notification bell */}
+                <IconButton
+                  onClick={() => router.push("/notifications")}
+                  sx={{
+                    color: "#64748b",
+                    position: "relative",
+                    p: { xs: 0.75, sm: 1 },
+                    "&:hover": {
+                      color: "#6366f1",
+                      bgcolor: mode === "dark" ? "rgba(255, 255, 255, 0.05)" : "rgba(99, 102, 241, 0.08)",
+                    },
+                    ...(unreadCount > 0 ? {
+                      animation: "bellPulse 2s ease-in-out infinite",
+                      "@keyframes bellPulse": {
+                        "0%, 100%": { transform: "scale(1)" },
+                        "50%": { transform: "scale(1.1)" },
+                      },
+                    } : {}),
+                  }}
+                >
+                  <Badge
+                    badgeContent={unreadCount}
+                    color="error"
+                    max={99}
+                    sx={{
+                      "& .MuiBadge-badge": {
+                        fontSize: "0.65rem",
+                        minWidth: 18,
+                        height: 18,
+                        fontWeight: 700,
+                      },
+                    }}
+                  >
+                    <i className="bx bx-bell" style={{ fontSize: "1.35rem" }} />
+                  </Badge>
+                </IconButton>
+
+                {/* User avatar */}
+                <Box
+                  sx={{
+                    ml: { xs: 0.5, sm: 1 },
+                    width: { xs: 34, sm: 40 },
+                    height: { xs: 34, sm: 40 },
+                    borderRadius: "50%",
+                    background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#fff",
+                    fontSize: { xs: "0.8rem", sm: "0.875rem" },
+                    fontWeight: 700,
+                    cursor: "pointer",
+                    boxShadow: "0 2px 8px rgba(99, 102, 241, 0.3)",
+                    transition: "transform 0.2s, box-shadow 0.2s",
+                    "&:hover": {
+                      transform: "scale(1.05)",
+                      boxShadow: "0 4px 14px rgba(99, 102, 241, 0.45)",
+                    },
+                  }}
+                  onClick={(event) => setMenuAnchor(event.currentTarget)}
+                >
+                  {tenantName ? tenantName.charAt(0).toUpperCase() : "U"}
+                </Box>
+              </Box>
+            </>
+          )}
 
             <Menu
               anchorEl={menuAnchor}
@@ -366,7 +461,6 @@ export function Navbar({
                 {loggingOut ? "Logging out..." : "Logout"}
               </MenuItem>
             </Menu>
-          </Box>
         </Toolbar>
       </Box>
 

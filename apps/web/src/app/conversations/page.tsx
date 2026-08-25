@@ -394,7 +394,7 @@ function ConversationsContent() {
     <AppShell requiredPermissions={["call.view"]}>
       {messageToast ? <ToastMessage tone={messageTone} message={messageToast} /> : null}
 
-      <Paper sx={{ display: 'flex', height: 'calc(100vh - 110px)', overflow: 'hidden', borderRadius: 3, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
+      <Paper sx={{ display: 'flex', height: { xs: 'calc(100vh - 85px)', md: 'calc(100vh - 110px)' }, overflow: 'hidden', borderRadius: { xs: 2, md: 3 }, boxShadow: '0 4px 20px rgba(0,0,0,0.05)' }}>
 
         {/* Left Sidebar: Threads List */}
         <Box sx={{ width: { xs: '100%', md: 380 }, display: { xs: selectedThreadId ? 'none' : 'flex', md: 'flex' }, flexDirection: 'column', borderRight: 1, borderColor: 'divider', bgcolor: '#ffffff' }}>
@@ -549,7 +549,7 @@ function ConversationsContent() {
         {/* Right Sidebar: Chat Area */}
         <Box sx={{
           flex: 1,
-          display: { xs: selectedThreadId ? 'none' : 'flex', md: 'flex' },
+          display: { xs: selectedThreadId ? 'flex' : 'none', md: 'flex' },
           flexDirection: 'column',
           background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
           position: 'relative'

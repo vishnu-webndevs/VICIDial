@@ -55,9 +55,12 @@ export function KpiCard({
         boxShadow: "0 2px 6px rgba(67, 89, 113, 0.12)",
         borderRadius: "0.375rem",
         border: "none",
+        minWidth: 0,
+        width: "100%",
+        overflow: "hidden",
       }}
     >
-      <CardContent>
+      <CardContent sx={{ p: { xs: 2, sm: 2.5 }, "&:last-child": { pb: { xs: 2, sm: 2.5 } } }}>
         <Typography
           variant="caption"
           sx={{
@@ -65,20 +68,25 @@ export function KpiCard({
             fontWeight: 600,
             color: "#697a8d",
             letterSpacing: "0.4px",
+            fontSize: "0.75rem",
+            display: "block",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
           {label}
         </Typography>
         <Typography
           variant="h4"
-          sx={{ mt: 1, color: "#566a7f", fontWeight: 500 }}
+          sx={{ mt: 0.5, color: "#566a7f", fontWeight: 500, fontSize: { xs: "1.5rem", sm: "1.75rem" } }}
         >
           {value}
         </Typography>
         {hint ? (
           <Typography
             variant="body2"
-            sx={{ mt: 1.5, color: "#a1acb8" }}
+            sx={{ mt: 0.5, color: "#a1acb8", fontSize: "0.8rem" }}
           >
             {hint}
           </Typography>

@@ -55,12 +55,23 @@ body {
   box-sizing: border-box;
 }
 
+img, svg, video, canvas, audio {
+  max-width: 100%;
+}
+
+.table-responsive-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 /* Smooth transitions */
 button,
 input,
 select,
 textarea,
 a {
+  text-decoration: none;
   transition: all 160ms ease;
 }
 

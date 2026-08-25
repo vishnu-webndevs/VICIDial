@@ -145,16 +145,15 @@ export function AppShell({
   useEffect(() => {
     if (loading) return;
 
-    const isSuperAdmin =
+    const isPlatformSuperAdmin =
       isPlatformAdmin ||
-      role === "platform_super_admin" ||
-      role === "super_admin";
+      role === "platform_super_admin";
 
     const onSuperAdminPath = pathname.startsWith("/super-admin");
 
-    // Check plan/trial expiration first for non-platform/super admins
-    if (!isSuperAdmin && tenantId && trialExpired) {
-      if (pathname !== "/billing") {
+    // Check plan/trial expiration first for all tenant workspace users
+    if (!isPlatformSuperAdmin && tenantId && trialExpired) {
+      if (pathname !== "/billing" && !pathname.startsWith("/billing/")) {
         router.replace("/billing");
         return;
       }
@@ -162,7 +161,7 @@ export function AppShell({
     }
 
     // Enforce onboarding check for standard tenant users
-    if (!isSuperAdmin && tenantId) {
+    if (!isPlatformSuperAdmin && tenantId) {
       const onboardingDone = isOnboardingComplete(tenantId);
       if (!onboardingDone && pathname !== "/onboarding") {
         router.replace("/onboarding");
@@ -170,11 +169,11 @@ export function AppShell({
       }
     }
 
-    if (isSuperAdmin && !onSuperAdminPath) {
-      // Super admins always land in /super-admin
+    if (isPlatformSuperAdmin && !onSuperAdminPath) {
+      // Platform super admins land in /super-admin
       router.replace("/super-admin");
-    } else if (!isSuperAdmin && onSuperAdminPath) {
-      // Regular users cannot enter /super-admin
+    } else if (!isPlatformSuperAdmin && onSuperAdminPath) {
+      // Regular tenant users cannot enter /super-admin
       router.replace("/dashboard");
     }
   }, [loading, isPlatformAdmin, role, tenantId, pathname, router, trialExpired]);
@@ -225,8 +224,12 @@ export function SectionCard({
       sx={{
         borderRadius: "0.375rem",
         bgcolor: "#fff",
-        p: { xs: 3, md: 4 },
+        p: { xs: 2, sm: 3, md: 4 },
         boxShadow: "0 2px 6px rgba(67, 89, 113, 0.12)",
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        overflow: "hidden",
       }}
     >
       <Box sx={{ mb: 3 }}>

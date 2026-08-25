@@ -1,9 +1,10 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Box, Checkbox, FormControlLabel, MenuItem, MuiButton, Stack, TextField, Typography, Alert } from "@/ui";
+import { Box, Checkbox, FormControlLabel, MenuItem, MuiButton, Paper, Stack, TextField, Typography, Alert } from "@/ui";
 import { AppShell, EmptyState, ErrorState, LoadingState, SectionCard } from "@/components/app-shell";
 import { ToastMessage } from "@/components/ui-primitives";
+import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import { getTenantContext, getTenantScopedStorageKey } from "@/lib/tenant-context";
 import { useDetectTimezone } from "@/hooks/useDetectTimezone";
@@ -245,11 +246,31 @@ export default function SuperAdminSettingsPage() {
 
   return (
     <AppShell
-      requiredPermissions={["tenant.view"]}
+      requiredPermissions={["tenant.view", "tenant.update"]}
       requiredRoles={["platform_super_admin", "super_admin"]}
     >
       {toast ? <ToastMessage tone={toast.tone} message={toast.message} /> : null}
-      <Box sx={{ display: "grid", gap: 2 }}>
+      <Box sx={{ display: "grid", gap: 2.5 }}>
+        {/* Header */}
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 1.5 }}>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: "#1e293b" }}>
+              Global Platform Governance & Settings
+            </Typography>
+            <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
+              Configure platform branding, default webhooks, timezone rules, and dialer calling windows.
+            </Typography>
+          </Box>
+        </Box>
+
+        {/* Navigation Quick Links */}
+        <Paper variant="outlined" sx={{ p: 1.5, display: "flex", gap: 1, flexWrap: "wrap", bgcolor: "#ffffff", borderRadius: 2 }}>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin">Overview</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/companies">Companies</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/agency">Agencies</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/plans">Plans</MuiButton>
+          <MuiButton size="small" variant="contained" sx={{ bgcolor: "#6366f1" }}>Settings</MuiButton>
+        </Paper>
         <SectionCard title="Tenant Profile" subtitle="Configure tenant identity, branding, and locale settings.">
           <Box
             component="form"

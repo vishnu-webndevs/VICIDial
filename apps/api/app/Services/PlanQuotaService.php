@@ -44,6 +44,38 @@ class PlanQuotaService
         return $query->first();
     }
 
+    public function isSubscriptionExpired(Tenant $tenant): bool
+    {
+        if (SchemaInspector::hasTable('tenant_plans')) {
+            try {
+                $tenantPlan = \App\Models\TenantPlan::query()
+                    ->where('tenant_id', $tenant->id)
+                    ->where('status', 'active')
+                    ->latest('started_at')
+                    ->first();
+
+                if ($tenantPlan) {
+                    if ($tenantPlan->expires_at !== null) {
+                        return $tenantPlan->expires_at->isPast();
+                    }
+
+                    $plan = $tenantPlan->plan;
+                    $isPaid = $plan ? ((float) ($plan->price_monthly ?? 0) > 0 || (float) ($plan->price_yearly ?? 0) > 0) : false;
+
+                    if (!$isPaid && $tenantPlan->started_at) {
+                        return $tenantPlan->started_at->copy()->addDays(30)->isPast();
+                    }
+
+                    return false;
+                }
+            } catch (\Throwable) {
+                // Ignore exception and fallback
+            }
+        }
+
+        return $tenant->created_at ? $tenant->created_at->copy()->addDays(30)->isPast() : false;
+    }
+
     public function featureForRequest(string $method, string $routeUri): ?string
     {
         $normalizedPath = trim($routeUri, '/');

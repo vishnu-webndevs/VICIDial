@@ -27,17 +27,10 @@ export default function LandingNav() {
       <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         {/* Logo */}
         <Link href="/landing" className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-indigo-600 shadow-sm">
-            <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-              />
-            </svg>
-          </div>
-          <span className="text-lg font-bold text-slate-900">WND Dialer</span>
+          <img src="/favicon.svg" alt="WND Dialer Logo" className="h-9 w-9 rounded-xl shadow-sm transition-transform hover:scale-105" />
+          <span className="text-xl font-black tracking-tight text-slate-900">
+            WND <span className="text-indigo-600">Dialer</span>
+          </span>
         </Link>
 
         {/* Desktop Nav */}

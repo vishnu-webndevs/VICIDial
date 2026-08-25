@@ -166,15 +166,39 @@ class PlanManagementController extends Controller
                 $plan = $this->planQuotaService->resolveActivePlan($tenant);
                 $usage = $this->planQuotaService->usageSnapshot($tenant->id, $plan);
 
+                $activeTenantPlan = TenantPlan::query()
+                    ->where('tenant_id', $tenant->id)
+                    ->where('status', 'active')
+                    ->latest()
+                    ->first();
+
+                $isPaid = $plan ? ((float) ($plan->price_monthly ?? 0) > 0 || (float) ($plan->price_yearly ?? 0) > 0) : false;
+                $isExpired = $this->planQuotaService->isSubscriptionExpired($tenant);
+
+                $effectiveExpiresAt = $activeTenantPlan?->expires_at
+                    ? $activeTenantPlan->expires_at
+                    : ($activeTenantPlan?->started_at ? $activeTenantPlan->started_at->copy()->addDays(30) : ($tenant->created_at ? $tenant->created_at->copy()->addDays(30) : null));
+
                 return [
                     'id' => $tenant->id,
                     'name' => $tenant->name,
-                    'status' => $tenant->status,
+                    'status' => $isExpired ? 'expired' : ($tenant->status ?? 'active'),
                     'plan' => $plan ? [
                         'id' => $plan->id,
                         'name' => $plan->name,
                         'slug' => $plan->slug,
+                        'price_monthly' => (float) ($plan->price_monthly ?? 0),
+                        'price_yearly' => (float) ($plan->price_yearly ?? 0),
+                        'is_paid' => $isPaid,
+                        'plan_type' => $isPaid ? 'Paid Plan' : '30-Day Demo Trial',
                     ] : null,
+                    'subscription' => [
+                        'billing_cycle' => $activeTenantPlan->billing_cycle ?? 'monthly',
+                        'started_at' => $activeTenantPlan?->started_at ? $activeTenantPlan->started_at->toIso8601String() : ($tenant->created_at ? $tenant->created_at->toIso8601String() : null),
+                        'expires_at' => $effectiveExpiresAt ? $effectiveExpiresAt->toIso8601String() : null,
+                        'is_expired' => $isExpired,
+                        'status' => $isExpired ? 'expired' : ($activeTenantPlan->status ?? 'active'),
+                    ],
                     'usage' => $usage,
                 ];
             })
@@ -203,9 +227,14 @@ class PlanManagementController extends Controller
         $validated = $request->validate([
             'plan_id' => ['required', 'string', 'exists:plans,id'],
             'billing_cycle' => ['nullable', Rule::in(['monthly', 'yearly'])],
+            'expires_at' => ['nullable', 'date'],
         ]);
 
-        DB::transaction(function () use ($tenant, $validated) {
+        $expiresAt = isset($validated['expires_at'])
+            ? ($validated['expires_at'] ? \Carbon\Carbon::parse($validated['expires_at']) : null)
+            : now()->addDays(30);
+
+        DB::transaction(function () use ($tenant, $validated, $expiresAt) {
             TenantPlan::query()
                 ->where('tenant_id', $tenant->id)
                 ->where('status', 'active')
@@ -219,6 +248,7 @@ class PlanManagementController extends Controller
                 'plan_id' => $validated['plan_id'],
                 'billing_cycle' => (string) ($validated['billing_cycle'] ?? 'monthly'),
                 'started_at' => now(),
+                'expires_at' => $expiresAt,
                 'status' => 'active',
             ]);
         });
@@ -230,6 +260,48 @@ class PlanManagementController extends Controller
                 'tenant_id' => $tenant->id,
                 'plan' => $plan,
             ],
+        ]);
+    }
+
+    public function updateCompanyExpiry(Request $request, string $companyId): JsonResponse
+    {
+        $tenant = Tenant::query()->findOrFail($companyId);
+        $validated = $request->validate([
+            'expires_at' => ['nullable', 'date'],
+        ]);
+
+        $activePlan = TenantPlan::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('status', 'active')
+            ->latest()
+            ->first();
+
+        $expiresAt = $validated['expires_at'] ? \Carbon\Carbon::parse($validated['expires_at']) : null;
+
+        if ($activePlan) {
+            $activePlan->update([
+                'expires_at' => $expiresAt,
+            ]);
+        } else {
+            $defaultPlan = Plan::query()->where('is_active', true)->first();
+            if ($defaultPlan) {
+                TenantPlan::query()->create([
+                    'tenant_id' => $tenant->id,
+                    'plan_id' => $defaultPlan->id,
+                    'billing_cycle' => 'monthly',
+                    'started_at' => now(),
+                    'expires_at' => $expiresAt,
+                    'status' => 'active',
+                ]);
+            }
+        }
+
+        return response()->json([
+            'data' => [
+                'tenant_id' => $tenant->id,
+                'expires_at' => $expiresAt ? $expiresAt->toIso8601String() : null,
+            ],
+            'message' => 'Subscription expiration date updated successfully.',
         ]);
     }
 

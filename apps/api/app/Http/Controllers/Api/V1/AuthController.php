@@ -526,17 +526,7 @@ class AuthController extends Controller
             $usage = $this->planQuotaService->usageSnapshot($tenant->id, $plan);
 
             if ($user && !$user->is_platform_admin) {
-                $subscription = Subscription::query()
-                    ->where('tenant_id', $tenant->id)
-                    ->latest()
-                    ->first();
-                if ($subscription) {
-                    if ($subscription->status === 'trialing' && $subscription->trial_ends_at && $subscription->trial_ends_at->isPast()) {
-                        $trialExpired = true;
-                    } elseif (in_array($subscription->status, ['canceled', 'unpaid', 'past_due'], true)) {
-                        $trialExpired = true;
-                    }
-                }
+                $trialExpired = $this->planQuotaService->isSubscriptionExpired($tenant);
             }
         }
 

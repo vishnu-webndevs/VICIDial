@@ -278,7 +278,13 @@ function SidebarContent({
               {group.items.map((item) => {
                 const active =
                   pathname === item.href ||
-                  (item.href !== "/" && pathname.startsWith(item.href));
+                  (item.href !== "/" &&
+                    item.href !== "/super-admin" &&
+                    item.href !== "/admin" &&
+                    item.href !== "/dashboard" &&
+                    item.href !== "/settings" &&
+                    item.href !== "/crm" &&
+                    pathname.startsWith(`${item.href}/`));
                 return (
                   <ListItemButton
                     key={item.href}
@@ -372,7 +378,7 @@ export function Sidebar({
     <>
       <Box
         sx={{
-          display: { xs: "none", lg: "block" },
+          display: { xs: "none", md: "block" },
           width: SIDEBAR_WIDTH,
           flexShrink: 0,
         }}
@@ -396,7 +402,7 @@ export function Sidebar({
         open={open}
         onClose={onClose}
         sx={{
-          display: { xs: "block", lg: "none" },
+          display: { xs: "block", md: "none" },
           "& .MuiDrawer-paper": {
             width: { xs: "min(84vw, 320px)", sm: SIDEBAR_WIDTH },
             bgcolor: isDark ? "#0b0f19" : "#ffffff",

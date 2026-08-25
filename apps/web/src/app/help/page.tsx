@@ -39,13 +39,13 @@ export default function HelpPage() {
         <SectionCard title="Support Channels" subtitle="Use the right channel based on urgency.">
           <div className="grid gap-2 text-sm">
             <p>
-              Product Support: <span className="font-medium">support@wnddialer.com</span>
+              Product Support: <span className="font-medium">support@webndevs.com</span>
             </p>
             <p>
-              Billing Support: <span className="font-medium">billing@wnddialer.com</span>
+              Billing Support: <span className="font-medium">support@webndevs.com</span>
             </p>
             <p>
-              Urgent Incident Escalation: <span className="font-medium">ops@wnddialer.com</span>
+              Urgent Incident Escalation: <span className="font-medium">support@webndevs.com</span>
             </p>
             <p className="text-slate-600">Include tenant ID, timestamp, and screenshot for faster resolution.</p>
           </div>

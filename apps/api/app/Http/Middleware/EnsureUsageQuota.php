@@ -20,6 +20,15 @@ class EnsureUsageQuota
             return $next($request);
         }
 
+        $user = $request->user();
+        if ($this->planQuotaService->isSubscriptionExpired($tenant) && !($user?->is_platform_admin)) {
+            return response()->json([
+                'error' => 'subscription_expired',
+                'message' => 'Your 30-day demo trial or subscription has expired. Please upgrade your plan to continue.',
+                'redirect_url' => '/billing',
+            ], 402);
+        }
+
         $routeUri = (string) ($request->route()?->uri() ?? trim($request->path(), '/'));
         $featureKey = $this->planQuotaService->featureForRequest($request->method(), $routeUri);
         if (! $featureKey) {

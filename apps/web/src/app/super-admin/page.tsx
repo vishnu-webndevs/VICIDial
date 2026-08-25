@@ -1,11 +1,12 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { Box, Modal, MuiButton, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField } from "@/ui";
+import { Box, Modal, MuiButton, Paper, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from "@/ui";
 import { AppShell, SectionCard } from "@/components/app-shell";
-import { EmptyPanel, ToastMessage } from "@/components/ui-primitives";
+import { EmptyPanel, KpiCard, ToastMessage } from "@/components/ui-primitives";
 import { apiRequest } from "@/lib/api";
 import { getTenantContext } from "@/lib/tenant-context";
+import Link from "next/link";
 
 export default function SuperAdminPage() {
   const [admins, setAdmins] = useState<Array<{ id: string; name: string; email: string; companies_count: number; status: string }>>([]);
@@ -87,18 +88,50 @@ export default function SuperAdminPage() {
       requiredRoles={["platform_super_admin", "super_admin"]}
     >
       {message ? <ToastMessage tone={message.tone} message={message.text} /> : null}
-      <Box sx={{ display: "grid", gap: 2 }}>
-        <Box sx={{ display: "flex", gap: 1, justifyContent: "flex-end" }}>
-          <MuiButton variant="contained" onClick={() => openModal("admin")}>Invite Admin</MuiButton>
-          <MuiButton variant="outlined" onClick={() => openModal("agency")}>Invite Agency</MuiButton>
+      <Box sx={{ display: "grid", gap: 2.5 }}>
+        {/* Header Title & Actions */}
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 1.5 }}>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: "#1e293b" }}>
+              Super Admin Console
+            </Typography>
+            <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
+              Platform management, company coverage, agencies, and system governance.
+            </Typography>
+          </Box>
+          <Box sx={{ display: "flex", gap: 1 }}>
+            <MuiButton variant="contained" onClick={() => openModal("admin")}>
+              Invite Admin
+            </MuiButton>
+            <MuiButton variant="outlined" onClick={() => openModal("agency")}>
+              Invite Agency
+            </MuiButton>
+          </Box>
         </Box>
+
+        {/* Platform KPI Metrics */}
+        <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" } }}>
+          <KpiCard label="Platform Admins" value={admins.length} hint="Active platform managers" />
+          <KpiCard label="Agency Partners" value={agencies.length} hint="Registered resellers" />
+          <KpiCard label="Total Coverage" value={admins.reduce((acc, a) => acc + (a.companies_count || 1), 0)} hint="Monitored tenants" />
+          <KpiCard label="System Status" value="Operational" hint="All services active" />
+        </Box>
+
+        {/* Navigation Quick Links */}
+        <Paper variant="outlined" sx={{ p: 1.5, display: "flex", gap: 1, flexWrap: "wrap", bgcolor: "#ffffff", borderRadius: 2 }}>
+          <MuiButton size="small" variant="contained" sx={{ bgcolor: "#6366f1" }}>Overview</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/companies">Companies</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/agency">Agencies</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/plans">Plans</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/settings">Settings</MuiButton>
+        </Paper>
 
         <SectionCard title="Admins" subtitle="Platform admin roster and company coverage.">
           {admins.length === 0 ? (
             <EmptyPanel title="No admin records" description="No platform admin records are available in this context." />
           ) : (
-            <Paper variant="outlined" sx={{ overflowX: "auto" }}>
-              <Table size="medium">
+            <Paper variant="outlined" sx={{ overflowX: "auto", width: "100%", maxWidth: "100%", minWidth: 0 }}>
+              <Table size="medium" sx={{ minWidth: 600 }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: "action.hover" }}>
                     <TableCell>Name</TableCell>
@@ -109,20 +142,21 @@ export default function SuperAdminPage() {
                 </TableHead>
                 <TableBody>
                   {admins.map((admin) => (
-                    <TableRow key={admin.id}>
-                      <TableCell>{admin.name}</TableCell>
+                    <TableRow key={admin.id} hover>
+                      <TableCell sx={{ fontWeight: 600 }}>{admin.name}</TableCell>
                       <TableCell>{admin.email}</TableCell>
                       <TableCell>{admin.companies_count}</TableCell>
                       <TableCell>
                         <Box
                           component="span"
                           sx={{
-                            px: 1,
-                            py: 0.25,
+                            px: 1.25,
+                            py: 0.5,
                             borderRadius: 999,
                             fontSize: 12,
-                            bgcolor: admin.status === "active" ? "success.light" : "warning.light",
-                            color: admin.status === "active" ? "success.dark" : "warning.dark",
+                            fontWeight: 600,
+                            bgcolor: admin.status === "active" ? "rgba(34, 197, 94, 0.12)" : "rgba(245, 158, 11, 0.12)",
+                            color: admin.status === "active" ? "#16a34a" : "#d97706",
                           }}
                         >
                           {admin.status}
@@ -140,8 +174,8 @@ export default function SuperAdminPage() {
           {agencies.length === 0 ? (
             <EmptyPanel title="No agencies" description="No agencies are available in this context." />
           ) : (
-            <Paper variant="outlined" sx={{ overflowX: "auto" }}>
-              <Table size="medium">
+            <Paper variant="outlined" sx={{ overflowX: "auto", width: "100%", maxWidth: "100%", minWidth: 0 }}>
+              <Table size="medium" sx={{ minWidth: 600 }}>
                 <TableHead>
                   <TableRow sx={{ bgcolor: "action.hover" }}>
                     <TableCell>Name</TableCell>
@@ -152,20 +186,21 @@ export default function SuperAdminPage() {
                 </TableHead>
                 <TableBody>
                   {agencies.map((agency) => (
-                    <TableRow key={agency.id}>
-                      <TableCell>{agency.name}</TableCell>
+                    <TableRow key={agency.id} hover>
+                      <TableCell sx={{ fontWeight: 600 }}>{agency.name}</TableCell>
                       <TableCell>{agency.email}</TableCell>
                       <TableCell>{agency.companies_count}</TableCell>
                       <TableCell>
                         <Box
                           component="span"
                           sx={{
-                            px: 1,
-                            py: 0.25,
+                            px: 1.25,
+                            py: 0.5,
                             borderRadius: 999,
                             fontSize: 12,
-                            bgcolor: agency.status === "active" ? "success.light" : "warning.light",
-                            color: agency.status === "active" ? "success.dark" : "warning.dark",
+                            fontWeight: 600,
+                            bgcolor: agency.status === "active" ? "rgba(34, 197, 94, 0.12)" : "rgba(245, 158, 11, 0.12)",
+                            color: agency.status === "active" ? "#16a34a" : "#d97706",
                           }}
                         >
                           {agency.status}
@@ -181,7 +216,10 @@ export default function SuperAdminPage() {
       </Box>
 
       <Modal open={modal !== null} onClose={() => setModal(null)}>
-        <Box component="form" onSubmit={onInvite} sx={{ display: "grid", gap: 1.25 }}>
+        <Box component="form" onSubmit={onInvite} sx={{ display: "grid", gap: 1.5, pt: 1 }}>
+          <Typography variant="h6" sx={{ fontWeight: 600 }}>
+            Invite {modal === "admin" ? "Platform Admin" : "Agency Reseller"}
+          </Typography>
           <TextField
             size="medium"
             required
@@ -197,7 +235,7 @@ export default function SuperAdminPage() {
             value={email}
             onChange={(event) => setEmail(event.target.value)}
           />
-          <Stack direction="row" spacing={1}>
+          <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1 }}>
             <MuiButton variant="outlined" onClick={() => setModal(null)}>Cancel</MuiButton>
             <MuiButton type="submit" variant="contained" disabled={saving}>
               {saving ? "Sending..." : "Send Invite"}

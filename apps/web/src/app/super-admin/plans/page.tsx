@@ -21,6 +21,7 @@ import {
 } from "@/ui";
 import { AppShell, SectionCard, StatusBadge } from "@/components/app-shell";
 import { EmptyPanel, KpiCard, ToastMessage } from "@/components/ui-primitives";
+import Link from "next/link";
 import { apiRequest } from "@/lib/api";
 import { getTenantContext } from "@/lib/tenant-context";
 
@@ -311,68 +312,112 @@ export default function SuperAdminPlansPage() {
     <AppShell requiredRoles={["platform_super_admin", "super_admin"]}>
       {message ? <ToastMessage tone={messageTone} message={message} /> : null}
 
-      <SectionCard
-        title="Package Plans"
-        subtitle="Create and manage pricing plans and their feature limits."
-      >
-        {/* KPI row */}
-        <Box sx={{ mb: 2, display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr 1fr", md: "repeat(4, 1fr)" } }}>
-          <KpiCard label="Total Plans" value={plans.length} />
-          <KpiCard label="Active" value={totalActive} />
-          <KpiCard label="Public" value={totalPublic} />
-          <KpiCard label="Companies" value={totalCompanies} />
-        </Box>
-
-        {/* Toolbar */}
-        <Box sx={{ mb: 2, display: "flex", justifyContent: "flex-end" }}>
-          <MuiButton variant="contained" onClick={openCreatePlan}>
+      <Box sx={{ display: "grid", gap: 2.5 }}>
+        {/* Header */}
+        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", sm: "center" }, gap: 1.5 }}>
+          <Box>
+            <Typography variant="h5" sx={{ fontWeight: 700, color: "#1e293b" }}>
+              Subscription Tier & Pricing Governance
+            </Typography>
+            <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
+              Create and manage subscription packages, pricing tiers, and feature limits.
+            </Typography>
+          </Box>
+          <MuiButton variant="contained" onClick={openCreatePlan} sx={{ bgcolor: "#6366f1" }}>
             New Plan
           </MuiButton>
         </Box>
 
-        {/* Plans table */}
-        {loading ? (
-          <Typography variant="body2" color="text.secondary">Loading plans…</Typography>
-        ) : plans.length === 0 ? (
-          <EmptyPanel title="No plans yet" description="Click New Plan to create your first pricing plan." />
-        ) : (
-          <Paper variant="outlined" sx={{ overflowX: "auto" }}>
-            <Table size="medium">
-              <TableHead>
-                <TableRow sx={{ bgcolor: "action.hover" }}>
-                  <TableCell>Plan</TableCell>
-                  <TableCell>Pricing</TableCell>
-                  <TableCell>Features</TableCell>
-                  <TableCell>Companies</TableCell>
-                  <TableCell>Visibility</TableCell>
-                  <TableCell align="right">Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {plans.map((plan, index) => (
-                  <TableRow key={plan.id} hover sx={{ verticalAlign: "top" }}>
-                    {/* Plan name / slug */}
-                    <TableCell sx={{ minWidth: 160 }}>
-                      <Typography variant="body2" fontWeight={600}>{plan.name}</Typography>
-                      <Typography variant="caption" color="text.secondary">{plan.slug}</Typography>
-                      {plan.description ? (
-                        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.25 }}>
-                          {plan.description}
+        {/* Navigation Quick Links */}
+        <Paper variant="outlined" sx={{ p: 1.5, display: "flex", gap: 1, flexWrap: "wrap", bgcolor: "#ffffff", borderRadius: 2 }}>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin">Overview</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/companies">Companies</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/agency">Agencies</MuiButton>
+          <MuiButton size="small" variant="contained" sx={{ bgcolor: "#6366f1" }}>Plans</MuiButton>
+          <MuiButton size="small" variant="text" component={Link} href="/super-admin/settings">Settings</MuiButton>
+        </Paper>
+
+        {/* KPI row */}
+        <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)", lg: "repeat(4, 1fr)" } }}>
+          <KpiCard label="Total Plans" value={plans.length} />
+          <KpiCard label="Active Plans" value={totalActive} />
+          <KpiCard label="Public Tier" value={totalPublic} />
+          <KpiCard label="Subscribed Companies" value={totalCompanies} />
+        </Box>
+
+        <SectionCard title="Pricing Tier Matrix" subtitle="Configure feature caps and monthly/yearly subscription pricing.">
+          {loading ? (
+            <Typography variant="body2" color="text.secondary">Loading plans…</Typography>
+          ) : plans.length === 0 ? (
+            <EmptyPanel title="No plans yet" description="Click New Plan to create your first pricing plan." />
+          ) : (
+            <Box sx={{ display: "grid", gap: 2.5, gridTemplateColumns: { xs: "1fr", md: "repeat(2, 1fr)", lg: "repeat(3, 1fr)" } }}>
+              {plans.map((plan, index) => (
+                <Paper
+                  key={plan.id}
+                  variant="outlined"
+                  sx={{
+                    p: 2.5,
+                    borderRadius: 3,
+                    display: "flex",
+                    flexDirection: "column",
+                    justifyContent: "space-between",
+                    bgcolor: "#ffffff",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+                    border: "1px solid #e2e8f0",
+                    transition: "transform 0.2s, box-shadow 0.2s",
+                    "&:hover": {
+                      boxShadow: "0 8px 24px rgba(99, 102, 241, 0.12)",
+                      borderColor: "#6366f1",
+                    },
+                  }}
+                >
+                  {/* Header */}
+                  <Box>
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 1, mb: 1 }}>
+                      <Box>
+                        <Typography variant="h6" sx={{ fontWeight: 700, color: "#0f172a" }}>
+                          {plan.name}
                         </Typography>
-                      ) : null}
-                    </TableCell>
+                        <Typography variant="caption" sx={{ color: "#64748b", fontFamily: "monospace" }}>
+                          {plan.slug}
+                        </Typography>
+                      </Box>
+                      <Box sx={{ display: "flex", gap: 0.5, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        <StatusBadge label={plan.is_active ? "active" : "inactive"} />
+                        <StatusBadge label={plan.is_public ? "public" : "hidden"} />
+                      </Box>
+                    </Box>
 
-                    {/* Pricing */}
-                    <TableCell sx={{ minWidth: 130 }}>
-                      <Typography variant="body2">${Number(plan.price_monthly ?? 0).toFixed(2)}<Typography component="span" variant="caption" color="text.secondary">/mo</Typography></Typography>
-                      <Typography variant="body2">${Number(plan.price_yearly ?? 0).toFixed(2)}<Typography component="span" variant="caption" color="text.secondary">/yr</Typography></Typography>
-                    </TableCell>
+                    {plan.description ? (
+                      <Typography variant="body2" sx={{ color: "#64748b", mb: 2, minHeight: 40 }}>
+                        {plan.description}
+                      </Typography>
+                    ) : (
+                      <Box sx={{ mb: 2, minHeight: 40 }} />
+                    )}
 
-                    {/* Features list */}
-                    <TableCell sx={{ minWidth: 220 }}>
-                      <Stack spacing={0.5}>
+                    {/* Pricing Box */}
+                    <Box sx={{ py: 1.5, px: 2, bgcolor: "#f8fafc", borderRadius: 2, mb: 2, border: "1px solid #f1f5f9" }}>
+                      <Typography variant="h4" sx={{ fontWeight: 800, color: "#1e293b" }}>
+                        ${Number(plan.price_monthly ?? 0).toFixed(2)}
+                        <Typography component="span" variant="body2" sx={{ color: "#64748b", ml: 0.5 }}>/mo</Typography>
+                      </Typography>
+                      <Typography variant="caption" sx={{ color: "#64748b", display: "block", mt: 0.5 }}>
+                        ${Number(plan.price_yearly ?? 0).toFixed(2)}/yr • {Number(plan.tenant_plans_count ?? 0)} companies active
+                      </Typography>
+                    </Box>
+
+                    {/* Features List */}
+                    <Box sx={{ mb: 2 }}>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#334155", mb: 1 }}>
+                        Included Features & Limits
+                      </Typography>
+                      <Stack spacing={1}>
                         {plan.features.length === 0 ? (
-                          <Typography variant="caption" color="text.secondary">No features</Typography>
+                          <Typography variant="caption" sx={{ color: "#94a3b8", fontStyle: "italic" }}>
+                            No features configured yet.
+                          </Typography>
                         ) : (
                           plan.features.map((feature) => (
                             <Box
@@ -381,39 +426,34 @@ export default function SuperAdminPlansPage() {
                                 display: "flex",
                                 alignItems: "center",
                                 justifyContent: "space-between",
-                                gap: 1,
-                                border: 1,
-                                borderColor: "divider",
-                                borderRadius: 1,
-                                px: 1,
-                                py: 0.5,
+                                p: 1,
+                                borderRadius: 1.5,
+                                bgcolor: "#f8fafc",
+                                border: "1px solid #e2e8f0",
                               }}
                             >
-                              <Box>
-                                <Typography variant="caption" fontWeight={600}>
-                                  {feature.label ?? feature.key}
+                              <Box sx={{ minWidth: 0, mr: 1 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, color: "#1e293b", fontSize: "0.85rem" }}>
+                                  ✓ {feature.label ?? feature.key}
                                 </Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-                                  {feature.key} ={" "}
-                                  <strong>{feature.value === "-1" ? "∞ unlimited" : feature.value}</strong>
-                                  {" "}
-                                  <Box component="span" sx={{ opacity: 0.6 }}>({feature.type})</Box>
+                                <Typography variant="caption" sx={{ color: "#64748b", display: "block" }}>
+                                  {feature.key} = <strong>{feature.value === "-1" ? "unlimited" : feature.value}</strong> ({feature.type})
                                 </Typography>
                               </Box>
                               <Stack direction="row" spacing={0.5} flexShrink={0}>
                                 <MuiButton
                                   size="small"
-                                  variant="outlined"
-                                  sx={{ minWidth: 0, px: 1, py: 0.25, fontSize: 11 }}
+                                  variant="text"
+                                  sx={{ minWidth: 0, px: 0.75, py: 0.25, fontSize: 11 }}
                                   onClick={() => openEditFeature(plan, feature)}
                                 >
                                   Edit
                                 </MuiButton>
                                 <MuiButton
                                   size="small"
-                                  variant="outlined"
+                                  variant="text"
                                   color="error"
-                                  sx={{ minWidth: 0, px: 1, py: 0.25, fontSize: 11 }}
+                                  sx={{ minWidth: 0, px: 0.75, py: 0.25, fontSize: 11 }}
                                   disabled={deletingFeatureKey === `${plan.id}:${feature.id}`}
                                   onClick={() => void deleteFeature(plan, feature)}
                                 >
@@ -427,97 +467,84 @@ export default function SuperAdminPlansPage() {
                           size="small"
                           variant="outlined"
                           onClick={() => openAddFeature(plan)}
-                          sx={{ mt: 0.5, alignSelf: "flex-start" }}
+                          sx={{ mt: 1, alignSelf: "flex-start", borderRadius: 1.5 }}
                         >
-                          + Add Feature
+                          + Add Feature Limit
                         </MuiButton>
                       </Stack>
-                    </TableCell>
+                    </Box>
+                  </Box>
 
-                    {/* Companies */}
-                    <TableCell>{Number(plan.tenant_plans_count ?? 0)}</TableCell>
+                  {/* Card Footer Actions */}
+                  <Box sx={{ pt: 2, borderTop: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 1 }}>
+                    <Stack direction="row" spacing={0.5}>
+                      <MuiButton
+                        size="small"
+                        variant="outlined"
+                        disabled={index === 0 || reordering}
+                        onClick={() => void reorder(plan.id, "up")}
+                        sx={{ minWidth: 32, px: 1 }}
+                      >
+                        ↑
+                      </MuiButton>
+                      <MuiButton
+                        size="small"
+                        variant="outlined"
+                        disabled={index === plans.length - 1 || reordering}
+                        onClick={() => void reorder(plan.id, "down")}
+                        sx={{ minWidth: 32, px: 1 }}
+                      >
+                        ↓
+                      </MuiButton>
+                    </Stack>
 
-                    {/* Visibility */}
-                    <TableCell sx={{ minWidth: 110 }}>
-                      <Stack spacing={0.5}>
-                        <StatusBadge label={plan.is_active ? "active" : "inactive"} />
-                        {plan.is_public ? (
-                          <StatusBadge label="public" />
-                        ) : (
-                          <StatusBadge label="hidden" />
-                        )}
-                      </Stack>
-                    </TableCell>
-
-                    {/* Actions */}
-                    <TableCell align="right" sx={{ minWidth: 160 }}>
-                      <Stack spacing={0.75} alignItems="flex-end">
-                        <MuiButton
-                          size="small"
-                          variant="contained"
-                          onClick={() => openEditPlan(plan)}
-                        >
-                          Edit Plan
-                        </MuiButton>
+                    <Stack direction="row" spacing={1}>
+                      <MuiButton
+                        size="small"
+                        variant="contained"
+                        onClick={() => openEditPlan(plan)}
+                        sx={{ bgcolor: "#6366f1" }}
+                      >
+                        Edit Plan
+                      </MuiButton>
+                      {confirmDeletePlanId === plan.id ? (
                         <Stack direction="row" spacing={0.5}>
                           <MuiButton
                             size="small"
-                            variant="outlined"
-                            disabled={index === 0 || reordering}
-                            onClick={() => void reorder(plan.id, "up")}
-                            sx={{ minWidth: 0, px: 1 }}
+                            variant="contained"
+                            color="error"
+                            disabled={deletingPlanId === plan.id}
+                            onClick={() => void deletePlan(plan)}
                           >
-                            ↑
+                            {deletingPlanId === plan.id ? "Deleting…" : "Confirm"}
                           </MuiButton>
                           <MuiButton
                             size="small"
                             variant="outlined"
-                            disabled={index === plans.length - 1 || reordering}
-                            onClick={() => void reorder(plan.id, "down")}
-                            sx={{ minWidth: 0, px: 1 }}
+                            onClick={() => setConfirmDeletePlanId(null)}
                           >
-                            ↓
+                            Cancel
                           </MuiButton>
                         </Stack>
-                        {confirmDeletePlanId === plan.id ? (
-                          <Stack direction="row" spacing={0.5}>
-                            <MuiButton
-                              size="small"
-                              variant="contained"
-                              color="error"
-                              disabled={deletingPlanId === plan.id}
-                              onClick={() => void deletePlan(plan)}
-                            >
-                              {deletingPlanId === plan.id ? "Deleting…" : "Confirm"}
-                            </MuiButton>
-                            <MuiButton
-                              size="small"
-                              variant="outlined"
-                              onClick={() => setConfirmDeletePlanId(null)}
-                            >
-                              Cancel
-                            </MuiButton>
-                          </Stack>
-                        ) : (
-                          <MuiButton
-                            size="small"
-                            variant="outlined"
-                            color="error"
-                            disabled={Number(plan.tenant_plans_count ?? 0) > 0}
-                            onClick={() => setConfirmDeletePlanId(plan.id)}
-                          >
-                            Delete
-                          </MuiButton>
-                        )}
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Paper>
-        )}
-      </SectionCard>
+                      ) : (
+                        <MuiButton
+                          size="small"
+                          variant="outlined"
+                          color="error"
+                          disabled={Number(plan.tenant_plans_count ?? 0) > 0}
+                          onClick={() => setConfirmDeletePlanId(plan.id)}
+                        >
+                          Delete
+                        </MuiButton>
+                      )}
+                    </Stack>
+                  </Box>
+                </Paper>
+              ))}
+            </Box>
+          )}
+        </SectionCard>
+      </Box>
 
       {/* ── Create / Edit Plan Modal ─────────────────────────────────────────── */}
       <Modal

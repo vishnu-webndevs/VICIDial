@@ -277,7 +277,7 @@ export default function CallDashboardPage() {
             </Box>
           ) : null}
 
-          <Box sx={{ mt: 2, display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", xl: "1.6fr 1fr" } }}>
+          <Box sx={{ mt: 2, display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", lg: "1.6fr 1fr" } }}>
             <Paper variant="outlined" sx={{ overflowX: "auto" }}>
               <Table size="medium" sx={{ minWidth: 900 }}>
                 <TableHead>
