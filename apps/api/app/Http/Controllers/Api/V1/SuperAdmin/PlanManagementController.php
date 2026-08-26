@@ -175,9 +175,11 @@ class PlanManagementController extends Controller
                 $isPaid = $plan ? ((float) ($plan->price_monthly ?? 0) > 0 || (float) ($plan->price_yearly ?? 0) > 0) : false;
                 $isExpired = $this->planQuotaService->isSubscriptionExpired($tenant);
 
+                $cycle = $activeTenantPlan->billing_cycle ?? 'monthly';
+                $cycleDays = ($cycle === 'yearly') ? 365 : 28;
                 $effectiveExpiresAt = $activeTenantPlan?->expires_at
                     ? $activeTenantPlan->expires_at
-                    : ($activeTenantPlan?->started_at ? $activeTenantPlan->started_at->copy()->addDays(30) : ($tenant->created_at ? $tenant->created_at->copy()->addDays(30) : null));
+                    : ($activeTenantPlan?->started_at ? $activeTenantPlan->started_at->copy()->addDays($cycleDays) : ($tenant->created_at ? $tenant->created_at->copy()->addDays(28) : null));
 
                 return [
                     'id' => $tenant->id,
@@ -190,7 +192,7 @@ class PlanManagementController extends Controller
                         'price_monthly' => (float) ($plan->price_monthly ?? 0),
                         'price_yearly' => (float) ($plan->price_yearly ?? 0),
                         'is_paid' => $isPaid,
-                        'plan_type' => $isPaid ? 'Paid Plan' : '30-Day Demo Trial',
+                        'plan_type' => $isPaid ? 'Paid Plan' : '28-Day Demo Trial',
                     ] : null,
                     'subscription' => [
                         'billing_cycle' => $activeTenantPlan->billing_cycle ?? 'monthly',
@@ -230,9 +232,11 @@ class PlanManagementController extends Controller
             'expires_at' => ['nullable', 'date'],
         ]);
 
+        $cycle = (string) ($validated['billing_cycle'] ?? 'monthly');
+        $defaultDays = ($cycle === 'yearly') ? 365 : 28;
         $expiresAt = isset($validated['expires_at'])
             ? ($validated['expires_at'] ? \Carbon\Carbon::parse($validated['expires_at']) : null)
-            : now()->addDays(30);
+            : now()->addDays($defaultDays);
 
         DB::transaction(function () use ($tenant, $validated, $expiresAt) {
             TenantPlan::query()

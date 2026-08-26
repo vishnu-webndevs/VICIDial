@@ -106,13 +106,19 @@ export default function SuperAdminCompaniesPage() {
     }
   }
 
+  function applyDurationPreset(days: number) {
+    const target = new Date();
+    target.setDate(target.getDate() + days);
+    setNewExpiryDate(target.toISOString().split("T")[0]);
+  }
+
   function openExpiryModal(company: CompanyItem) {
     setExpiryModalCompany(company);
-    setNewExpiryDate(
-      company.subscription?.expires_at
-        ? new Date(company.subscription.expires_at).toISOString().split("T")[0]
-        : ""
-    );
+    if (company.subscription?.expires_at) {
+      setNewExpiryDate(new Date(company.subscription.expires_at).toISOString().split("T")[0]);
+    } else {
+      applyDurationPreset(28);
+    }
   }
 
   async function saveExpiryModal() {
@@ -238,7 +244,7 @@ export default function SuperAdminCompaniesPage() {
                                 border: `1px solid ${isPaid ? "rgba(99, 102, 241, 0.2)" : "rgba(100, 116, 139, 0.2)"}`,
                               }}
                             >
-                              {isPaid ? "Paid Plan" : "30-Day Demo Trial"}
+                              {isPaid ? "Paid Plan" : "28-Day Demo Trial"}
                             </Box>
                           </Box>
                         </TableCell>
@@ -348,8 +354,27 @@ export default function SuperAdminCompaniesPage() {
       >
         <Box sx={{ display: "grid", gap: 2 }}>
           <Typography variant="body2" sx={{ color: "#64748b" }}>
-            Configure or extend the subscription expiration date for this tenant workspace.
+            Select a quick plan duration preset to automatically calculate the expiration date, or pick a custom date below.
           </Typography>
+
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, my: 0.5 }}>
+            <MuiButton size="small" variant="outlined" onClick={() => applyDurationPreset(28)} sx={{ fontSize: "0.75rem", borderRadius: 1.5, textTransform: "none", fontWeight: 600 }}>
+              +1 Month (28 Days)
+            </MuiButton>
+            <MuiButton size="small" variant="outlined" onClick={() => applyDurationPreset(56)} sx={{ fontSize: "0.75rem", borderRadius: 1.5, textTransform: "none", fontWeight: 600 }}>
+              +2 Months (56 Days)
+            </MuiButton>
+            <MuiButton size="small" variant="outlined" onClick={() => applyDurationPreset(84)} sx={{ fontSize: "0.75rem", borderRadius: 1.5, textTransform: "none", fontWeight: 600 }}>
+              +3 Months (84 Days)
+            </MuiButton>
+            <MuiButton size="small" variant="outlined" onClick={() => applyDurationPreset(168)} sx={{ fontSize: "0.75rem", borderRadius: 1.5, textTransform: "none", fontWeight: 600 }}>
+              +6 Months (168 Days)
+            </MuiButton>
+            <MuiButton size="small" variant="outlined" onClick={() => applyDurationPreset(365)} sx={{ fontSize: "0.75rem", borderRadius: 1.5, textTransform: "none", fontWeight: 600 }}>
+              +1 Year (365 Days)
+            </MuiButton>
+          </Box>
+
           <TextField
             type="date"
             label="Expiration Date"
@@ -357,8 +382,15 @@ export default function SuperAdminCompaniesPage() {
             value={newExpiryDate}
             onChange={(e) => setNewExpiryDate(e.target.value)}
             fullWidth
-            sx={{ bgcolor: "#fff", mt: 1 }}
+            sx={{ bgcolor: "#fff" }}
           />
+
+          {newExpiryDate && (
+            <Typography variant="caption" sx={{ color: "#4f46e5", fontWeight: 700, display: "block", mt: -0.5 }}>
+              📅 Expiration Date: {new Date(newExpiryDate).toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" })}
+            </Typography>
+          )}
+
           <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1 }}>
             <MuiButton variant="outlined" onClick={() => setExpiryModalCompany(null)}>
               Cancel

@@ -60,7 +60,8 @@ class PlanQuotaService
                     }
 
                     if ($tenantPlan->started_at) {
-                        return $tenantPlan->started_at->copy()->addDays(30)->isPast();
+                        $days = ($tenantPlan->billing_cycle === 'yearly') ? 365 : 28;
+                        return $tenantPlan->started_at->copy()->addDays($days)->isPast();
                     }
                 }
             } catch (\Throwable) {
@@ -68,7 +69,7 @@ class PlanQuotaService
             }
         }
 
-        return $tenant->created_at ? $tenant->created_at->copy()->addDays(30)->isPast() : false;
+        return $tenant->created_at ? $tenant->created_at->copy()->addDays(28)->isPast() : false;
     }
 
     public function featureForRequest(string $method, string $routeUri): ?string

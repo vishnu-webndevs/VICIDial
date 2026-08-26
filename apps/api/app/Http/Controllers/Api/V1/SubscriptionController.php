@@ -31,9 +31,11 @@ class SubscriptionController extends Controller
             ->first();
 
         $startedAt = $activeTenantPlan?->started_at ?? $tenant->created_at;
+        $cycle = $activeTenantPlan?->billing_cycle ?? 'monthly';
+        $cycleDays = ($cycle === 'yearly') ? 365 : 28;
         $expiresAt = $activeTenantPlan?->expires_at
             ? $activeTenantPlan->expires_at
-            : ($startedAt ? $startedAt->copy()->addDays(30) : null);
+            : ($startedAt ? $startedAt->copy()->addDays($cycleDays) : null);
 
         $isExpired = $planQuotaService->isSubscriptionExpired($tenant);
         $daysRemaining = $expiresAt ? max(0, (int) ceil(now()->diffInSeconds($expiresAt, false) / 86400)) : 0;
