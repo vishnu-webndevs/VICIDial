@@ -81,6 +81,12 @@ export async function apiRequest<T>(
         window.location.href = "/login";
       }
     }
+
+    if (response.status === 402 || responseBody?.error === "subscription_expired") {
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/billing")) {
+        window.location.href = "/billing";
+      }
+    }
     const usageLimitErrorCode = typeof responseBody?.error === "string" ? responseBody.error : null;
     const message =
       responseBody?.error?.message ??

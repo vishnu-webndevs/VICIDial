@@ -59,14 +59,9 @@ class PlanQuotaService
                         return $tenantPlan->expires_at->isPast();
                     }
 
-                    $plan = $tenantPlan->plan;
-                    $isPaid = $plan ? ((float) ($plan->price_monthly ?? 0) > 0 || (float) ($plan->price_yearly ?? 0) > 0) : false;
-
-                    if (!$isPaid && $tenantPlan->started_at) {
+                    if ($tenantPlan->started_at) {
                         return $tenantPlan->started_at->copy()->addDays(30)->isPast();
                     }
-
-                    return false;
                 }
             } catch (\Throwable) {
                 // Ignore exception and fallback

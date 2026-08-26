@@ -191,7 +191,42 @@ export function AppShell({
   const hasPermissionAccess = requiredPermissions.every((permission) => can(permission));
   const hasRouteAccess = hasRoleAccess && hasPermissionAccess;
 
-  const renderedContent = !hasRouteAccess ? (
+  const isPlatformSuperAdmin = isPlatformAdmin || role === "platform_super_admin";
+  const isExpiredBlocked = !isPlatformSuperAdmin && trialExpired && pathname !== "/billing" && !pathname.startsWith("/billing/");
+
+  const renderedContent = isExpiredBlocked ? (
+    <Box sx={{ minHeight: "100vh", bgcolor: "#f8fafc", display: "flex", alignItems: "center", justifyContent: "center", p: 3 }}>
+      <Container maxWidth="sm">
+        <Box sx={{ bgcolor: "#fff", p: 4, borderRadius: 3, boxShadow: "0 10px 25px rgba(0,0,0,0.08)", textAlign: "center" }}>
+          <Box sx={{ width: 64, height: 64, borderRadius: "50%", bgcolor: "rgba(239, 68, 68, 0.1)", color: "#ef4444", display: "flex", alignItems: "center", justifyContent: "center", mx: "auto", mb: 2 }}>
+            <i className="bx bx-lock-alt" style={{ fontSize: "2rem" }} />
+          </Box>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: "#0f172a", mb: 1 }}>
+            Subscription Expired
+          </Typography>
+          <Typography variant="body2" sx={{ color: "#64748b", mb: 3 }}>
+            Your 30-day demo trial or subscription plan for <strong>{tenantName || "your workspace"}</strong> has expired. Please upgrade your plan or contact your administrator to extend access.
+          </Typography>
+          <Box sx={{ display: "flex", gap: 1.5, justifyContent: "center" }}>
+            <a
+              href="/billing"
+              style={{
+                backgroundColor: "#6366f1",
+                color: "#ffffff",
+                padding: "10px 24px",
+                borderRadius: "8px",
+                fontWeight: 600,
+                textDecoration: "none",
+                display: "inline-block",
+              }}
+            >
+              Upgrade Subscription Now
+            </a>
+          </Box>
+        </Box>
+      </Container>
+    </Box>
+  ) : !hasRouteAccess ? (
     <Box sx={{ minHeight: "100vh", bgcolor: "background.default", py: 10 }}>
       <Container maxWidth="lg">
         <Alert severity="error" sx={{ maxWidth: 640 }}>

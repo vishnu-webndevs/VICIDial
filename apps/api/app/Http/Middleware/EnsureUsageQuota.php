@@ -21,15 +21,22 @@ class EnsureUsageQuota
         }
 
         $user = $request->user();
-        if ($this->planQuotaService->isSubscriptionExpired($tenant) && !($user?->is_platform_admin)) {
+        $routeUri = (string) ($request->route()?->uri() ?? trim($request->path(), '/'));
+        $normalizedPath = trim((string) preg_replace('/^api\/v\d+\//i', '', $routeUri), '/');
+
+        $isExemptEndpoint =
+            str_contains($normalizedPath, 'billing') ||
+            str_contains($normalizedPath, 'plans') ||
+            $normalizedPath === 'auth/me' ||
+            $normalizedPath === 'auth/logout';
+
+        if (!$isExemptEndpoint && !($user?->is_platform_admin) && $this->planQuotaService->isSubscriptionExpired($tenant)) {
             return response()->json([
                 'error' => 'subscription_expired',
-                'message' => 'Your 30-day demo trial or subscription has expired. Please upgrade your plan to continue.',
+                'message' => 'Your 30-day demo trial or subscription has expired. Please upgrade your plan to continue accessing services.',
                 'redirect_url' => '/billing',
             ], 402);
         }
-
-        $routeUri = (string) ($request->route()?->uri() ?? trim($request->path(), '/'));
         $featureKey = $this->planQuotaService->featureForRequest($request->method(), $routeUri);
         if (! $featureKey) {
             return $next($request);

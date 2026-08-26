@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { trackFunnelEvent } from "@/lib/funnel";
 import { fetchPublicPlans, type PublicPlan } from "@/lib/product-api";
+import { getSessionStorageState } from "@/lib/auth-session";
 
 const faqs = [
   {
@@ -41,8 +42,11 @@ const faqs = [
 export default function LandingPricingClient() {
   const [isYearly, setIsYearly] = useState(false);
   const [plans, setPlans] = useState<PublicPlan[]>([]);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
+    const { token } = getSessionStorageState();
+    setIsLoggedIn(Boolean(token));
     void fetchPublicPlans().then((response) => {
       setPlans(response);
     }).catch(() => {
@@ -137,20 +141,38 @@ export default function LandingPricingClient() {
                   ))}
                 </ul>
 
-                <Link
-                  href={"/register"}
-                  onClick={() => {
-                    trackFunnelEvent("pricing_cta_start_trial", { placement: "pricing_page", plan: plan.name });
-                    trackFunnelEvent("signup_flow_started", { source: "pricing_page" });
-                  }}
-                  className={`mt-8 block w-full rounded-xl px-4 py-3 text-center text-sm font-semibold transition-colors ${
-                    index === 1
-                      ? "bg-indigo-600 text-white hover:bg-indigo-700"
-                      : "border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
-                  }`}
-                >
-                  Start Free Trial
-                </Link>
+                {(() => {
+                  const price = Number(plan.price_monthly ?? 0);
+                  const isFreePlan = price === 0;
+
+                  let buttonText = "Start Free Trial";
+                  if (isLoggedIn) {
+                    buttonText = isFreePlan ? "Free Demo Plan" : "Upgrade Subscription";
+                  } else {
+                    buttonText = isFreePlan ? "Start Free Trial" : "Choose Plan";
+                  }
+
+                  const targetHref = isLoggedIn
+                    ? isFreePlan ? "/billing" : `/billing/payment?plan=${plan.slug}&cycle=${isYearly ? "yearly" : "monthly"}`
+                    : "/register";
+
+                  return (
+                    <Link
+                      href={targetHref}
+                      onClick={() => {
+                        trackFunnelEvent("pricing_cta_start_trial", { placement: "pricing_page", plan: plan.name });
+                        trackFunnelEvent("signup_flow_started", { source: "pricing_page" });
+                      }}
+                      className={`mt-8 block w-full rounded-xl px-4 py-3 text-center text-sm font-semibold transition-colors ${
+                        index === 1
+                          ? "bg-indigo-600 text-white hover:bg-indigo-700"
+                          : "border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50"
+                      }`}
+                    >
+                      {buttonText}
+                    </Link>
+                  );
+                })()}
               </article>
             ))}
           </div>
