@@ -115,10 +115,11 @@ class DispatchOutboundMessageJob implements ShouldQueue
             'campaign_run_id' => $this->campaignRunId,
         ]);
 
-        $alreadySent = false;
+        $alreadySentSameTemplate24h = false;
         if ($channel === 'whatsapp' && $lead->phone) {
             $normalizedPhone = preg_replace('/[^0-9]/', '', (string) $lead->phone);
-            $alreadySent = Message::query()
+
+            $alreadySentSameTemplate24h = Message::query()
                 ->join('message_threads', 'messages.thread_id', '=', 'message_threads.id')
                 ->where('message_threads.tenant_id', $tenantId)
                 ->where('message_threads.channel', 'whatsapp')
@@ -129,7 +130,30 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 })
                 ->where('messages.direction', 'outbound')
                 ->where('messages.status', '!=', 'failed')
+                ->where('messages.created_at', '>=', now()->subHours(24))
+                ->where(function ($query) {
+                    if ($this->metaTemplateId) {
+                        $query->where(function ($q) {
+                            $q->where('messages.metadata->meta_template_id', $this->metaTemplateId)
+                              ->orWhere('messages.metadata->meta_template_id', (string) $this->metaTemplateId);
+                        });
+                    } elseif ($this->templateKey !== '') {
+                        $query->where('messages.metadata->template_key', $this->templateKey);
+                    }
+                })
                 ->exists();
+        }
+
+        if ($alreadySentSameTemplate24h) {
+            Log::info('Skipping outbound WhatsApp message - exact same template was already sent to this number in the last 24 hours.', [
+                'tenant_id' => $tenantId,
+                'lead_id' => $lead->id,
+                'phone' => $lead->phone,
+                'meta_template_id' => $this->metaTemplateId,
+                'template_key' => $this->templateKey,
+            ]);
+            $this->markCampaignRunItemResult($tenantId, $this->campaignRunId, $this->campaignId, true);
+            return;
         }
 
         $content = trim($this->content);
@@ -178,18 +202,7 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 ], $this->variables);
 
                 $content = $metaTemplateService->buildTemplateTextPreview($metaTemplate, $variables);
-
-                if ($alreadySent) {
-                    $bodyOrPayload = $content;
-                    Log::info('WhatsApp message already sent to this number before. Bypassing Meta template and sending as regular free-form text message to save cost.', [
-                        'tenant_id' => $tenantId,
-                        'lead_id' => $lead->id,
-                        'phone' => $lead->phone,
-                        'campaign_id' => $this->campaignId,
-                    ]);
-                } else {
-                    $bodyOrPayload = $metaTemplateService->buildTemplatePayload($metaTemplate, (string) $lead->phone, $variables);
-                }
+                $bodyOrPayload = $metaTemplateService->buildTemplatePayload($metaTemplate, (string) $lead->phone, $variables);
             } else {
                 Log::warning('Meta template not found.', [
                     'tenant_id' => $tenantId,
