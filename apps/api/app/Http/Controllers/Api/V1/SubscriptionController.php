@@ -21,14 +21,41 @@ class SubscriptionController extends Controller
     public function show(Request $request): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');
-        $subscription = Subscription::query()
-            ->with('plan')
+        $planQuotaService = app(\App\Services\PlanQuotaService::class);
+        $plan = $planQuotaService->resolveActivePlan($tenant);
+
+        $activeTenantPlan = TenantPlan::query()
             ->where('tenant_id', $tenant->id)
-            ->latest('created_at')
+            ->where('status', 'active')
+            ->latest('started_at')
             ->first();
 
+        $startedAt = $activeTenantPlan?->started_at ?? $tenant->created_at;
+        $expiresAt = $activeTenantPlan?->expires_at
+            ? $activeTenantPlan->expires_at
+            : ($startedAt ? $startedAt->copy()->addDays(30) : null);
+
+        $isExpired = $planQuotaService->isSubscriptionExpired($tenant);
+        $daysRemaining = $expiresAt ? max(0, (int) ceil(now()->diffInSeconds($expiresAt, false) / 86400)) : 0;
+
         return response()->json([
-            'data' => $subscription,
+            'data' => [
+                'id' => $activeTenantPlan?->id ?? $tenant->id,
+                'status' => $isExpired ? 'expired' : ($activeTenantPlan?->status ?? 'active'),
+                'billing_cycle' => $activeTenantPlan?->billing_cycle ?? 'monthly',
+                'plan' => $plan ? [
+                    'id' => $plan->id,
+                    'name' => $plan->name,
+                    'slug' => $plan->slug,
+                    'description' => $plan->description,
+                    'price_monthly' => $plan->price_monthly,
+                    'price_yearly' => $plan->price_yearly,
+                ] : null,
+                'started_at' => $startedAt ? $startedAt->toIso8601String() : null,
+                'expires_at' => $expiresAt ? $expiresAt->toIso8601String() : null,
+                'is_expired' => $isExpired,
+                'days_remaining' => $daysRemaining,
+            ],
         ]);
     }
 

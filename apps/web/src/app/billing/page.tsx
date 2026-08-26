@@ -27,7 +27,10 @@ type Subscription = {
   status: string;
   billing_cycle: "monthly" | "yearly";
   plan: Plan;
-  trial_ends_at?: string | null;
+  started_at?: string | null;
+  expires_at?: string | null;
+  is_expired?: boolean;
+  days_remaining?: number;
 };
 
 function formatPlanPrice(plan: Plan, cycle: "monthly" | "yearly"): string {
@@ -101,10 +104,7 @@ export default function BillingPage() {
 
   const isTrialExpired = useMemo(() => {
     if (!subscription) return false;
-    if (subscription.status === "trialing" && subscription.trial_ends_at) {
-      return new Date(subscription.trial_ends_at) < new Date();
-    }
-    return ["canceled", "unpaid", "past_due"].includes(subscription.status);
+    return Boolean(subscription.is_expired) || subscription.status === "expired" || ["canceled", "unpaid", "past_due"].includes(subscription.status);
   }, [subscription]);
 
   async function onSaveSubscription() {
@@ -117,7 +117,7 @@ export default function BillingPage() {
       <Box sx={{ display: "grid", gap: 2 }}>
         {isTrialExpired && (
           <Alert severity="error">
-            Your plan has expired. Please select a plan and billing cycle below to reactivate your account.
+            Your subscription has expired. Please select a plan and billing cycle below to reactivate your account.
           </Alert>
         )}
         <SectionCard
@@ -176,9 +176,71 @@ export default function BillingPage() {
           )}
 
           {subscription && (
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-              Current subscription: {subscription.plan.name} ({subscription.billing_cycle}, {subscription.status})
-            </Typography>
+            <Paper
+              variant="outlined"
+              sx={{
+                mt: 2.5,
+                p: 2,
+                bgcolor: subscription.is_expired || subscription.status === "expired" ? "rgba(239, 68, 68, 0.04)" : "#f8fafc",
+                borderColor: subscription.is_expired || subscription.status === "expired" ? "rgba(239, 68, 68, 0.3)" : "#e2e8f0",
+                borderRadius: 2,
+              }}
+            >
+              <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr 1fr" } }}>
+                <Box>
+                  <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, display: "block" }}>
+                    CURRENT PLAN & STATUS
+                  </Typography>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "#0f172a", mt: 0.25 }}>
+                    {subscription.plan?.name ?? "Starter"} ({subscription.billing_cycle})
+                  </Typography>
+                  <Box sx={{ mt: 0.5 }}>
+                    <Box
+                      component="span"
+                      sx={{
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: 1,
+                        fontSize: "0.7rem",
+                        fontWeight: 700,
+                        bgcolor: subscription.is_expired || subscription.status === "expired" ? "#fee2e2" : "#dcfce7",
+                        color: subscription.is_expired || subscription.status === "expired" ? "#991b1b" : "#166534",
+                      }}
+                    >
+                      {subscription.is_expired || subscription.status === "expired" ? "Expired" : "Active"}
+                    </Box>
+                  </Box>
+                </Box>
+
+                <Box>
+                  <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, display: "block" }}>
+                    📅 LAST RENEWED ON
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: "#334155", mt: 0.25 }}>
+                    {subscription.started_at ? new Date(subscription.started_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "N/A"}
+                  </Typography>
+                </Box>
+
+                <Box>
+                  <Typography variant="caption" sx={{ color: "#64748b", fontWeight: 700, display: "block" }}>
+                    ⏳ EXPIRATION DATE
+                  </Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontWeight: 700,
+                      color: subscription.is_expired || subscription.status === "expired" ? "#dc2626" : "#0284c7",
+                      mt: 0.25,
+                    }}
+                  >
+                    {subscription.expires_at ? new Date(subscription.expires_at).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" }) : "30-Day Demo Trial"}
+                  </Typography>
+                  <Typography variant="caption" sx={{ display: "block", color: subscription.is_expired ? "#ef4444" : "#64748b", mt: 0.25, fontWeight: 600 }}>
+                    {subscription.is_expired ? "Subscription Expired" : `${subscription.days_remaining ?? 0} days remaining`}
+                  </Typography>
+                </Box>
+              </Box>
+            </Paper>
           )}
 
           {message && (

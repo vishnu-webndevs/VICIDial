@@ -281,6 +281,7 @@ class PlanManagementController extends Controller
         if ($activePlan) {
             $activePlan->update([
                 'expires_at' => $expiresAt,
+                'started_at' => now(),
             ]);
         } else {
             $defaultPlan = Plan::query()->where('is_active', true)->first();
