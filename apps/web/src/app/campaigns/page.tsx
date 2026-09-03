@@ -351,6 +351,10 @@ export default function CampaignsPage() {
         formData.append("message_use_meta_template", shouldUseMetaTemplate ? "1" : "0");
         if (shouldUseMetaTemplate && campaignForm.message_meta_template_id) {
           formData.append("message_meta_template_id", campaignForm.message_meta_template_id);
+          const metaTpl = metaTemplates.find((t) => t.id === campaignForm.message_meta_template_id);
+          if (metaTpl?.template_name) {
+            formData.append("message_template_key", metaTpl.template_name);
+          }
         }
         if (campaignForm.message_media_file) {
           formData.append("message_media_file", campaignForm.message_media_file);

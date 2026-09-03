@@ -110,7 +110,10 @@ class CampaignController extends Controller
 
             $content = trim((string) ($validated['message_content'] ?? ''));
             $templateKey = trim((string) ($validated['message_template_key'] ?? ''));
-            if ($content === '' && $templateKey === '') {
+            $metaTemplateId = trim((string) ($validated['message_meta_template_id'] ?? ''));
+            $useMetaTemplate = ! empty($validated['message_use_meta_template']);
+
+            if ($content === '' && $templateKey === '' && $metaTemplateId === '' && ! $useMetaTemplate) {
                 return response()->json([
                     'error' => [
                         'code' => 'MESSAGE_CONTENT_REQUIRED',
