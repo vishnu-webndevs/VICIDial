@@ -61,7 +61,7 @@ class OperationalHealthController extends Controller
             return 'down';
         }
     }
-    public function logs(): JsonResponse
+    public function logs(\Illuminate\Http\Request $request): JsonResponse
     {
         $logPath = storage_path('logs/laravel.log');
         
@@ -69,19 +69,52 @@ class OperationalHealthController extends Controller
             return response()->json(['logs' => 'Log file not found.']);
         }
 
-        $lines = 200;
+        $tenant = $request->attributes->get('tenant');
+        $tenantId = $tenant ? (string) $tenant->id : null;
+        $user = $request->user();
+
+        $isSuperAdmin = false;
+        if ($user) {
+            $roleSlug = (string) ($user->role?->slug ?? '');
+            if (in_array($roleSlug, ['platform_super_admin', 'super_admin'], true) || (bool) ($user->is_super_admin ?? false)) {
+                $isSuperAdmin = true;
+            }
+        }
+
+        $maxLinesToScan = 2000;
         $file = new \SplFileObject($logPath, 'r');
         $file->seek(PHP_INT_MAX);
-        $lastLine = $file->key();
-        $linesToRead = max(0, $lastLine - $lines);
-        
-        $file->seek($linesToRead);
-        $content = '';
+        $totalLines = $file->key();
+
+        $startLine = max(0, $totalLines - $maxLinesToScan);
+        $file->seek($startLine);
+
+        $matchedLines = [];
         while (!$file->eof()) {
-            $content .= $file->current();
+            $line = (string) $file->current();
+            if (trim($line) !== '') {
+                if ($isSuperAdmin) {
+                    $matchedLines[] = $line;
+                } elseif ($tenantId !== null && $tenantId !== '') {
+                    $hasTenantIdInLog = str_contains($line, '"tenant_id":') || str_contains($line, "'tenant_id' =>");
+                    $matchesThisTenant = str_contains($line, '"tenant_id":"' . $tenantId . '"') || str_contains($line, "'tenant_id' => '" . $tenantId . "'");
+                    
+                    if ($matchesThisTenant) {
+                        $matchedLines[] = $line;
+                    } elseif (! $hasTenantIdInLog) {
+                        // General system line without any specific tenant tag
+                        $matchedLines[] = $line;
+                    }
+                }
+            }
             $file->next();
         }
 
-        return response()->json(['logs' => $content]);
+        $outputLines = array_slice($matchedLines, -200);
+        $content = implode('', $outputLines);
+
+        return response()->json([
+            'logs' => $content !== '' ? $content : 'No system log entries found for your company account.',
+        ]);
     }
 }
