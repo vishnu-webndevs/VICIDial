@@ -96,13 +96,11 @@ class OperationalHealthController extends Controller
                 if ($isSuperAdmin) {
                     $matchedLines[] = $line;
                 } elseif ($tenantId !== null && $tenantId !== '') {
-                    $hasTenantIdInLog = str_contains($line, '"tenant_id":') || str_contains($line, "'tenant_id' =>");
-                    $matchesThisTenant = str_contains($line, '"tenant_id":"' . $tenantId . '"') || str_contains($line, "'tenant_id' => '" . $tenantId . "'");
-                    
+                    $matchesThisTenant = str_contains($line, '"tenant_id":"' . $tenantId . '"')
+                        || str_contains($line, "'tenant_id' => '" . $tenantId . "'")
+                        || str_contains($line, '"tenant_id": "' . $tenantId . '"');
+
                     if ($matchesThisTenant) {
-                        $matchedLines[] = $line;
-                    } elseif (! $hasTenantIdInLog) {
-                        // General system line without any specific tenant tag
                         $matchedLines[] = $line;
                     }
                 }
