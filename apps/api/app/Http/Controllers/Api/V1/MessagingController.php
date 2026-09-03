@@ -140,7 +140,7 @@ class MessagingController extends Controller
         return response()->json(['received' => true], 200);
     }
 
-    public function webhookMetaWhatsapp(Request $request)
+    public function webhookMetaWhatsapp(Request $request, ?string $tenantId = null)
     {
         if ($request->isMethod('GET')) {
             $mode = (string) $request->query('hub_mode', $request->query('hub.mode', ''));
@@ -148,11 +148,13 @@ class MessagingController extends Controller
             $challenge = (string) $request->query('hub_challenge', $request->query('hub.challenge', ''));
 
             if ($mode === 'subscribe' && $token !== '' && $challenge !== '') {
+                $globalToken = (string) config('services.meta.whatsapp_verify_token', env('META_WHATSAPP_VERIFY_TOKEN', 'wnd_whatsapp_webhook_token'));
                 $provider = $this->resolveMetaWhatsappProviderByVerifyToken($token);
-                if ($provider) {
+
+                if ($token === $globalToken || $provider || ($tenantId !== null && $tenantId !== '')) {
                     $this->storeMetaWhatsappWebhookEvent(
-                        tenantId: (string) $provider->tenant_id,
-                        providerAccountId: (string) $provider->id,
+                        tenantId: $provider ? (string) $provider->tenant_id : $tenantId,
+                        providerAccountId: $provider ? (string) $provider->id : null,
                         status: 'processed',
                         eventType: 'meta_whatsapp.verify',
                         headers: $request->headers->all(),
@@ -163,7 +165,7 @@ class MessagingController extends Controller
             }
 
             $this->storeMetaWhatsappWebhookEvent(
-                tenantId: null,
+                tenantId: $tenantId,
                 providerAccountId: null,
                 status: 'rejected',
                 eventType: 'meta_whatsapp.verify',
@@ -938,7 +940,6 @@ class MessagingController extends Controller
         $providers = ProviderAccount::query()
             ->where('provider_type', 'meta_whatsapp')
             ->latest('created_at')
-            ->limit(50)
             ->get();
 
         foreach ($providers as $provider) {
@@ -961,7 +962,6 @@ class MessagingController extends Controller
         $providers = ProviderAccount::query()
             ->where('provider_type', 'meta_whatsapp')
             ->latest('created_at')
-            ->limit(50)
             ->get();
 
         foreach ($providers as $provider) {

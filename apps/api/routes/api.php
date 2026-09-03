@@ -735,7 +735,7 @@ Route::match(['GET', 'POST'], '/webhooks/teams/approvals/{id}/respond', [CorePha
 Route::post('/v1/webhooks/twilio/sms', [MessagingController::class, 'webhookSms']);
 Route::post('/v1/webhooks/twilio/whatsapp', [MessagingController::class, 'webhookWhatsapp']);
 Route::post('/v1/webhooks/twilio/message-status', [MessagingController::class, 'webhookMessageStatus']);
-Route::match(['GET', 'POST'], '/v1/webhooks/meta/whatsapp', [MessagingController::class, 'webhookMetaWhatsapp']);
+Route::match(['GET', 'POST'], '/v1/webhooks/meta/whatsapp/{tenantId?}', [MessagingController::class, 'webhookMetaWhatsapp']);
 Route::post('/webhooks/sms/mock', [CorePhaseOneController::class, 'inboundSmsMock']);
 Route::post('/webhooks/whatsapp/mock', [CorePhaseOneController::class, 'inboundWhatsappMock']);
 Route::post('/integrations/teams/mock-notify', [CorePhaseOneController::class, 'teamsNotifyMock']);
