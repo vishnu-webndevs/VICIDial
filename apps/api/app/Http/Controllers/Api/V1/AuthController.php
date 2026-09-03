@@ -56,32 +56,32 @@ class AuthController extends Controller
         $this->ensureCompanyOwnerRolePermissions($ownerRole);
         $plan = Plan::query()
             ->where('is_active', true)
-            ->orderByRaw("CASE WHEN slug = 'starter' THEN 0 ELSE 1 END")
-            ->orderBy('name')
+            ->orderByRaw("CASE WHEN slug = 'free' THEN 0 WHEN slug = 'starter' THEN 1 ELSE 2 END")
+            ->orderBy('sort_order')
             ->first();
         if (! $plan) {
-            $plan = Plan::query()->where('slug', 'starter')->first();
+            $plan = Plan::query()->where('slug', 'free')->first();
             if ($plan) {
                 if (! $plan->is_active) {
                     $plan->forceFill(['is_active' => true])->save();
                 }
             } else {
                 $plan = Plan::query()->create([
-                    'slug' => 'starter',
-                    'name' => 'Starter',
-                    'description' => 'Auto-created default starter plan.',
+                    'slug' => 'free',
+                    'name' => 'Free',
+                    'description' => 'Get started at no cost with 28-Day Demo Trial.',
                     'billing_cycle' => 'monthly',
-                    'price_monthly' => 49.00,
-                    'price_yearly' => 470.40,
-                    'monthly_price_cents' => 4900,
-                    'yearly_price_cents' => 47040,
-                    'trial_days' => 14,
-                    'api_quota_monthly' => 50000,
-                    'call_minutes_monthly' => 1000,
-                    'webhook_events_monthly' => 10000,
+                    'price_monthly' => 0.00,
+                    'price_yearly' => 0.00,
+                    'monthly_price_cents' => 0,
+                    'yearly_price_cents' => 0,
+                    'trial_days' => 28,
+                    'api_quota_monthly' => 5000,
+                    'call_minutes_monthly' => 100,
+                    'webhook_events_monthly' => 1000,
                     'is_active' => true,
                     'is_public' => true,
-                    'sort_order' => 1,
+                    'sort_order' => 0,
                 ]);
             }
         }
@@ -156,6 +156,7 @@ class AuthController extends Controller
                     'plan_id' => $plan->id,
                     'billing_cycle' => 'monthly',
                     'started_at' => now(),
+                    'expires_at' => now()->addDays(28),
                     'status' => 'active',
                 ]);
             }

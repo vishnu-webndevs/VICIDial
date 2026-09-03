@@ -35,7 +35,8 @@ class PlanQuotaService
         }
 
         $query = Plan::query()
-            ->where('slug', 'starter')
+            ->whereIn('slug', ['free', 'starter'])
+            ->orderByRaw("CASE WHEN slug = 'free' THEN 0 ELSE 1 END")
             ->where('is_active', true);
         if (SchemaInspector::hasTable('plan_features')) {
             $query->with('features');
