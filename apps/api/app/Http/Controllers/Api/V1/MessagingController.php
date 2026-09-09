@@ -440,9 +440,9 @@ class MessagingController extends Controller
                 'priority' => 'normal',
             ]);
         }
-        $thread->last_message_at = $sentAt;
+        $thread->last_message_at = now();
         if (! $thread->first_inbound_at) {
-            $thread->first_inbound_at = $sentAt;
+            $thread->first_inbound_at = now();
         }
         $thread->save();
 
