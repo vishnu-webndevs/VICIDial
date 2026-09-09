@@ -569,7 +569,8 @@ class CorePhaseOneController extends Controller
         $messages = Message::query()
             ->where('tenant_id', $tenant->id)
             ->where('thread_id', $thread->id)
-            ->orderByDesc('sent_at')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
             ->paginate((int) $request->integer('per_page', 50));
 
         // Return messages in chronological order (earliest first) for chat UI

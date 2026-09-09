@@ -540,7 +540,7 @@ class MessagingController extends Controller
         }
 
         try {
-            return \Illuminate\Support\Carbon::createFromTimestamp((int) $trimmed);
+            return \Illuminate\Support\Carbon::createFromTimestamp((int) $trimmed)->setTimezone(config('app.timezone', 'UTC'));
         } catch (\Throwable) {
             return null;
         }
