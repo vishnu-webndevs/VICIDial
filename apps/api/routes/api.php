@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\MessageTemplateController;
 use App\Http\Controllers\Api\V1\MetaTemplateController;
 use App\Http\Controllers\Api\V1\WhatsAppIntegrationController;
 use App\Http\Controllers\Api\V1\MessageAttachmentController;
+use App\Http\Controllers\Api\V1\AiBotController;
 use App\Http\Controllers\Api\V1\RealtimeController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\PlanController;
@@ -411,6 +412,22 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
         Route::post('/inbox/sla-policy', [CorePhaseOneController::class, 'inboxSlaPolicyUpsert'])
             ->middleware('permission:tenant.update');
         Route::post('/inbox/whatsapp-opt-in', [CorePhaseOneController::class, 'whatsappOptInUpdate'])
+            ->middleware('permission:tenant.update');
+
+        // AI Bot Engine Routes
+        Route::get('/ai-bots', [AiBotController::class, 'index'])
+            ->middleware('permission:tenant.view');
+        Route::post('/ai-bots', [AiBotController::class, 'store'])
+            ->middleware('permission:tenant.update');
+        Route::get('/ai-bots/{id}', [AiBotController::class, 'show'])
+            ->middleware('permission:tenant.view');
+        Route::put('/ai-bots/{id}', [AiBotController::class, 'update'])
+            ->middleware('permission:tenant.update');
+        Route::delete('/ai-bots/{id}', [AiBotController::class, 'destroy'])
+            ->middleware('permission:tenant.update');
+        Route::get('/tenant/ai-settings', [AiBotController::class, 'getAiSettings'])
+            ->middleware('permission:tenant.view');
+        Route::post('/tenant/ai-settings', [AiBotController::class, 'saveAiSettings'])
             ->middleware('permission:tenant.update');
 
         Route::post('/whatsapp-debug/send-test', [CorePhaseOneController::class, 'whatsappDebugSendTest'])

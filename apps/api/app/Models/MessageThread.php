@@ -20,6 +20,8 @@ class MessageThread extends Model
         'contact_id',
         'project_id',
         'assigned_user_id',
+        'ai_bot_agent_id',
+        'bot_status',
         'status',
         'priority',
         'last_message_at',

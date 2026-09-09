@@ -62,6 +62,7 @@ const adminNavGroups: NavGroup[] = [
       { href: "/campaigns", label: "Campaigns", icon: "bx-rocket" },
       { href: "/message-reports", label: "Message Reports", icon: "bx-message-square-detail" },
       { href: "/templates", label: "Templates", icon: "bx-notepad" },
+      { href: "/settings/ai-bots", label: "AI Bot Engine", icon: "bx-bot" },
     ],
   },
   {

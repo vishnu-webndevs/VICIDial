@@ -69,6 +69,7 @@ class CampaignController extends Controller
             'message_channel' => ['nullable', 'in:sms,whatsapp'],
             'message_media_file' => ['nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
             'message_media_url' => ['nullable', 'string', 'max:2000'],
+            'ai_bot_agent_id' => ['nullable', 'uuid'],
         ]);
 
         $type = in_array((string) $validated['type'], ['auto', 'manual'], true) ? 'outbound_call' : (string) $validated['type'];
@@ -201,6 +202,7 @@ class CampaignController extends Controller
             'auto_pause_when_no_agents' => (bool) ($validated['auto_pause_when_no_agents'] ?? true),
             'priority' => (int) ($validated['priority'] ?? 0),
             'preferred_provider_account_id' => $validated['preferred_provider_account_id'] ?? null,
+            'ai_bot_agent_id' => $validated['ai_bot_agent_id'] ?? null,
             'settings' => $settings,
         ]);
 
@@ -242,6 +244,7 @@ class CampaignController extends Controller
             'message_channel' => ['sometimes', 'nullable', 'in:sms,whatsapp'],
             'message_media_file' => ['sometimes', 'nullable', 'file', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
             'message_media_url' => ['sometimes', 'nullable', 'string', 'max:2000'],
+            'ai_bot_agent_id' => ['sometimes', 'nullable', 'uuid'],
         ]);
 
         if (array_key_exists('type', $validated) && in_array((string) $validated['type'], ['auto', 'manual'], true)) {

@@ -1,0 +1,245 @@
+<?php
+
+namespace App\Services;
+
+use App\Models\AiBotAgent;
+use App\Models\AiBotInteractiveFlow;
+use App\Models\Message;
+use App\Models\MessageThread;
+use App\Models\Tenant;
+use App\Models\TenantAiSetting;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class AiBotService
+{
+    /**
+     * Process inbound WhatsApp message safely for AI Auto-Pilot response.
+     */
+    public static function processInboundMessage(string $tenantId, MessageThread $thread, Message $inboundMsg): void
+    {
+        try {
+            // Check if thread bot status is paused (human handoff)
+            if ($thread->bot_status === 'paused' || $thread->bot_status === 'human_assigned') {
+                return;
+            }
+
+            // Find AI Bot Agent attached to thread or thread's campaign
+            $botAgent = null;
+            if ($thread->ai_bot_agent_id) {
+                $botAgent = AiBotAgent::query()
+                    ->where('tenant_id', $tenantId)
+                    ->where('id', $thread->ai_bot_agent_id)
+                    ->where('is_active', true)
+                    ->first();
+            }
+
+            if (!$botAgent && $thread->project_id) {
+                // Try campaign link via project_id / campaign_id if assigned
+                $campaign = \Illuminate\Support\Facades\DB::table('campaigns')
+                    ->where('tenant_id', $tenantId)
+                    ->where('id', $thread->project_id)
+                    ->first();
+                if ($campaign && !empty($campaign->ai_bot_agent_id)) {
+                    $botAgent = AiBotAgent::query()
+                        ->where('tenant_id', $tenantId)
+                        ->where('id', $campaign->ai_bot_agent_id)
+                        ->where('is_active', true)
+                        ->first();
+
+                    if ($botAgent) {
+                        $thread->update(['ai_bot_agent_id' => $botAgent->id]);
+                    }
+                }
+            }
+
+            if (!$botAgent) {
+                // Fallback to tenant's default active bot agent if only 1 active bot exists
+                $botAgent = AiBotAgent::query()
+                    ->where('tenant_id', $tenantId)
+                    ->where('is_active', true)
+                    ->first();
+            }
+
+            if (!$botAgent) {
+                return;
+            }
+
+            $userText = trim((string) $inboundMsg->body);
+            if ($userText === '') {
+                return;
+            }
+
+            // 1. Check for Interactive Button Flow Trigger
+            $flow = AiBotInteractiveFlow::query()
+                ->where('ai_bot_agent_id', $botAgent->id)
+                ->whereRaw('LOWER(trigger_keyword) = ?', [strtolower($userText)])
+                ->first();
+
+            if ($flow) {
+                self::sendInteractiveFlowResponse($tenantId, $thread, $flow, $botAgent);
+                return;
+            }
+
+            // 2. Generate AI Response using Gemini API
+            self::generateAndSendAiResponse($tenantId, $thread, $botAgent, $userText);
+
+        } catch (\Throwable $e) {
+            Log::error('AiBotService Error: ' . $e->getMessage(), [
+                'tenant_id' => $tenantId,
+                'thread_id' => $thread->id,
+                'exception' => $e,
+            ]);
+        }
+    }
+
+    /**
+     * Send Interactive Flow Response (Button Menu)
+     */
+    private static function sendInteractiveFlowResponse(string $tenantId, MessageThread $thread, AiBotInteractiveFlow $flow, AiBotAgent $bot): void
+    {
+        $options = (array) ($flow->options ?? []);
+        $questionText = $flow->question_text;
+
+        // Simulate natural human typing delay (2-3 sec)
+        sleep(min($bot->human_delay_seconds ?? 3, 5));
+
+        // Format message body with clear options list if WhatsApp interactive payload or plain text
+        $body = $questionText;
+        if (!empty($options)) {
+            $body .= "\n\n" . implode(" | ", array_map(fn($opt) => "👉 " . $opt, $options));
+        }
+
+        // Send outbound message
+        Message::create([
+            'tenant_id' => $tenantId,
+            'thread_id' => $thread->id,
+            'direction' => 'outbound',
+            'status' => 'sent',
+            'body' => $body,
+            'metadata' => [
+                'channel' => 'whatsapp',
+                'ai_generated' => true,
+                'flow_id' => $flow->id,
+                'bot_agent_id' => $bot->id,
+            ],
+            'sent_at' => now(),
+        ]);
+
+        $thread->update(['last_message_at' => now()]);
+    }
+
+    /**
+     * Call Gemini API with Human Persona System Prompt & Knowledge Base Context
+     */
+    private static function generateAndSendAiResponse(string $tenantId, MessageThread $thread, AiBotAgent $botAgent, string $userText): void
+    {
+        // Fetch Tenant AI Setting / API Key
+        $aiSetting = TenantAiSetting::query()->where('tenant_id', $tenantId)->first();
+        $apiKey = $aiSetting?->api_key ?: env('GEMINI_API_KEY');
+
+        if (empty($apiKey)) {
+            Log::warning("AiBotService: No API key found for tenant {$tenantId}");
+            return;
+        }
+
+        // Format Knowledge Base Context
+        $kbData = is_array($botAgent->knowledge_base) ? json_encode($botAgent->knowledge_base, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) : (string) $botAgent->knowledge_base;
+        $fallback = $botAgent->fallback_message ?: "Muje iski exact jankari abhi nahi hai, main apne senior manager se confirm karke aapko call/message karwata hu.";
+
+        // Construct System Prompt enforcing Natural Human Sales Manager Persona
+        $tenantObj = Tenant::find($tenantId);
+        $companyName = $tenantObj?->name ?: 'our team';
+
+        $systemPrompt = <<<PROMPT
+You are a warm, polite Indian Sales Representative / Executive working for {$companyName}.
+Your name is friendly and professional. Your goal is to help the customer on WhatsApp in a natural human conversation.
+
+CRITICAL HUMAN PERSONA RULES:
+1. NEVER mention that you are an AI, artificial intelligence, bot, or automated language model. Speak 100% naturally as a real human sales manager.
+2. Use friendly, natural Hinglish / Hindi / English appropriate for Indian business communication.
+3. Keep responses concise (2 to 4 sentences maximum), helpful, and end with a natural follow-up question.
+4. STRICT KNOWLEDGE BOUNDARY: You MUST ONLY answer based on the KNOWLEDGE BASE provided below. Do NOT make up prices, offers, or facts outside this context.
+5. If the customer asks a question outside your Knowledge Base context, respond with EXACTLY or very closely: "{$fallback}"
+
+KNOWLEDGE BASE CONTEXT:
+{$kbData}
+
+{$botAgent->system_instructions}
+PROMPT;
+
+        // Fetch last 6 messages from thread for conversation history
+        $recentMessages = Message::query()
+            ->where('thread_id', $thread->id)
+            ->orderBy('created_at', 'desc')
+            ->take(6)
+            ->get()
+            ->reverse();
+
+        $contents = [];
+        foreach ($recentMessages as $msg) {
+            $role = $msg->direction === 'inbound' ? 'user' : 'model';
+            $contents[] = [
+                'role' => $role,
+                'parts' => [['text' => (string) $msg->body]],
+            ];
+        }
+
+        if (empty($contents)) {
+            $contents[] = [
+                'role' => 'user',
+                'parts' => [['text' => $userText]],
+            ];
+        }
+
+        // Call Gemini API (gemini-1.5-flash)
+        $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}";
+        
+        $response = Http::withHeaders(['Content-Type' => 'application/json'])
+            ->post($endpoint, [
+                'system_instruction' => [
+                    'parts' => [['text' => $systemPrompt]]
+                ],
+                'contents' => $contents,
+                'generationConfig' => [
+                    'temperature' => 0.4,
+                    'maxOutputTokens' => 300,
+                ],
+            ]);
+
+        if (!$response->successful()) {
+            Log::error('AiBotService: Gemini API Call Failed', [
+                'status' => $response->status(),
+                'body' => $response->body(),
+            ]);
+            return;
+        }
+
+        $responseData = $response->json();
+        $aiText = trim($responseData['candidates'][0]['content']['parts'][0]['text'] ?? '');
+
+        if ($aiText === '') {
+            return;
+        }
+
+        // Simulate natural human typing delay (2-4 seconds)
+        sleep(min($botAgent->human_delay_seconds ?? 3, 5));
+
+        // Save and send outbound AI message
+        Message::create([
+            'tenant_id' => $tenantId,
+            'thread_id' => $thread->id,
+            'direction' => 'outbound',
+            'status' => 'sent',
+            'body' => $aiText,
+            'metadata' => [
+                'channel' => 'whatsapp',
+                'ai_generated' => true,
+                'bot_agent_id' => $botAgent->id,
+            ],
+            'sent_at' => now(),
+        ]);
+
+        $thread->update(['last_message_at' => now()]);
+    }
+}

@@ -32,6 +32,7 @@ class Campaign extends Model
         'calls_per_minute',
         'auto_pause_when_no_agents',
         'priority',
+        'ai_bot_agent_id',
         'settings',
     ];
 

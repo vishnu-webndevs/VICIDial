@@ -26,7 +26,7 @@ import { CreateGuard } from "@/components/plans/CreateGuard";
 import { EmptyPanel, KpiCard, ToastMessage } from "@/components/ui-primitives";
 import { apiRequest } from "@/lib/api";
 import { getTenantContext } from "@/lib/tenant-context";
-import { listAgents, listCampaigns, listMessageTemplates, listMetaTemplates, listProviderAccounts, pauseCampaign, startCampaign, syncMetaTemplates } from "@/lib/product-api";
+import { listAgents, listAiBots, listCampaigns, listMessageTemplates, listMetaTemplates, listProviderAccounts, pauseCampaign, startCampaign, syncMetaTemplates } from "@/lib/product-api";
 import type { AgentEntity, Campaign, CampaignStatusPayload, LeadList, MessageTemplate, MetaWhatsappTemplate } from "@/types/product";
 
 type PopupState = "new-campaign" | "command-center" | "auto-dialer-setup" | null;
@@ -58,6 +58,7 @@ type NewCampaignForm = {
   message_meta_template_id: string;
   message_media_file: File | null;
   message_media_url: string;
+  ai_bot_agent_id: string;
 };
 
 const defaultCampaignForm: NewCampaignForm = {
@@ -74,6 +75,7 @@ const defaultCampaignForm: NewCampaignForm = {
   message_meta_template_id: "",
   message_media_file: null,
   message_media_url: "",
+  ai_bot_agent_id: "",
 };
 const ACTIVE_STATUSES: Campaign["status"][] = ["running"];
 
@@ -127,6 +129,8 @@ export default function CampaignsPage() {
     return response.data;
   }, []);
 
+  const [aiBots, setAiBots] = useState<any[]>([]);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
@@ -149,6 +153,12 @@ export default function CampaignsPage() {
         setMetaTemplates(metaTemplateData);
       } catch {
         setMetaTemplates([]);
+      }
+      try {
+        const botData = await listAiBots();
+        setAiBots(botData);
+      } catch {
+        setAiBots([]);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to load campaigns.");
@@ -262,6 +272,7 @@ export default function CampaignsPage() {
       message_meta_template_id: String(campaign.message_meta_template_id ?? ""),
       message_media_file: null,
       message_media_url: String((campaign as any).message_media_url ?? ""),
+      ai_bot_agent_id: String((campaign as any).ai_bot_agent_id ?? ""),
     });
     setSelectedLists(campaign.lead_list_ids ?? []);
     setSelectedFromAgentId("");
@@ -360,6 +371,9 @@ export default function CampaignsPage() {
           formData.append("message_media_file", campaignForm.message_media_file);
         }
         formData.append("message_media_url", campaignForm.message_media_url.trim());
+        if (campaignForm.ai_bot_agent_id) {
+          formData.append("ai_bot_agent_id", campaignForm.ai_bot_agent_id);
+        }
       }
 
       const createOrUpdateResponse = await apiRequest<{ data: Campaign }>(editingCampaignId ? `/campaigns/${editingCampaignId}` : "/campaigns", {
@@ -906,6 +920,22 @@ export default function CampaignsPage() {
                           {p.display_name} ({p.provider_type})
                         </MenuItem>
                       ))}
+                  </TextField>
+
+                  <TextField
+                    select
+                    size="medium"
+                    label="🤖 AI Auto-Pilot Bot Agent (Optional)"
+                    value={campaignForm.ai_bot_agent_id || ""}
+                    onChange={(e) => setCampaignForm((p) => ({ ...p, ai_bot_agent_id: e.target.value }))}
+                    helperText="Select which AI Bot Agent automatically handles customer replies for this campaign"
+                  >
+                    <MenuItem value="">No AI Auto-Pilot (Manual Human Agent Only)</MenuItem>
+                    {aiBots.map((bot) => (
+                      <MenuItem key={bot.id} value={bot.id}>
+                        🤖 {bot.name} ({Array.isArray(bot.knowledge_base) ? bot.knowledge_base.length : 0} Q&A Rules)
+                      </MenuItem>
+                    ))}
                   </TextField>
 
                   {isMetaWhatsappProvider && (

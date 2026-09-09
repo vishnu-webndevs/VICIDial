@@ -501,6 +501,13 @@ class MessagingController extends Controller
             from: $normalizedFrom
         );
 
+        // Fail-safe AI Bot Auto-Pilot Trigger
+        try {
+            \App\Services\AiBotService::processInboundMessage($tenantId, $thread, $message);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('AI Bot Trigger Error: ' . $e->getMessage());
+        }
+
         return true;
     }
 

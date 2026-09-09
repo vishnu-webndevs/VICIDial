@@ -1615,3 +1615,37 @@ export async function uploadCallRecording(
     body: formData,
   });
 }
+
+export async function listAiBots(): Promise<any[]> {
+  const { token, tenantId } = getTenantContext();
+  const res = await apiRequest<{ success: boolean; data: any[] }>("/ai-bots", { token, tenantId });
+  return res.data ?? [];
+}
+
+export async function createAiBot(data: any): Promise<any> {
+  const { token, tenantId } = getTenantContext();
+  const res = await apiRequest<{ success: boolean; data: any }>("/ai-bots", { method: "POST", token, tenantId, body: data });
+  return res.data;
+}
+
+export async function updateAiBot(id: string, data: any): Promise<any> {
+  const { token, tenantId } = getTenantContext();
+  const res = await apiRequest<{ success: boolean; data: any }>(`/ai-bots/${id}`, { method: "PUT", token, tenantId, body: data });
+  return res.data;
+}
+
+export async function deleteAiBot(id: string): Promise<void> {
+  const { token, tenantId } = getTenantContext();
+  await apiRequest(`/ai-bots/${id}`, { method: "DELETE", token, tenantId });
+}
+
+export async function getTenantAiSettings(): Promise<any> {
+  const { token, tenantId } = getTenantContext();
+  const res = await apiRequest<{ success: boolean; data: any }>("/tenant/ai-settings", { token, tenantId });
+  return res.data;
+}
+
+export async function saveTenantAiSettings(data: any): Promise<void> {
+  const { token, tenantId } = getTenantContext();
+  await apiRequest("/tenant/ai-settings", { method: "POST", token, tenantId, body: data });
+}
