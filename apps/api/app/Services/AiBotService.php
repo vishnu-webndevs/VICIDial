@@ -180,34 +180,48 @@ PROMPT;
             ];
         }
 
-        // Call Gemini API (gemini-1.5-flash)
-        $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={$apiKey}";
-        
-        $response = Http::withHeaders(['Content-Type' => 'application/json'])
-            ->post($endpoint, [
-                'system_instruction' => [
-                    'parts' => [['text' => $systemPrompt]]
-                ],
-                'contents' => $contents,
-                'generationConfig' => [
-                    'temperature' => 0.4,
-                    'maxOutputTokens' => 300,
-                ],
-            ]);
+        // Call Gemini API with model fallback array (handles API model deprecation gracefully)
+        $configuredModel = $aiSetting?->default_model;
+        $modelsToTry = array_filter(array_unique([
+            $configuredModel,
+            'gemini-flash-latest',
+            'gemini-3.6-flash',
+            'gemini-2.5-flash',
+            'gemini-1.5-flash',
+        ]));
 
-        if (!$response->successful()) {
-            Log::error('AiBotService: Gemini API Call Failed', [
-                'status' => $response->status(),
-                'body' => $response->body(),
-            ]);
-            return;
+        $aiText = '';
+        foreach ($modelsToTry as $modelName) {
+            $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key={$apiKey}";
+            
+            $response = Http::timeout(12)->withHeaders(['Content-Type' => 'application/json'])
+                ->post($endpoint, [
+                    'system_instruction' => [
+                        'parts' => [['text' => $systemPrompt]]
+                    ],
+                    'contents' => $contents,
+                    'generationConfig' => [
+                        'temperature' => 0.4,
+                        'maxOutputTokens' => 300,
+                    ],
+                ]);
+
+            if ($response->successful()) {
+                $responseData = $response->json();
+                $aiText = trim($responseData['candidates'][0]['content']['parts'][0]['text'] ?? '');
+                if ($aiText !== '') {
+                    break;
+                }
+            } else {
+                Log::warning("AiBotService: Gemini model {$modelName} failed ({$response->status()}), trying next model...", [
+                    'body' => $response->body(),
+                ]);
+            }
         }
 
-        $responseData = $response->json();
-        $aiText = trim($responseData['candidates'][0]['content']['parts'][0]['text'] ?? '');
-
         if ($aiText === '') {
-            return;
+            Log::error("AiBotService: All Gemini models failed or empty response for tenant {$tenantId}. Using agent fallback message.");
+            $aiText = $fallback;
         }
 
         // Simulate natural human typing delay (2-4 seconds)
