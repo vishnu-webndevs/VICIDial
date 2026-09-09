@@ -110,23 +110,11 @@ class AiBotService
             $body .= "\n\n" . implode(" | ", array_map(fn($opt) => "👉 " . $opt, $options));
         }
 
-        // Send outbound message
-        Message::create([
-            'tenant_id' => $tenantId,
-            'thread_id' => $thread->id,
-            'direction' => 'outbound',
-            'status' => 'sent',
-            'body' => $body,
-            'metadata' => [
-                'channel' => 'whatsapp',
-                'ai_generated' => true,
-                'flow_id' => $flow->id,
-                'bot_agent_id' => $bot->id,
-            ],
-            'sent_at' => now(),
+        // Dispatch outbound message through WhatsApp provider
+        self::dispatchOutboundMessage($tenantId, $thread, $body, [
+            'flow_id' => $flow->id,
+            'bot_agent_id' => $bot->id,
         ]);
-
-        $thread->update(['last_message_at' => now()]);
     }
 
     /**
@@ -225,21 +213,68 @@ PROMPT;
         // Simulate natural human typing delay (2-4 seconds)
         sleep(min($botAgent->human_delay_seconds ?? 3, 5));
 
-        // Save and send outbound AI message
-        Message::create([
-            'tenant_id' => $tenantId,
-            'thread_id' => $thread->id,
-            'direction' => 'outbound',
-            'status' => 'sent',
-            'body' => $aiText,
-            'metadata' => [
-                'channel' => 'whatsapp',
-                'ai_generated' => true,
-                'bot_agent_id' => $botAgent->id,
-            ],
-            'sent_at' => now(),
+        // Dispatch outbound AI message to provider (Meta WhatsApp / Twilio)
+        self::dispatchOutboundMessage($tenantId, $thread, $aiText, [
+            'bot_agent_id' => $botAgent->id,
         ]);
+    }
 
-        $thread->update(['last_message_at' => now()]);
+    /**
+     * Dispatch outbound WhatsApp / SMS message via active provider (Meta WhatsApp / Twilio)
+     */
+    private static function dispatchOutboundMessage(string $tenantId, MessageThread $thread, string $body, array $metadata = []): ?Message
+    {
+        try {
+            $providerTypes = $thread->channel === 'whatsapp' ? ['meta_whatsapp', 'twilio'] : ['twilio'];
+            $provider = \App\Models\ProviderAccount::query()
+                ->where('tenant_id', $tenantId)
+                ->whereIn('provider_type', $providerTypes)
+                ->where('status', 'active')
+                ->orderByRaw("CASE WHEN provider_type = 'meta_whatsapp' THEN 1 ELSE 2 END")
+                ->latest('created_at')
+                ->first();
+
+            $providerCredentials = (array) ($provider?->credentials_encrypted ?? []);
+            $statusCallbackUrl = rtrim((string) config('app.url'), '/').'/api/v1/webhooks/twilio/message-status';
+
+            $result = $thread->channel === 'sms'
+                ? app(\App\Services\Messaging\SmsService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials)
+                : app(\App\Services\Messaging\WhatsAppService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials);
+
+            $status = 'sent';
+            $providerMessageId = null;
+
+            if (($result['ok'] ?? false) === true) {
+                $providerMessageId = (string) ($result['provider_message_id'] ?? '');
+                $status = (string) ($result['status'] ?? 'queued');
+            } else {
+                Log::error('AiBotService Outbound Network Dispatch Failed: ' . ($result['error'] ?? 'Unknown error'));
+            }
+
+            $message = Message::create([
+                'tenant_id' => $tenantId,
+                'thread_id' => $thread->id,
+                'direction' => 'outbound',
+                'status' => $status,
+                'body' => $body,
+                'provider_message_id' => $providerMessageId,
+                'metadata' => array_merge([
+                    'channel' => $thread->channel,
+                    'ai_generated' => true,
+                ], $metadata),
+                'sent_at' => now(),
+            ]);
+
+            $thread->last_message_at = now();
+            if (!$thread->first_outbound_at) {
+                $thread->first_outbound_at = now();
+            }
+            $thread->save();
+
+            return $message;
+        } catch (\Throwable $e) {
+            Log::error('AiBotService dispatchOutboundMessage Exception: ' . $e->getMessage());
+            return null;
+        }
     }
 }
