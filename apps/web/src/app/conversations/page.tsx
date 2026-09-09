@@ -2,13 +2,28 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState, Suspense } from "react";
 import { Box, MenuItem, MuiButton, Paper, TextField, Typography } from "@/ui";
-import { Avatar, IconButton, Divider, Menu } from "@mui/material";
+import { Avatar, IconButton, Divider, Menu, Popover } from "@mui/material";
 import { AppShell, LoadingState, StatusBadge } from "@/components/app-shell";
 import { ToastMessage } from "@/components/ui-primitives";
 import { listInboxThreads, listTeamMembers, sendInboxThreadMessage, updateInboxThread, listInboxThreadMessages, deleteInboxThread, clearInboxThreadMessages, markThreadNotificationsAsRead } from "@/lib/product-api";
 import { playNotificationSoundDebounced } from "@/lib/notificationSound";
 import { useSearchParams } from "next/navigation";
 import type { MessageThread, TeamMember } from "@/types/product";
+
+const EMOJI_CATEGORIES = [
+  {
+    name: "Smileys & People",
+    emojis: ["😊", "😂", "🤣", "😍", "🥰", "😎", "😇", "🤔", "😅", "😭", "😜", "🥳", "🤩", "😷", "🙄", "😴", "👍", "👎", "👌", "✌️", "🤝", "🙏", "👏", "🙌", "💪", "👊", "👈", "👉"]
+  },
+  {
+    name: "Hearts & Reactions",
+    emojis: ["❤️", "💖", "💙", "💚", "💛", "💜", "🖤", "💯", "🔥", "⭐", "✨", "🎉", "🚀", "💥", "🎯", "👑", "🏆", "🌟"]
+  },
+  {
+    name: "Business & Communication",
+    emojis: ["📞", "💬", "📧", "💼", "📊", "📋", "📌", "📎", "📁", "🎁", "💡", "⏰", "✅", "❌", "⚠️", "⚡", "📢", "💰", "💵"]
+  }
+];
 
 function ConversationsContent() {
   const searchParams = useSearchParams();
@@ -36,9 +51,12 @@ function ConversationsContent() {
   const [messageTone, setMessageTone] = useState<"neutral" | "success" | "error">("neutral");
 
   const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const [emojiAnchorEl, setEmojiAnchorEl] = useState<null | HTMLElement>(null);
+  const [selectedAttachment, setSelectedAttachment] = useState<File | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const isInitialLoad = useRef(true);
 
   const scrollToBottom = () => {
@@ -281,24 +299,38 @@ function ConversationsContent() {
 
   async function onSend(event?: FormEvent<HTMLFormElement>) {
     if (event) event.preventDefault();
-    if (!selectedThreadId || !outboundBody.trim()) return;
+    if (!selectedThreadId || (!outboundBody.trim() && !selectedAttachment)) return;
     setSending(true);
     setMessageToast("");
+
+    const bodyToSend = outboundBody.trim();
+    const attachmentToSend = selectedAttachment;
+
+    let tempMedia: string[] = [];
+    if (attachmentToSend) {
+      if (attachmentToSend.type.startsWith('image/')) {
+        tempMedia = [URL.createObjectURL(attachmentToSend)];
+      } else {
+        tempMedia = [attachmentToSend.name];
+      }
+    }
 
     // Optimistic UI update
     const tempMsg = {
       id: "temp-" + Date.now(),
       direction: "outbound",
-      body: outboundBody.trim(),
+      body: bodyToSend,
+      media: tempMedia,
       sent_at: new Date().toISOString(),
       status: "sending"
     };
     setMessages(prev => [...prev, tempMsg]);
-    const bodyToSend = outboundBody.trim();
     setOutboundBody("");
+    setSelectedAttachment(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
 
     try {
-      await sendInboxThreadMessage(selectedThreadId, bodyToSend);
+      await sendInboxThreadMessage(selectedThreadId, bodyToSend, attachmentToSend);
       // Reload messages to get actual DB record
       const res = await listInboxThreadMessages(selectedThreadId, { per_page: 50 });
       setMessages(res.data);
@@ -312,6 +344,7 @@ function ConversationsContent() {
       // Remove temp message on error
       setMessages(prev => prev.filter(m => m.id !== tempMsg.id));
       setOutboundBody(bodyToSend);
+      setSelectedAttachment(attachmentToSend);
     } finally {
       setSending(false);
     }
@@ -643,13 +676,53 @@ function ConversationsContent() {
                           ) : null}
 
                           {msg.media && Array.isArray(msg.media) && msg.media.length > 0 && (
-                            <Box sx={{ mt: msg.body ? 1 : 0, display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                              {msg.media.map((m: any, i: number) => (
-                                <Box key={i} sx={{ position: 'relative', borderRadius: 1, overflow: 'hidden' }}>
-                                  {/* If it's a URL or contains URL */}
-                                  <img src={typeof m === 'string' ? m : (m.url || m.link || '')} alt="media attachment" style={{ maxWidth: 240, maxHeight: 240, objectFit: 'cover', display: 'block' }} onError={(e) => { e.currentTarget.style.display = 'none'; }} />
-                                </Box>
-                              ))}
+                            <Box sx={{ mt: msg.body ? 1 : 0, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                              {msg.media.map((m: any, i: number) => {
+                                const mediaUrl = typeof m === 'string' ? m : (m.url || m.link || '');
+                                const isImg = mediaUrl.startsWith('blob:') || mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i) || mediaUrl.includes('chat_attachments');
+                                return (
+                                  <Box key={i} sx={{ position: 'relative', borderRadius: 2, overflow: 'hidden', border: isOutbound ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e2e8f0' }}>
+                                    {isImg ? (
+                                      <a href={mediaUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block' }}>
+                                        <img
+                                          src={mediaUrl}
+                                          alt="media attachment"
+                                          style={{ maxWidth: 260, maxHeight: 260, objectFit: 'cover', display: 'block', borderRadius: 8, transition: 'transform 0.2s ease' }}
+                                          onError={(e) => {
+                                            e.currentTarget.style.display = 'none';
+                                          }}
+                                        />
+                                      </a>
+                                    ) : (
+                                      <a
+                                        href={mediaUrl.startsWith('http') || mediaUrl.startsWith('/storage') ? mediaUrl : '#'}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        style={{
+                                          textDecoration: 'none',
+                                          color: isOutbound ? '#ffffff' : '#4f46e5',
+                                          display: 'flex',
+                                          alignItems: 'center',
+                                          gap: 8,
+                                          padding: '8px 12px',
+                                          background: isOutbound ? 'rgba(255,255,255,0.15)' : '#f8fafc',
+                                          borderRadius: 8
+                                        }}
+                                      >
+                                        <i className="bx bx-file" style={{ fontSize: 24 }} />
+                                        <Box>
+                                          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.825rem' }}>
+                                            {mediaUrl.split('/').pop() || 'Attachment Document'}
+                                          </Typography>
+                                          <Typography variant="caption" sx={{ opacity: 0.8, fontSize: '0.7rem' }}>
+                                            Click to view / download
+                                          </Typography>
+                                        </Box>
+                                      </a>
+                                    )}
+                                  </Box>
+                                );
+                              })}
                             </Box>
                           )}
 
@@ -673,6 +746,110 @@ function ConversationsContent() {
                 <div ref={messagesEndRef} />
               </Box>
 
+              {/* Selected Attachment Preview Chip */}
+              {selectedAttachment && (
+                <Box sx={{ p: 1.5, px: 2, bgcolor: '#ffffff', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 1.5, zIndex: 1 }}>
+                  {selectedAttachment.type.startsWith('image/') ? (
+                    <Box sx={{ width: 48, height: 48, borderRadius: 1.5, overflow: 'hidden', border: '1px solid #cbd5e1', flexShrink: 0 }}>
+                      <img src={URL.createObjectURL(selectedAttachment)} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </Box>
+                  ) : (
+                    <Avatar sx={{ bgcolor: '#6366f1', width: 44, height: 44, flexShrink: 0 }}>
+                      <i className="bx bx-file" style={{ fontSize: 22 }} />
+                    </Avatar>
+                  )}
+                  <Box sx={{ flex: 1, overflow: 'hidden' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.85rem', color: '#1e293b' }} noWrap>
+                      {selectedAttachment.name}
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                      {(selectedAttachment.size / 1024).toFixed(1)} KB
+                    </Typography>
+                  </Box>
+                  <IconButton size="small" onClick={() => setSelectedAttachment(null)} sx={{ color: '#ef4444', bgcolor: '#fee2e2', '&:hover': { bgcolor: '#fca5a5' } }}>
+                    <i className="bx bx-x" style={{ fontSize: 20 }} />
+                  </IconButton>
+                </Box>
+              )}
+
+              {/* Hidden File Input */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                accept="image/*,application/pdf,.doc,.docx,.xlsx,.txt"
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    const selectedFile = e.target.files[0];
+                    const fileName = selectedFile.name.toLowerCase();
+                    if (/\.(php|phtml|phar|php\d|phps|htaccess|exe|bat|cmd|sh|pl|cgi|asp|aspx|jsp|vbs|js)(\.|\s|$)/i.test(fileName)) {
+                      setMessageToast("Security Warning: Executable scripts or multi-extension files (e.g. .php.jpg) are strictly forbidden.");
+                      setMessageTone("error");
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                      return;
+                    }
+                    setSelectedAttachment(selectedFile);
+                  }
+                }}
+              />
+
+              {/* Emoji Picker Popover */}
+              <Popover
+                open={Boolean(emojiAnchorEl)}
+                anchorEl={emojiAnchorEl}
+                onClose={() => setEmojiAnchorEl(null)}
+                anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+                transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                PaperProps={{
+                  sx: {
+                    p: 2,
+                    width: 320,
+                    maxHeight: 340,
+                    borderRadius: 3,
+                    boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
+                    overflowY: 'auto'
+                  }
+                }}
+              >
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1, color: '#1e293b' }}>
+                  Choose Emoji
+                </Typography>
+                {EMOJI_CATEGORIES.map((cat) => (
+                  <Box key={cat.name} sx={{ mb: 1.5 }}>
+                    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, display: 'block', mb: 0.5 }}>
+                      {cat.name}
+                    </Typography>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.5 }}>
+                      {cat.emojis.map((emoji) => (
+                        <Box
+                          key={emoji}
+                          onClick={() => {
+                            setOutboundBody(prev => prev + emoji);
+                          }}
+                          sx={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '1.35rem',
+                            p: 0.5,
+                            borderRadius: 1.5,
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            transition: 'all 0.1s ease',
+                            '&:hover': {
+                              bgcolor: '#eef2ff',
+                              transform: 'scale(1.25)'
+                            }
+                          }}
+                        >
+                          {emoji}
+                        </Box>
+                      ))}
+                    </Box>
+                  </Box>
+                ))}
+              </Popover>
+
               {/* Message Input Footer */}
               <Box
                 component="form"
@@ -684,20 +861,26 @@ function ConversationsContent() {
                   gap: 2,
                   alignItems: 'flex-end',
                   zIndex: 1,
-                  borderTop: '1px solid #e2e8f0'
+                  borderTop: selectedAttachment ? 'none' : '1px solid #e2e8f0'
                 }}
               >
-                <IconButton sx={{ color: '#6366f1' }}>
-                  <i className="bx bx-smile" />
+                <IconButton
+                  onClick={(e) => setEmojiAnchorEl(e.currentTarget)}
+                  sx={{ color: '#6366f1', '&:hover': { bgcolor: '#eef2ff' } }}
+                >
+                  <i className="bx bx-smile" style={{ fontSize: 24 }} />
                 </IconButton>
-                <IconButton sx={{ color: '#64748b' }}>
-                  <i className="bx bx-paperclip" />
+                <IconButton
+                  onClick={() => fileInputRef.current?.click()}
+                  sx={{ color: selectedAttachment ? '#6366f1' : '#64748b', '&:hover': { bgcolor: '#f1f5f9' } }}
+                >
+                  <i className="bx bx-paperclip" style={{ fontSize: 24 }} />
                 </IconButton>
                 <TextField
                   fullWidth
                   multiline
                   maxRows={5}
-                  placeholder="Type a message"
+                  placeholder={selectedAttachment ? "Add a caption (optional)..." : "Type a message..."}
                   value={outboundBody}
                   onChange={e => setOutboundBody(e.target.value)}
                   sx={{
@@ -719,11 +902,11 @@ function ConversationsContent() {
                 />
                 <IconButton
                   type="submit"
-                  disabled={sending || !outboundBody.trim()}
+                  disabled={sending || (!outboundBody.trim() && !selectedAttachment)}
                   sx={{
-                    color: outboundBody.trim() ? '#6366f1' : '#94a3b8',
+                    color: (outboundBody.trim() || selectedAttachment) ? '#6366f1' : '#94a3b8',
                     transition: 'all 0.2s',
-                    transform: outboundBody.trim() ? 'scale(1.1)' : 'scale(1)'
+                    transform: (outboundBody.trim() || selectedAttachment) ? 'scale(1.1)' : 'scale(1)'
                   }}
                 >
                   <i className={sending ? "bx bx-loader-alt bx-spin" : "bx bxs-send"} style={{ fontSize: 24 }} />

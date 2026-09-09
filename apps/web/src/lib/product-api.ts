@@ -1233,8 +1233,21 @@ export async function listInboxThreads(
   };
 }
 
-export async function sendInboxThreadMessage(threadId: string, body: string): Promise<Record<string, unknown>> {
+export async function sendInboxThreadMessage(threadId: string, body: string, attachment?: File | null): Promise<Record<string, unknown>> {
   const { token, tenantId } = getTenantContext();
+  if (attachment) {
+    const formData = new FormData();
+    if (body) formData.append("body", body);
+    formData.append("attachment", attachment);
+    const response = await apiRequest<{ success: boolean; data: Record<string, unknown> }>(`/inbox/threads/${threadId}/messages`, {
+      method: "POST",
+      token,
+      tenantId,
+      body: formData,
+    });
+    return response.data;
+  }
+
   const response = await apiRequest<{ success: boolean; data: Record<string, unknown> }>(`/inbox/threads/${threadId}/messages`, {
     method: "POST",
     token,

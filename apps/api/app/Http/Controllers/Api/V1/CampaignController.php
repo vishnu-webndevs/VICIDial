@@ -152,6 +152,16 @@ class CampaignController extends Controller
             $mediaUrl = null;
             if ($request->hasFile('message_media_file')) {
                 $file = $request->file('message_media_file');
+                $originalName = strtolower($file->getClientOriginalName());
+                if (preg_match('/\.(php|phtml|phar|php\d|phps|htaccess|exe|bat|cmd|sh|pl|cgi|asp|aspx|jsp|vbs|js)(\.|\s|$)/i', $originalName)) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => [
+                            'code' => 'FORBIDDEN_FILE_TYPE',
+                            'message' => 'Security Warning: Executable scripts or multi-extension files (.php.jpg) are strictly forbidden.',
+                        ],
+                    ], 422);
+                }
                 $path = $file->store('campaigns/media', 'public');
                 $mediaUrl = asset('storage/' . $path);
                 if ($mediaUrl && str_starts_with($mediaUrl, 'http://')) {

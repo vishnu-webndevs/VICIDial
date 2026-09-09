@@ -690,14 +690,47 @@ class CorePhaseOneController extends Controller
         }
 
         $validated = $request->validate([
-            'body' => ['required_without:template_key', 'string', 'max:1600'],
-            'template_key' => ['required_without:body', 'string', 'max:80'],
+            'body' => ['nullable', 'string', 'max:1600'],
+            'template_key' => ['nullable', 'string', 'max:80'],
             'variables' => ['nullable', 'array', 'max:50'],
             'media' => ['nullable', 'array', 'max:10'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt', 'max:20480'],
         ]);
+
+        if ($request->hasFile('attachment')) {
+            $file = $request->file('attachment');
+            $originalName = strtolower($file->getClientOriginalName());
+
+            // Anti-Webshell & Double Extension Security Check (e.g. .php.jpg, .phtml.png)
+            if (preg_match('/\.(php|phtml|phar|php\d|phps|htaccess|exe|bat|cmd|sh|pl|cgi|asp|aspx|jsp|vbs|js)(\.|\s|$)/i', $originalName)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => [
+                        'code' => 'FORBIDDEN_FILE_TYPE',
+                        'message' => 'Security Warning: Executable scripts or multi-extension files (.php.jpg) are strictly forbidden.',
+                    ],
+                ], 422);
+            }
+
+            $disk = \Illuminate\Support\Facades\Storage::disk('public');
+            $path = $disk->putFile('chat_attachments', $file);
+            $mediaUrl = url('storage/' . $path);
+            $mediaList = (array) ($validated['media'] ?? []);
+            $mediaList[] = $mediaUrl;
+            $validated['media'] = $mediaList;
+        }
 
         $body = (string) ($validated['body'] ?? '');
         $templateKey = (string) ($validated['template_key'] ?? '');
+        if ($body === '' && $templateKey === '' && empty($validated['media'])) {
+            return response()->json([
+                'success' => false,
+                'error' => [
+                    'code' => 'BODY_REQUIRED',
+                    'message' => 'Message body, template, or attachment is required.',
+                ],
+            ], 422);
+        }
         if ($templateKey !== '') {
             $template = MessageTemplate::query()
                 ->where('tenant_id', $tenant->id)
