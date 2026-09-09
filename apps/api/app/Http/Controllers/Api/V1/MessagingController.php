@@ -379,9 +379,29 @@ class MessagingController extends Controller
         string $webhookEventId
     ): bool {
         $from = (string) data_get($row, 'from', '');
-        $body = (string) data_get($row, 'text.body', '');
         $providerMessageId = (string) data_get($row, 'id', '');
-        if ($from === '' || $providerMessageId === '' || $body === '') {
+        $type = (string) data_get($row, 'type', 'text');
+
+        $body = (string) data_get($row, 'text.body', '');
+        if ($body === '') {
+            if ($type === 'button') {
+                $body = (string) data_get($row, 'button.text', data_get($row, 'button.payload', ''));
+            } elseif ($type === 'interactive') {
+                $body = (string) data_get($row, 'interactive.button_reply.title', data_get($row, 'interactive.list_reply.title', data_get($row, 'interactive.button_reply.id', '')));
+            } elseif (in_array($type, ['image', 'video', 'document'], true)) {
+                $caption = (string) data_get($row, "{$type}.caption", '');
+                $body = $caption !== '' ? $caption : ('[' . ucfirst($type) . ']');
+            } elseif ($type === 'audio' || $type === 'voice') {
+                $body = '[Voice Note]';
+            } elseif ($type === 'location') {
+                $name = (string) data_get($row, 'location.name', '');
+                $body = $name !== '' ? '[Location: ' . $name . ']' : '[Location]';
+            } else {
+                $body = (string) data_get($row, 'button.text', data_get($row, 'interactive.button_reply.title', ''));
+            }
+        }
+
+        if ($from === '' || $providerMessageId === '' || trim($body) === '') {
             return false;
         }
 
@@ -394,23 +414,32 @@ class MessagingController extends Controller
         }
 
         $normalizedFrom = Str::startsWith($from, '+') ? $from : '+'.$from;
+        $plainFrom = preg_replace('/[^0-9]/', '', $from);
         $sentAt = $this->parseProviderTimestamp((string) data_get($row, 'timestamp', '')) ?: now();
         $inReplyTo = (string) data_get($row, 'context.id', '');
 
-        $thread = MessageThread::query()->firstOrCreate(
-            [
+        $thread = MessageThread::query()
+            ->where('tenant_id', $tenantId)
+            ->where('channel', 'whatsapp')
+            ->where(function ($query) use ($normalizedFrom, $plainFrom, $from) {
+                $query->where('counterparty_number', $normalizedFrom)
+                    ->orWhere('counterparty_number', $plainFrom)
+                    ->orWhere('counterparty_number', $from);
+            })
+            ->first();
+
+        if (! $thread) {
+            $thread = MessageThread::query()->create([
                 'tenant_id' => $tenantId,
                 'channel' => 'whatsapp',
                 'counterparty_number' => $normalizedFrom,
-            ],
-            [
                 'contact_id' => null,
                 'project_id' => null,
                 'assigned_user_id' => null,
                 'status' => 'open',
                 'priority' => 'normal',
-            ]
-        );
+            ]);
+        }
         $thread->last_message_at = $sentAt;
         if (! $thread->first_inbound_at) {
             $thread->first_inbound_at = $sentAt;
@@ -447,7 +476,11 @@ class MessagingController extends Controller
 
         $lead = Lead::query()
             ->where('tenant_id', $tenantId)
-            ->where('phone', $normalizedFrom)
+            ->where(function ($query) use ($normalizedFrom, $plainFrom, $from) {
+                $query->where('phone', $normalizedFrom)
+                    ->orWhere('phone', $plainFrom)
+                    ->orWhere('phone', $from);
+            })
             ->first();
         if ($lead) {
             $this->appendTimelineMessage(
