@@ -26,6 +26,8 @@ export default function AiBotsManagementPage() {
   const [description, setDescription] = useState("");
   const [systemInstructions, setSystemInstructions] = useState("");
   const [fallbackMessage, setFallbackMessage] = useState("Mujhe iski exact jankari abhi nahi hai, main confirm karke aapko bataunga.");
+  const [privacyPolicy, setPrivacyPolicy] = useState("");
+  const [customKnowledgePrompt, setCustomKnowledgePrompt] = useState("");
   const [humanDelay, setHumanDelay] = useState(3);
   const [strictMode, setStrictMode] = useState(true);
 
@@ -85,6 +87,8 @@ export default function AiBotsManagementPage() {
       setName(bot.name || "");
       setDescription(bot.description || "");
       setSystemInstructions(bot.system_instructions || "");
+      setPrivacyPolicy(bot.privacy_policy || "");
+      setCustomKnowledgePrompt(bot.custom_knowledge_prompt || "");
       setFallbackMessage(bot.fallback_message || "");
       setHumanDelay(bot.human_delay_seconds || 3);
       setStrictMode(bot.strict_mode ?? true);
@@ -111,6 +115,8 @@ export default function AiBotsManagementPage() {
       setName("");
       setDescription("");
       setSystemInstructions("Aap ek warm aur helpful Sales Executive ki tarah real person ki bhasha me baat karein. Kabhi robot jaise mat bolna.");
+      setPrivacyPolicy("Hum OTP, Passwords, PINs ya Banking Details kisi ke sath share nahi karte aur na puchte hain.");
+      setCustomKnowledgePrompt("");
       setFallbackMessage("Mujhe iski exact jankari abhi nahi hai, main confirm karke aapko bataunga.");
       setHumanDelay(3);
       setStrictMode(true);
@@ -133,6 +139,8 @@ export default function AiBotsManagementPage() {
         name: name.trim(),
         description: description.trim(),
         system_instructions: systemInstructions.trim(),
+        privacy_policy: privacyPolicy.trim(),
+        custom_knowledge_prompt: customKnowledgePrompt.trim(),
         fallback_message: fallbackMessage.trim(),
         human_delay_seconds: Number(humanDelay),
         strict_mode: strictMode,
@@ -300,6 +308,24 @@ export default function AiBotsManagementPage() {
                       size="small"
                       sx={{ bgcolor: '#f1f5f9' }}
                     />
+                    {bot.custom_knowledge_prompt && (
+                      <Chip
+                        icon={<i className="bx bx-file" style={{ fontSize: 16 }} />}
+                        label="Master Prompt Set"
+                        size="small"
+                        color="primary"
+                        variant="outlined"
+                      />
+                    )}
+                    {bot.privacy_policy && (
+                      <Chip
+                        icon={<i className="bx bx-shield-quarter" style={{ fontSize: 16 }} />}
+                        label="Privacy Rules Set"
+                        size="small"
+                        color="success"
+                        variant="outlined"
+                      />
+                    )}
                     <Chip
                       icon={<i className="bx bx-git-repo-forked" style={{ fontSize: 16 }} />}
                       label={`${Array.isArray(bot.interactive_flows) ? bot.interactive_flows.length : 0} Interactive Button Flows`}
@@ -357,6 +383,28 @@ export default function AiBotsManagementPage() {
               placeholder="Aap ek warm aur helpful Sales Executive ki tarah real person ki bhasha me baat karein. Robot jaise mat bolna."
               value={systemInstructions}
               onChange={(e) => setSystemInstructions(e.target.value)}
+            />
+
+            <TextField
+              fullWidth
+              multiline
+              rows={2}
+              label="🔒 Privacy Policy & Security Rules"
+              placeholder="e.g. Hum OTP, Passwords, PINs ya Banking Details kisi ke sath share nahi karte aur na puchte hain."
+              helperText="Security rules for handling sensitive customer data, OTPs, or privacy terms for this bot agent."
+              value={privacyPolicy}
+              onChange={(e) => setPrivacyPolicy(e.target.value)}
+            />
+
+            <TextField
+              fullWidth
+              multiline
+              rows={5}
+              label="📝 Master Custom Knowledge Base Prompt (Large Prompt Box)"
+              placeholder="Yahan aap ek ek Q&A add karne ke bajaaye direct poora custom prompt, project documentation, brochure text, ya rules paste kar sakte hain."
+              helperText="Paste a large custom knowledge base prompt or raw documentation text directly for this AI Agent."
+              value={customKnowledgePrompt}
+              onChange={(e) => setCustomKnowledgePrompt(e.target.value)}
             />
 
             <TextField

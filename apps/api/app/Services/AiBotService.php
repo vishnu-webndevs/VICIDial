@@ -139,6 +139,56 @@ class AiBotService
         $tenantObj = Tenant::find($tenantId);
         $companyName = $tenantObj?->name ?: 'our team';
 
+        // Inspect conversation history for previous fallback messages
+        $recentMessages = Message::query()
+            ->where('thread_id', $thread->id)
+            ->orderBy('created_at', 'desc')
+            ->take(10)
+            ->get()
+            ->reverse();
+
+        $lastModelMessage = null;
+        $fallbackSentInHistory = false;
+
+        foreach ($recentMessages as $msg) {
+            if ($msg->direction === 'outbound') {
+                $lastModelMessage = (string) $msg->body;
+                $lowerBody = strtolower($msg->body);
+                if (
+                    str_contains($lowerBody, 'jankari') ||
+                    str_contains($lowerBody, 'available nahi') ||
+                    str_contains($lowerBody, 'mere paas abhi nahi') ||
+                    ($fallback && str_contains($lowerBody, strtolower(substr($fallback, 0, 15))))
+                ) {
+                    $fallbackSentInHistory = true;
+                }
+            }
+        }
+
+        // Analyze current user message
+        $trimmedUser = trim($userText);
+        $cleanUserLower = strtolower($trimmedUser);
+
+        $isEmoji = (preg_match('/^[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}\x{1F900}-\x{1F9FF}\x{1F1E6}-\x{1F1FF}\s]+$/u', $trimmedUser) === 1);
+        $acknowledgements = ['ok', 'okay', 'haan', 'han', 'theek hai', 'thik hai', 'acha', 'accha', 'hmm', 'hmmm', 'got it', 'sure', 'right', 'ji'];
+        $isAck = in_array($cleanUserLower, $acknowledgements, true);
+
+        $dynamicContext = "";
+        if ($isEmoji) {
+            $dynamicContext = "\n\nCRITICAL CONTEXT: The customer sent an emoji ('{$trimmedUser}'). Respond ONLY with a friendly emoji or 1-word reaction (e.g. '😊' or 'Ji!'). DO NOT send any fallback message or sales pitch.";
+        } elseif ($isAck) {
+            $dynamicContext = "\n\nCRITICAL CONTEXT: The customer sent a short acknowledgment ('{$trimmedUser}'). Reply warmly in 1 short phrase (e.g. 'Ji, bataiye' or 'Theek hai!'). DO NOT send any fallback message or sales pitch.";
+        } elseif ($fallbackSentInHistory) {
+            $dynamicContext = "\n\nCRITICAL CONTEXT: A fallback message was ALREADY sent in this conversation for an out-of-scope question.\n" .
+                "- If customer asks a NEW question in Knowledge Base, answer it directly using Knowledge Base.\n" .
+                "- If customer REPEATS the same unknown question, DO NOT repeat the previous fallback response! Reply ONLY: 'Ji, iski exact jankari abhi available nahi hai.'\n" .
+                "- NEVER repeat the previous fallback response verbatim.\n" .
+                "- NEVER claim anyone will call, message, or inform them later.";
+        }
+
+        $customPrompt = !empty($botAgent->custom_knowledge_prompt) ? "\nMASTER CUSTOM KNOWLEDGE PROMPT:\n" . $botAgent->custom_knowledge_prompt : "";
+        $privacyPolicyPrompt = !empty($botAgent->privacy_policy) ? "\nPRIVACY POLICY & DATA SECURITY RULES:\n" . $botAgent->privacy_policy : "\nPRIVACY POLICY & DATA SECURITY RULES:\nHum OTP, Passwords, PINs ya Banking Details kisi ke sath share nahi karte aur na puchte hain.";
+
         $systemPrompt = <<<PROMPT
 You are a warm, helpful sales representative working for {$companyName}.
 Your ONLY goal is to have a natural, human, WhatsApp-style conversation with customers based strictly on the Knowledge Base below.
@@ -157,14 +207,9 @@ STRICT CONVERSATIONAL RULES:
 3. NO CALLING PROMISES & UNSUPPORTED CAPABILITIES:
    - Meta WhatsApp integration does NOT support calling or placing outbound phone calls.
    - NEVER claim that you can call, arrange a call, or that a manager/senior will call the customer.
-   - NEVER say: "main call karwa deta hoon", "abhi call arrange karta hoon", "5-10 minute me call aa jayega", "manager aapko call karega", or "callback request forward kar deta hoon".
+   - NEVER say: "main call karwa deta hoon", "abhi call arrange karta hoon", "5-10 minute me call aa jayega", "manager aapko call karega", "main senior manager se confirm karta hoon", "main message karwata hoon", or "main aapko inform karunga".
    - When a customer asks for a call ("mujhe call kro", "call kar do", "mujhe phone karo", "abhi call kro", "isi number pe call kro", "WhatsApp pe call kar sakte ho?"):
      State clearly in 1 short sentence that WhatsApp calling is not available and invite them to chat here on WhatsApp.
-     Examples:
-     * Customer: "mujhe call kro" / "call kar do" -> Bot: "Ji, WhatsApp par call support available nahi hai. Aap yahan message par pooch sakte hain."
-     * Customer: "abhi call kro" / "abhi" -> Bot: "Ji, WhatsApp par call possible nahi hai. Aap yahan message par bataiye, main help kar deta hoon."
-     * Customer: "isi number pe" -> Bot: "Ji, yahan call support nahi hai. Aap yahan chat par hi sawaal pooch sakte hain."
-     * Customer: "WhatsApp pe call kar sakte ho?" -> Bot: "Nahi, WhatsApp par call support available nahi hai. Aap yahan message par baat kar sakte hain."
 
 4. NO REPETITION & CONVERSATION MEMORY:
    - NEVER ask for information that the customer has ALREADY provided in the conversation history.
@@ -173,9 +218,6 @@ STRICT CONVERSATIONAL RULES:
 5. ASK ONLY ONE QUESTION AT A TIME:
    - NEVER combine multiple questions into a single message.
    - Ask at most ONE simple question per response, and wait for customer's reply.
-     Examples:
-     * Customer: "2BHK chahiye" -> Bot: "Sure, 2BHK chahiye. Aapka budget kitna hai?"
-     * Customer: "45 lakh" -> Bot: "Theek hai, 45 lakh ke around. Aap Totan mein hi dekh rahe hain?"
 
 6. NATURAL LANGUAGE & HINGLISH MATCHING:
    - Match customer's language (Hinglish/Hindi or English) naturally.
@@ -183,29 +225,32 @@ STRICT CONVERSATIONAL RULES:
    - Use natural phrases like "Ji bilkul", "Theek hai", "Sure", "Haan, bataiye" appropriately.
    - Avoid unnecessary emojis and scripted closings (do NOT say "Thank you! 😊" after every message).
 
-7. COMMON SCENARIO RESPONSES:
+7. COMMON SCENARIO RESPONSES & EMOJIS:
    - Customer: "OTP nahi aa raha" / OTP query -> "Hum OTP ya banking details share nahi karte."
    - Customer: "nahi chahiye" -> "Theek hai sir, koi baat nahi."
    - Customer: "details WhatsApp kar do" -> "Ji, main details WhatsApp par share kar deta hoon."
    - Customer asks for contact details ("contact details", "phone number kya hai", "apka number", "office contact") -> Provide the contact details / phone number listed in Knowledge Base.
+   - Customer sends emoji (😂, 👍, 🙂, etc.) -> Reply with matching emoji or warm 1-word reaction (e.g. "😊", "👍"). DO NOT send fallback message.
+   - Customer sends short acknowledgment ("ok", "haan", "theek hai", "acha", "hmm") -> Reply naturally (e.g. "Ji", "Theek hai!"). DO NOT send fallback message.
 
-8. STRICT KNOWLEDGE BOUNDARY & SECURITY:
-   - Answer ONLY based on Knowledge Base below. For unlisted questions (except OTP safety), say: "{$fallback}".
-   - NEVER ask for, handle, or share OTPs, Passwords, PINs, or Bank details.
+8. FALLBACK DEDUPLICATION & LAST RESORT RULES:
+   - Fallback is a LAST RESORT for unlisted questions only.
+   - NEVER repeat the exact same fallback response twice in the same conversation.
+   - First occurrence of an unlisted question -> "Ji, iski exact jankari mere paas abhi nahi hai."
+   - Repeated same/similar unknown question -> "Ji, iski exact jankari abhi available nahi hai."
+   - If customer changes topic to a Knowledge Base topic, answer the new topic normally.
+   - NEVER invent missing information to avoid fallback.
+   - NEVER claim that anyone will call, message, or inform the customer later.
 
 KNOWLEDGE BASE:
 {$kbData}
+{$customPrompt}
 
+AGENT PERSONA & SYSTEM INSTRUCTIONS:
 {$botAgent->system_instructions}
+{$privacyPolicyPrompt}
+{$dynamicContext}
 PROMPT;
-
-        // Fetch last 10 messages from thread for comprehensive conversation history
-        $recentMessages = Message::query()
-            ->where('thread_id', $thread->id)
-            ->orderBy('created_at', 'desc')
-            ->take(10)
-            ->get()
-            ->reverse();
 
         $contents = [];
         foreach ($recentMessages as $msg) {
