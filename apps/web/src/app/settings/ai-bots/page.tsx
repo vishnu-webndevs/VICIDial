@@ -25,14 +25,15 @@ export default function AiBotsManagementPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [systemInstructions, setSystemInstructions] = useState("");
-  const [fallbackMessage, setFallbackMessage] = useState("Muje iski exact jankari abhi nahi hai, main apne senior manager se confirm karke aapko call/message karwata hu.");
+  const [fallbackMessage, setFallbackMessage] = useState("Mujhe iski exact jankari abhi nahi hai, main confirm karke aapko bataunga.");
   const [humanDelay, setHumanDelay] = useState(3);
   const [strictMode, setStrictMode] = useState(true);
 
   // Knowledge Base Q&A Array
   const [qaList, setQaList] = useState<{ question: string; answer: string }[]>([
     { question: "2BHK Price & Details", answer: "2BHK flats prime location me ₹45 Lakh se start hain jisme Gym, Parking aur Club House included hai." },
-    { question: "3BHK Price & Details", answer: "3BHK luxury flats ₹65 Lakh se start hain 1800 sq ft spacious area ke sath." }
+    { question: "3BHK Price & Details", answer: "3BHK luxury flats ₹65 Lakh se start hain 1800 sq ft spacious area ke sath." },
+    { question: "Contact Details / Phone Number", answer: "Aap hamare sales team se +91-9876543210 ya office address: Sector 62, Noida par contact kar sakte hain." }
   ]);
 
   // Interactive Flow Array
@@ -110,12 +111,13 @@ export default function AiBotsManagementPage() {
       setName("");
       setDescription("");
       setSystemInstructions("Aap ek warm aur helpful Sales Executive ki tarah real person ki bhasha me baat karein. Kabhi robot jaise mat bolna.");
-      setFallbackMessage("Muje iski exact jankari abhi nahi hai, main apne senior manager se confirm karke aapko call/message karwata hu.");
+      setFallbackMessage("Mujhe iski exact jankari abhi nahi hai, main confirm karke aapko bataunga.");
       setHumanDelay(3);
       setStrictMode(true);
       setQaList([
         { question: "2BHK Price & Details", answer: "2BHK flats prime location me ₹45 Lakh se start hain jisme Gym, Parking aur Club House included hai." },
-        { question: "3BHK Price & Details", answer: "3BHK luxury flats ₹65 Lakh se start hain 1800 sq ft spacious area ke sath." }
+        { question: "3BHK Price & Details", answer: "3BHK luxury flats ₹65 Lakh se start hain 1800 sq ft spacious area ke sath." },
+        { question: "Contact Details / Phone Number", answer: "Aap hamare sales team se +91-9876543210 ya office address: Sector 62, Noida par contact kar sakte hain." }
       ]);
       setFlows([
         { trigger_keyword: "Interested", question_text: "Aap kitne BHK flat dekhna chahte hain?", options: "2BHK, 3BHK, 4BHK" }
@@ -360,7 +362,7 @@ export default function AiBotsManagementPage() {
             <TextField
               fullWidth
               label="Out-of-Scope Fallback Message"
-              placeholder="Muje iski exact jankari abhi nahi hai, main apne senior manager se confirm karke aapko call/message karwata hu."
+              placeholder="Mujhe iski exact jankari abhi nahi hai, main confirm karke aapko bataunga."
               value={fallbackMessage}
               onChange={(e) => setFallbackMessage(e.target.value)}
             />

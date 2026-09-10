@@ -55,7 +55,7 @@ class AiBotController extends Controller
             'description' => $validated['description'] ?? null,
             'system_instructions' => $validated['system_instructions'] ?? null,
             'knowledge_base' => $validated['knowledge_base'] ?? [],
-            'fallback_message' => $validated['fallback_message'] ?? 'Muje iski exact jankari abhi nahi hai, main apne senior manager se confirm karke aapko call/message karwata hu.',
+            'fallback_message' => $validated['fallback_message'] ?? 'Mujhe iski exact jankari abhi nahi hai, main confirm karke aapko bataunga.',
             'strict_mode' => $validated['strict_mode'] ?? true,
             'human_delay_seconds' => $validated['human_delay_seconds'] ?? 3,
             'is_active' => $validated['is_active'] ?? true,
@@ -185,7 +185,7 @@ class AiBotController extends Controller
                 'provider' => $settings?->provider ?? 'gemini',
                 'enabled' => $settings?->enabled ?? true,
                 'has_api_key' => !empty($settings?->api_key),
-                'default_model' => $settings?->default_model ?? 'gemini-1.5-flash',
+                'default_model' => $settings?->default_model ?? 'gemini-3.5-flash',
             ],
         ]);
     }
@@ -209,7 +209,7 @@ class AiBotController extends Controller
             [
                 'provider' => $validated['provider'] ?? 'gemini',
                 'enabled' => $validated['enabled'] ?? true,
-                'default_model' => $validated['default_model'] ?? 'gemini-1.5-flash',
+                'default_model' => $validated['default_model'] ?? 'gemini-flash-latest',
                 'api_key' => !empty($validated['api_key']) ? $validated['api_key'] : null,
             ]
         );
