@@ -364,9 +364,9 @@ PROMPT;
                 'sent_at' => now(),
             ]);
 
-            $thread->last_message_at = now();
+            $thread->last_message_at = \Illuminate\Support\Carbon::now();
             if (!$thread->first_outbound_at) {
-                $thread->first_outbound_at = now();
+                $thread->first_outbound_at = \Illuminate\Support\Carbon::now();
             }
             $thread->save();
 

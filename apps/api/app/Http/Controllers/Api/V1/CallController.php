@@ -148,7 +148,7 @@ class CallController extends Controller
 
         $callingMethod = 'phone';
         if (! empty($validated['agent_id'])) {
-            $agent = \App\Models\Agent::query()->find($validated['agent_id']);
+            $agent = Agent::query()->find($validated['agent_id']);
             if ($agent) {
                 $agentMetadata = (array) ($agent->metadata ?? []);
                 $callingMethod = (string) ($agentMetadata['calling_method'] ?? 'phone');
@@ -839,7 +839,7 @@ class CallController extends Controller
                 }
             }
 
-            $call->ended_at = now();
+            $call->ended_at = \Illuminate\Support\Carbon::now();
             if ($call->status === 'in_progress') {
                 $call->status = 'completed';
                 if ($call->started_at && !$call->duration_seconds) {
@@ -1173,10 +1173,13 @@ class CallController extends Controller
             $disk = 's3';
         }
 
+        /** @var \Illuminate\Filesystem\FilesystemAdapter $storage */
+        $storage = Storage::disk($disk);
+
         try {
-            return Storage::disk($disk)->temporaryUrl($recordingUrl, now()->addMinutes(15));
+            return $storage->temporaryUrl($recordingUrl, now()->addMinutes(15));
         } catch (\Throwable) {
-            return Storage::disk($disk)->url($recordingUrl);
+            return $storage->url($recordingUrl);
         }
     }
 

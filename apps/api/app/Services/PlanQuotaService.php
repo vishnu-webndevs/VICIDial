@@ -182,7 +182,7 @@ class SchemaInspector
         }
 
         try {
-            $cache[$key] = \Illuminate\Support\Facades\DB::getSchemaBuilder()->hasTable($table);
+            $cache[$key] = DB::getSchemaBuilder()->hasTable($table);
         } catch (\Throwable) {
             $cache[$key] = false;
         }
@@ -199,7 +199,7 @@ class SchemaInspector
         }
 
         try {
-            $cache[$key] = \Illuminate\Support\Facades\DB::getSchemaBuilder()->hasColumn($table, $column);
+            $cache[$key] = DB::getSchemaBuilder()->hasColumn($table, $column);
         } catch (\Throwable) {
             $cache[$key] = false;
         }

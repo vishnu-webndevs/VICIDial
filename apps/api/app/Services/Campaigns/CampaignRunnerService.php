@@ -710,7 +710,7 @@ class CampaignRunnerService
         $run->queued_items = $pending;
         $run->completed_items = $completed;
         $run->failed_items = $failed;
-        $run->last_tick_at = now();
+        $run->last_tick_at = \Illuminate\Support\Carbon::now();
         $run->save();
 
         if ($pending === 0 && $processing === 0 && $dialed === 0 && $run->status === 'running') {
@@ -729,7 +729,7 @@ class CampaignRunnerService
             }
 
             $run->status = 'completed';
-            $run->stopped_at = now();
+            $run->stopped_at = \Illuminate\Support\Carbon::now();
             $run->save();
 
             Campaign::query()->where('id', $run->campaign_id)->update(['status' => 'completed']);
@@ -741,7 +741,7 @@ class CampaignRunnerService
     {
         $windowStart = $run->pacing_window_started_at;
         if (! $windowStart || $windowStart->diffInSeconds(now()) >= 60) {
-            $run->pacing_window_started_at = now();
+            $run->pacing_window_started_at = \Illuminate\Support\Carbon::now();
             $run->calls_dispatched_in_window = 0;
             $run->save();
         }
@@ -765,9 +765,9 @@ class CampaignRunnerService
         $metadata['paused_by_system_at'] = now()->toISOString();
 
         $run->status = 'paused';
-        $run->paused_at = now();
+        $run->paused_at = \Illuminate\Support\Carbon::now();
         $run->metadata = $metadata;
-        $run->last_tick_at = now();
+        $run->last_tick_at = \Illuminate\Support\Carbon::now();
         $run->save();
 
         $campaign->status = 'paused';
