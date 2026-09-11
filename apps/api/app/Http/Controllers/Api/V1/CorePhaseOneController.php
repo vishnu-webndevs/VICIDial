@@ -576,6 +576,17 @@ class CorePhaseOneController extends Controller
         // Return messages in chronological order (earliest first) for chat UI
         $items = collect($messages->items())->reverse()->values();
 
+        // Auto-resolve media for any inbound messages where media was not yet hydrated
+        $mediaService = app(\App\Services\Messaging\MediaAttachmentService::class);
+        foreach ($items as $msg) {
+            if (empty($msg->media)) {
+                $resolved = $mediaService->resolveMessageMedia($msg);
+                if (!empty($resolved)) {
+                    $msg->media = $resolved;
+                }
+            }
+        }
+
         return response()->json([
             'success' => true,
             'data' => $items,

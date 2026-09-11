@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Paper, Switch, TextField, Typography } from "@mui/material";
+import { Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, Paper, Switch, TextField, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 import { AppShell, LoadingState } from "@/components/app-shell";
 import { ToastMessage } from "@/components/ui-primitives";
 import { createAiBot, deleteAiBot, getTenantAiSettings, listAiBots, saveTenantAiSettings, updateAiBot } from "@/lib/product-api";
@@ -15,6 +15,8 @@ export default function AiBotsManagementPage() {
   // API Key Settings
   const [apiKey, setApiKey] = useState("");
   const [hasApiKey, setHasApiKey] = useState(false);
+  const [provider, setProvider] = useState<"gemini" | "openai">("gemini");
+  const [activeProviderName, setActiveProviderName] = useState("gemini");
   const [savingKey, setSavingKey] = useState(false);
 
   // Dialog State
@@ -52,6 +54,10 @@ export default function AiBotsManagementPage() {
       ]);
       setBots(botsData);
       setHasApiKey(settingsData.has_api_key);
+      if (settingsData?.provider) {
+        setProvider(settingsData.provider === "openai" ? "openai" : "gemini");
+        setActiveProviderName(settingsData.provider);
+      }
     } catch (err) {
       setToastMsg("Failed to load AI bots.");
       setToastTone("error");
@@ -67,11 +73,17 @@ export default function AiBotsManagementPage() {
   const handleSaveApiKey = async () => {
     if (!apiKey.trim()) return;
     setSavingKey(true);
+    const selectedProvider = apiKey.trim().startsWith("sk-") ? "openai" : provider;
     try {
-      await saveTenantAiSettings({ api_key: apiKey.trim(), provider: "gemini" });
+      await saveTenantAiSettings({
+        api_key: apiKey.trim(),
+        provider: selectedProvider,
+        default_model: selectedProvider === "openai" ? "gpt-4o-mini" : "gemini-flash-latest"
+      });
       setHasApiKey(true);
+      setActiveProviderName(selectedProvider);
       setApiKey("");
-      setToastMsg("Tenant Gemini API Key saved securely.");
+      setToastMsg(`Tenant ${selectedProvider === "openai" ? "OpenAI (ChatGPT)" : "Google Gemini"} API Key saved securely.`);
       setToastTone("success");
     } catch (err) {
       setToastMsg("Failed to save API key.");
@@ -213,24 +225,42 @@ export default function AiBotsManagementPage() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
             <i className="bx bx-key" style={{ fontSize: 24, color: '#6366f1' }} />
             <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e293b' }}>
-              Tenant Gemini AI API Key (SaaS Security)
+              Tenant AI Provider & API Key (Gemini or OpenAI)
             </Typography>
             <Chip
-              label={hasApiKey ? "API Key Active" : "No API Key (Using System Fallback)"}
+              label={hasApiKey ? `Active: ${activeProviderName === "openai" ? "OpenAI ChatGPT" : "Google Gemini"}` : "No API Key (Using System Fallback)"}
               color={hasApiKey ? "success" : "warning"}
               size="small"
               sx={{ fontWeight: 600, ml: 'auto' }}
             />
           </Box>
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-            Each client can configure their own Google Gemini API key. Keys are encrypted with AES-256 in the database.
+            Aap apni pasand ka AI Provider choose kar sakte hain — chahe <strong>Google Gemini</strong> ho ya <strong>OpenAI (ChatGPT)</strong>. Keys database me encrypted save hoti hain.
           </Typography>
-          <Box sx={{ display: 'flex', gap: 2, maxWidth: 600 }}>
+
+          <Box sx={{ mb: 2 }}>
+            <ToggleButtonGroup
+              size="small"
+              value={provider}
+              exclusive
+              onChange={(_, newP) => { if (newP) setProvider(newP); }}
+              sx={{ bgcolor: '#f8fafc', borderRadius: 2 }}
+            >
+              <ToggleButton value="gemini" sx={{ px: 2, textTransform: 'none', fontWeight: 600 }}>
+                Google Gemini
+              </ToggleButton>
+              <ToggleButton value="openai" sx={{ px: 2, textTransform: 'none', fontWeight: 600 }}>
+                OpenAI (ChatGPT)
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
+          <Box sx={{ display: 'flex', gap: 2, maxWidth: 650 }}>
             <TextField
               size="small"
               fullWidth
               type="password"
-              placeholder={hasApiKey ? "••••••••••••••••••••••••" : "Enter your Gemini API Key"}
+              placeholder={hasApiKey ? "••••••••••••••••••••••••" : (provider === "openai" ? "Enter OpenAI API Key (sk-...)" : "Enter Gemini API Key (AIzaSy...)")}
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
               sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#f8fafc', borderRadius: 2 } }}
@@ -241,7 +271,7 @@ export default function AiBotsManagementPage() {
               onClick={handleSaveApiKey}
               sx={{ bgcolor: '#1e293b', textTransform: 'none', borderRadius: 2, px: 3, whiteSpace: 'nowrap' }}
             >
-              {savingKey ? "Saving..." : "Save Key"}
+              {savingKey ? "Saving..." : `Save ${provider === "openai" ? "OpenAI" : "Gemini"} Key`}
             </Button>
           </Box>
         </Paper>

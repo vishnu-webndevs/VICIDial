@@ -191,7 +191,7 @@ class AiBotController extends Controller
                 'provider' => $settings?->provider ?? 'gemini',
                 'enabled' => $settings?->enabled ?? true,
                 'has_api_key' => !empty($settings?->api_key),
-                'default_model' => $settings?->default_model ?? 'gemini-3.5-flash',
+                'default_model' => $settings?->default_model ?? 'gemini-flash-latest',
             ],
         ]);
     }
@@ -210,14 +210,19 @@ class AiBotController extends Controller
             'default_model' => ['nullable', 'string', 'max:50'],
         ]);
 
+        $dataToUpdate = [
+            'provider' => $validated['provider'] ?? 'gemini',
+            'enabled' => $validated['enabled'] ?? true,
+            'default_model' => $validated['default_model'] ?? (($validated['provider'] ?? '') === 'openai' ? 'gpt-4o-mini' : 'gemini-flash-latest'),
+        ];
+
+        if (!empty($validated['api_key'])) {
+            $dataToUpdate['api_key'] = $validated['api_key'];
+        }
+
         $settings = TenantAiSetting::updateOrCreate(
             ['tenant_id' => $tenant->id],
-            [
-                'provider' => $validated['provider'] ?? 'gemini',
-                'enabled' => $validated['enabled'] ?? true,
-                'default_model' => $validated['default_model'] ?? 'gemini-flash-latest',
-                'api_key' => !empty($validated['api_key']) ? $validated['api_key'] : null,
-            ]
+            $dataToUpdate
         );
 
         return response()->json([

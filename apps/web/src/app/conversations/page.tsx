@@ -8,7 +8,25 @@ import { ToastMessage } from "@/components/ui-primitives";
 import { listInboxThreads, listTeamMembers, sendInboxThreadMessage, updateInboxThread, listInboxThreadMessages, deleteInboxThread, clearInboxThreadMessages, markThreadNotificationsAsRead } from "@/lib/product-api";
 import { playNotificationSoundDebounced } from "@/lib/notificationSound";
 import { useSearchParams } from "next/navigation";
+import { API_BASE_URL } from "@/lib/runtime-config";
 import type { MessageThread, TeamMember } from "@/types/product";
+
+const resolveMediaUrl = (url: string): string => {
+  if (!url) return '';
+  if (url.startsWith('blob:') || url.startsWith('data:')) {
+    return url;
+  }
+  const backendBase = API_BASE_URL.replace(/\/api\/v1\/?$/, '');
+  if (url.includes('/storage/chat_attachments/')) {
+    const filename = url.split('/storage/chat_attachments/').pop() || '';
+    return `${backendBase}/storage/chat_attachments/${filename}`;
+  }
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  return `${backendBase}${cleanPath}`;
+};
 
 const EMOJI_CATEGORIES = [
   {
@@ -669,33 +687,45 @@ function ConversationsContent() {
                           boxShadow: '0 2px 5px rgba(0, 0, 0, 0.03)',
                           position: 'relative'
                         }}>
-                          {msg.body ? (
+                          {/* Message Text Body */}
+                          {msg.body && (!msg.media || msg.media.length === 0 || (msg.body !== '[Image]' && msg.body !== '[Video]' && msg.body !== '[Document]' && msg.body !== '[Voice Note]')) ? (
                             <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem', color: isOutbound ? '#ffffff' : '#1e293b', lineHeight: 1.5 }}>
                               {msg.body}
                             </Typography>
                           ) : null}
 
-                          {msg.media && Array.isArray(msg.media) && msg.media.length > 0 && (
-                            <Box sx={{ mt: msg.body ? 1 : 0, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                          {/* Media Attachments */}
+                          {msg.media && Array.isArray(msg.media) && msg.media.length > 0 ? (
+                            <Box sx={{ mt: (msg.body && msg.body !== '[Image]' && msg.body !== '[Video]' && msg.body !== '[Document]' && msg.body !== '[Voice Note]') ? 1 : 0, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                               {msg.media.map((m: any, i: number) => {
-                                const mediaUrl = typeof m === 'string' ? m : (m.url || m.link || '');
+                                const rawUrl = typeof m === 'string' ? m : (m.url || m.link || '');
+                                const mediaUrl = resolveMediaUrl(rawUrl);
                                 const isImg = mediaUrl.startsWith('blob:') || mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i) || mediaUrl.includes('chat_attachments');
                                 return (
-                                  <Box key={i} sx={{ position: 'relative', borderRadius: 2, overflow: 'hidden', border: isOutbound ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e2e8f0' }}>
+                                  <Box key={i} sx={{ position: 'relative', borderRadius: 2, overflow: 'hidden', border: isOutbound ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e2e8f0', bgcolor: isOutbound ? 'rgba(255,255,255,0.08)' : '#f8fafc' }}>
                                     {isImg ? (
-                                      <a href={mediaUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block' }}>
+                                      <a href={mediaUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', cursor: 'pointer' }}>
                                         <img
                                           src={mediaUrl}
                                           alt="media attachment"
-                                          style={{ maxWidth: 260, maxHeight: 260, objectFit: 'cover', display: 'block', borderRadius: 8, transition: 'transform 0.2s ease' }}
+                                          style={{ maxWidth: 280, maxHeight: 280, objectFit: 'cover', display: 'block', borderRadius: 8, transition: 'transform 0.2s ease' }}
                                           onError={(e) => {
+                                            console.warn('Image load failed for:', mediaUrl);
                                             e.currentTarget.style.display = 'none';
+                                            const parent = e.currentTarget.parentElement;
+                                            if (parent && !parent.querySelector('.fallback-placeholder')) {
+                                              const div = document.createElement('div');
+                                              div.className = 'fallback-placeholder';
+                                              div.style.cssText = 'padding: 12px 16px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: #475569;';
+                                              div.innerHTML = '<i class="bx bx-image" style="font-size: 20px; color: #6366f1;"></i><span>View Image</span>';
+                                              parent.appendChild(div);
+                                            }
                                           }}
                                         />
                                       </a>
                                     ) : (
                                       <a
-                                        href={mediaUrl.startsWith('http') || mediaUrl.startsWith('/storage') ? mediaUrl : '#'}
+                                        href={mediaUrl}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         style={{
@@ -724,6 +754,15 @@ function ConversationsContent() {
                                 );
                               })}
                             </Box>
+                          ) : (
+                            msg.body === '[Image]' && (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, color: isOutbound ? 'rgba(255,255,255,0.9)' : '#475569' }}>
+                                <i className="bx bx-image" style={{ fontSize: 22, color: '#6366f1' }} />
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                  [Photo Attachment]
+                                </Typography>
+                              </Box>
+                            )
                           )}
 
                           <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mt: 0.5, gap: 0.5 }}>

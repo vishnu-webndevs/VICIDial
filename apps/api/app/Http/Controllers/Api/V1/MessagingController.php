@@ -446,12 +446,28 @@ class MessagingController extends Controller
         }
         $thread->save();
 
+        $mediaUrls = [];
+        $mediaId = '';
+        $mediaMime = '';
+        if (in_array($type, ['image', 'video', 'document', 'audio', 'voice', 'sticker'], true)) {
+            $mediaObj = (array) data_get($row, $type === 'voice' ? 'audio' : $type, []);
+            $mediaId = (string) ($mediaObj['id'] ?? '');
+            $mediaMime = (string) ($mediaObj['mime_type'] ?? '');
+            if ($mediaId !== '') {
+                $downloadedUrl = $this->mediaAttachmentService->downloadMetaWhatsappMedia($provider, $mediaId, $mediaMime);
+                if ($downloadedUrl) {
+                    $mediaUrls[] = $downloadedUrl;
+                }
+            }
+        }
+
         $message = Message::query()->create([
             'tenant_id' => $tenantId,
             'thread_id' => $thread->id,
             'direction' => 'inbound',
             'status' => 'received',
             'body' => $body,
+            'media' => $mediaUrls,
             'sent_by_user_id' => null,
             'provider_message_id' => $providerMessageId,
             'metadata' => [
@@ -459,6 +475,9 @@ class MessagingController extends Controller
                 'provider_account_id' => $provider->id,
                 'webhook_event_id' => $webhookEventId,
                 'in_reply_to' => $inReplyTo !== '' ? $inReplyTo : null,
+                'media_id' => $mediaId ?: null,
+                'media_type' => $type,
+                'mime_type' => $mediaMime ?: null,
                 'meta' => $payload,
             ],
             'sent_at' => $sentAt,
