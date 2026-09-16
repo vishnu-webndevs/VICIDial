@@ -160,12 +160,14 @@ class MediaAttachmentService
                 'image/gif' => 'gif',
                 'video/mp4' => 'mp4',
                 'video/3gpp' => '3gp',
-                'audio/ogg', 'audio/ogg; codecs=opus' => 'ogg',
+                'audio/ogg', 'audio/opus' => 'ogg',
                 'audio/mpeg', 'audio/mp3' => 'mp3',
                 'audio/amr' => 'amr',
+                'audio/mp4', 'audio/m4a', 'audio/aac', 'audio/x-m4a' => 'm4a',
+                'audio/wav', 'audio/x-wav' => 'wav',
                 'application/pdf' => 'pdf',
                 'text/plain' => 'txt',
-                default => 'jpg',
+                default => str_starts_with($cleanMime, 'audio/') ? 'ogg' : (str_starts_with($cleanMime, 'video/') ? 'mp4' : 'jpg'),
             };
 
             $fileName = 'wa_' . $cleanId . '_' . time() . '.' . $extension;
@@ -201,7 +203,7 @@ class MediaAttachmentService
             foreach ($messages as $m) {
                 $type = (string) ($m['type'] ?? '');
                 if (in_array($type, ['image', 'video', 'document', 'audio', 'voice', 'sticker'], true)) {
-                    $mediaObj = (array) ($m[$type === 'voice' ? 'audio' : $type] ?? []);
+                    $mediaObj = (array) (data_get($m, $type) ?: data_get($m, 'audio') ?: data_get($m, 'voice') ?: []);
                     $mediaId = (string) ($mediaObj['id'] ?? '');
                     $mimeType = (string) ($mediaObj['mime_type'] ?? '');
                     if ($mediaId !== '') {

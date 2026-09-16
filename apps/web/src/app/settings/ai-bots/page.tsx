@@ -18,6 +18,7 @@ export default function AiBotsManagementPage() {
   const [provider, setProvider] = useState<"gemini" | "openai">("gemini");
   const [activeProviderName, setActiveProviderName] = useState("gemini");
   const [savingKey, setSavingKey] = useState(false);
+  const [savingBot, setSavingBot] = useState(false);
 
   // Dialog State
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -146,6 +147,7 @@ export default function AiBotsManagementPage() {
 
   const handleSaveBot = async () => {
     if (!name.trim()) return;
+    setSavingBot(true);
     try {
       const payload = {
         name: name.trim(),
@@ -175,9 +177,11 @@ export default function AiBotsManagementPage() {
       setToastTone("success");
       setDialogOpen(false);
       void loadData();
-    } catch (err) {
-      setToastMsg("Failed to save AI Bot Agent.");
+    } catch (err: any) {
+      setToastMsg(err?.message || "Failed to save AI Bot Agent.");
       setToastTone("error");
+    } finally {
+      setSavingBot(false);
     }
   };
 
@@ -556,9 +560,9 @@ export default function AiBotsManagementPage() {
 
           </DialogContent>
           <DialogActions sx={{ p: 2.5 }}>
-            <Button onClick={() => setDialogOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
-            <Button variant="contained" onClick={handleSaveBot} sx={{ bgcolor: '#6366f1', textTransform: 'none', px: 3 }}>
-              Save AI Bot Agent
+            <Button disabled={savingBot} onClick={() => setDialogOpen(false)} sx={{ textTransform: 'none' }}>Cancel</Button>
+            <Button disabled={savingBot} variant="contained" onClick={handleSaveBot} sx={{ bgcolor: '#6366f1', textTransform: 'none', px: 3 }}>
+              {savingBot ? "Saving..." : "Save AI Bot Agent"}
             </Button>
           </DialogActions>
         </Dialog>

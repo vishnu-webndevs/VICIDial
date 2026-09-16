@@ -326,7 +326,7 @@ function ConversationsContent() {
 
     let tempMedia: string[] = [];
     if (attachmentToSend) {
-      if (attachmentToSend.type.startsWith('image/')) {
+      if (attachmentToSend.type.startsWith('image/') || attachmentToSend.type.startsWith('audio/')) {
         tempMedia = [URL.createObjectURL(attachmentToSend)];
       } else {
         tempMedia = [attachmentToSend.name];
@@ -550,7 +550,17 @@ function ConversationsContent() {
                                 fontSize: '0.875rem',
                               }}
                             >
-                              {thread.latest_message.body || (thread.latest_message.media && thread.latest_message.media.length > 0 ? '📷 Attachment' : '')}
+                              {(() => {
+                                const body = thread.latest_message.body || '';
+                                if (body === '[Voice Note]') return '🎤 Voice Note';
+                                if (body === '[Audio]') return '🎵 Audio';
+                                if (body === '[Image]' || body === '[Photo]') return '📷 Photo';
+                                if (body === '[Video]') return '🎥 Video';
+                                if (body === '[Document]') return '📄 Document';
+                                if (body) return body;
+                                if (thread.latest_message.media && thread.latest_message.media.length > 0) return '📎 Attachment';
+                                return '';
+                              })()}
                             </Typography>
                           </>
                         ) : (
@@ -688,7 +698,7 @@ function ConversationsContent() {
                           position: 'relative'
                         }}>
                           {/* Message Text Body */}
-                          {msg.body && (!msg.media || msg.media.length === 0 || (msg.body !== '[Image]' && msg.body !== '[Video]' && msg.body !== '[Document]' && msg.body !== '[Voice Note]')) ? (
+                          {msg.body && (!msg.media || msg.media.length === 0 || (msg.body !== '[Image]' && msg.body !== '[Photo]' && msg.body !== '[Video]' && msg.body !== '[Document]' && msg.body !== '[Voice Note]' && msg.body !== '[Audio]')) ? (
                             <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem', color: isOutbound ? '#ffffff' : '#1e293b', lineHeight: 1.5 }}>
                               {msg.body}
                             </Typography>
@@ -696,14 +706,106 @@ function ConversationsContent() {
 
                           {/* Media Attachments */}
                           {msg.media && Array.isArray(msg.media) && msg.media.length > 0 ? (
-                            <Box sx={{ mt: (msg.body && msg.body !== '[Image]' && msg.body !== '[Video]' && msg.body !== '[Document]' && msg.body !== '[Voice Note]') ? 1 : 0, display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                            <Box sx={{ mt: (msg.body && msg.body !== '[Image]' && msg.body !== '[Photo]' && msg.body !== '[Video]' && msg.body !== '[Document]' && msg.body !== '[Voice Note]' && msg.body !== '[Audio]') ? 1 : 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
                               {msg.media.map((m: any, i: number) => {
                                 const rawUrl = typeof m === 'string' ? m : (m.url || m.link || '');
                                 const mediaUrl = resolveMediaUrl(rawUrl);
-                                const isImg = mediaUrl.startsWith('blob:') || mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i) || mediaUrl.includes('chat_attachments');
-                                return (
-                                  <Box key={i} sx={{ position: 'relative', borderRadius: 2, overflow: 'hidden', border: isOutbound ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e2e8f0', bgcolor: isOutbound ? 'rgba(255,255,255,0.08)' : '#f8fafc' }}>
-                                    {isImg ? (
+                                const isAudio = Boolean(
+                                  mediaUrl.match(/\.(ogg|opus|mp3|m4a|wav|aac|amr)(\?.*)?$/i) ||
+                                  msg.metadata?.media_type === 'audio' ||
+                                  msg.metadata?.media_type === 'voice' ||
+                                  msg.metadata?.voice ||
+                                  (typeof m === 'object' && (m.type === 'audio' || m.type === 'voice'))
+                                );
+                                const isVideo = !isAudio && Boolean(
+                                  mediaUrl.match(/\.(mp4|webm|mov|3gp)(\?.*)?$/i) ||
+                                  msg.metadata?.media_type === 'video'
+                                );
+                                const isImg = !isAudio && !isVideo && Boolean(
+                                  mediaUrl.startsWith('blob:') ||
+                                  mediaUrl.match(/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i) ||
+                                  (mediaUrl.includes('chat_attachments') && !mediaUrl.match(/\.(ogg|opus|mp3|m4a|wav|aac|amr|mp4|webm|mov|pdf|txt)(\?.*)?$/i))
+                                );
+
+                                if (isAudio) {
+                                  return (
+                                    <Box
+                                      key={i}
+                                      sx={{
+                                        p: 1.25,
+                                        borderRadius: 2.5,
+                                        bgcolor: '#ffffff',
+                                        border: '1px solid #e2e8f0',
+                                        minWidth: { xs: 240, sm: 280 },
+                                        maxWidth: 320,
+                                        boxShadow: isOutbound ? '0 2px 6px rgba(0,0,0,0.12)' : '0 1px 3px rgba(0,0,0,0.04)',
+                                      }}
+                                    >
+                                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.75 }}>
+                                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                          <Box
+                                            sx={{
+                                              width: 28,
+                                              height: 28,
+                                              borderRadius: '50%',
+                                              bgcolor: isOutbound ? '#eef2ff' : '#ecfdf5',
+                                              color: isOutbound ? '#4f46e5' : '#059669',
+                                              display: 'flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              fontSize: 16,
+                                            }}
+                                          >
+                                            <i className="bx bxs-microphone" />
+                                          </Box>
+                                          <Typography
+                                            variant="caption"
+                                            sx={{
+                                              fontWeight: 600,
+                                              color: '#1e293b',
+                                              fontSize: '0.78rem',
+                                              letterSpacing: '0.01em',
+                                            }}
+                                          >
+                                            {msg.metadata?.voice || msg.body === '[Voice Note]' ? 'Voice Note' : 'Audio Message'}
+                                          </Typography>
+                                        </Box>
+                                        <a
+                                          href={mediaUrl}
+                                          download
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          title="Download audio"
+                                          style={{
+                                            color: '#64748b',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            textDecoration: 'none',
+                                          }}
+                                        >
+                                          <i className="bx bx-download" style={{ fontSize: 17 }} />
+                                        </a>
+                                      </Box>
+
+                                      <audio
+                                        controls
+                                        src={mediaUrl}
+                                        preload="metadata"
+                                        style={{
+                                          width: '100%',
+                                          height: 36,
+                                          borderRadius: 18,
+                                          outline: 'none',
+                                          display: 'block',
+                                        }}
+                                      />
+                                    </Box>
+                                  );
+                                }
+
+                                if (isImg) {
+                                  return (
+                                    <Box key={i} sx={{ position: 'relative', borderRadius: 2, overflow: 'hidden', border: isOutbound ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e2e8f0', bgcolor: isOutbound ? 'rgba(255,255,255,0.08)' : '#f8fafc' }}>
                                       <a href={mediaUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'block', cursor: 'pointer' }}>
                                         <img
                                           src={mediaUrl}
@@ -723,46 +825,57 @@ function ConversationsContent() {
                                           }}
                                         />
                                       </a>
-                                    ) : (
-                                      <a
-                                        href={mediaUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        style={{
-                                          textDecoration: 'none',
-                                          color: isOutbound ? '#ffffff' : '#4f46e5',
-                                          display: 'flex',
-                                          alignItems: 'center',
-                                          gap: 8,
-                                          padding: '8px 12px',
-                                          background: isOutbound ? 'rgba(255,255,255,0.15)' : '#f8fafc',
-                                          borderRadius: 8
-                                        }}
-                                      >
-                                        <i className="bx bx-file" style={{ fontSize: 24 }} />
-                                        <Box>
-                                          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.825rem' }}>
-                                            {mediaUrl.split('/').pop() || 'Attachment Document'}
-                                          </Typography>
-                                          <Typography variant="caption" sx={{ opacity: 0.8, fontSize: '0.7rem' }}>
-                                            Click to view / download
-                                          </Typography>
-                                        </Box>
-                                      </a>
-                                    )}
+                                    </Box>
+                                  );
+                                }
+
+                                return (
+                                  <Box key={i} sx={{ position: 'relative', borderRadius: 2, overflow: 'hidden', border: isOutbound ? '1px solid rgba(255,255,255,0.2)' : '1px solid #e2e8f0', bgcolor: isOutbound ? 'rgba(255,255,255,0.08)' : '#f8fafc' }}>
+                                    <a
+                                      href={mediaUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        textDecoration: 'none',
+                                        color: isOutbound ? '#ffffff' : '#4f46e5',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: 8,
+                                        padding: '8px 12px',
+                                        background: isOutbound ? 'rgba(255,255,255,0.15)' : '#f8fafc',
+                                        borderRadius: 8
+                                      }}
+                                    >
+                                      <i className="bx bx-file" style={{ fontSize: 24 }} />
+                                      <Box>
+                                        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.825rem' }}>
+                                          {mediaUrl.split('/').pop() || 'Attachment Document'}
+                                        </Typography>
+                                        <Typography variant="caption" sx={{ opacity: 0.8, fontSize: '0.7rem' }}>
+                                          Click to view / download
+                                        </Typography>
+                                      </Box>
+                                    </a>
                                   </Box>
                                 );
                               })}
                             </Box>
                           ) : (
-                            msg.body === '[Image]' && (
+                            (msg.body === '[Image]' || msg.body === '[Photo]') ? (
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, color: isOutbound ? 'rgba(255,255,255,0.9)' : '#475569' }}>
                                 <i className="bx bx-image" style={{ fontSize: 22, color: '#6366f1' }} />
                                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
                                   [Photo Attachment]
                                 </Typography>
                               </Box>
-                            )
+                            ) : (msg.body === '[Voice Note]' || msg.body === '[Audio]') ? (
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 0.5, color: isOutbound ? 'rgba(255,255,255,0.9)' : '#475569' }}>
+                                <i className="bx bxs-microphone" style={{ fontSize: 22, color: isOutbound ? '#a5f3fc' : '#10b981' }} />
+                                <Typography variant="body2" sx={{ fontWeight: 500 }}>
+                                  {msg.body === '[Voice Note]' ? '[Voice Note]' : '[Audio Attachment]'}
+                                </Typography>
+                              </Box>
+                            ) : null
                           )}
 
                           <Box sx={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', mt: 0.5, gap: 0.5 }}>
@@ -792,6 +905,10 @@ function ConversationsContent() {
                     <Box sx={{ width: 48, height: 48, borderRadius: 1.5, overflow: 'hidden', border: '1px solid #cbd5e1', flexShrink: 0 }}>
                       <img src={URL.createObjectURL(selectedAttachment)} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </Box>
+                  ) : selectedAttachment.type.startsWith('audio/') ? (
+                    <Avatar sx={{ bgcolor: '#10b981', width: 44, height: 44, flexShrink: 0 }}>
+                      <i className="bx bxs-microphone" style={{ fontSize: 22 }} />
+                    </Avatar>
                   ) : (
                     <Avatar sx={{ bgcolor: '#6366f1', width: 44, height: 44, flexShrink: 0 }}>
                       <i className="bx bx-file" style={{ fontSize: 22 }} />
@@ -816,7 +933,7 @@ function ConversationsContent() {
                 type="file"
                 ref={fileInputRef}
                 style={{ display: 'none' }}
-                accept="image/*,application/pdf,.doc,.docx,.xlsx,.txt"
+                accept="image/*,audio/*,application/pdf,.doc,.docx,.xlsx,.txt,.mp3,.ogg,.wav,.m4a,.aac"
                 onChange={(e) => {
                   if (e.target.files && e.target.files[0]) {
                     const selectedFile = e.target.files[0];

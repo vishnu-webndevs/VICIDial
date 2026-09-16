@@ -705,7 +705,7 @@ class CorePhaseOneController extends Controller
             'template_key' => ['nullable', 'string', 'max:80'],
             'variables' => ['nullable', 'array', 'max:50'],
             'media' => ['nullable', 'array', 'max:10'],
-            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt', 'max:20480'],
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,gif,webp,pdf,doc,docx,xls,xlsx,txt,mp3,ogg,wav,m4a,aac,amr', 'max:20480'],
         ]);
 
         if ($request->hasFile('attachment')) {
@@ -830,9 +830,10 @@ class CorePhaseOneController extends Controller
 
             $providerCredentials = (array) ($provider->credentials_encrypted ?? []);
             $statusCallbackUrl = rtrim((string) config('app.url'), '/').'/api/v1/webhooks/twilio/message-status';
+            $firstMedia = !empty($validated['media']) ? (string) $validated['media'][0] : null;
             $result = $thread->channel === 'sms'
                 ? app(\App\Services\Messaging\SmsService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials)
-                : app(\App\Services\Messaging\WhatsAppService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials);
+                : app(\App\Services\Messaging\WhatsAppService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials, $firstMedia);
 
             if (($result['ok'] ?? false) !== true) {
                 $errorMessage = (string) ($result['error'] ?? 'Message delivery failed.');

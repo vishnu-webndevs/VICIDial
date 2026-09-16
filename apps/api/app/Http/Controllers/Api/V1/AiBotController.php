@@ -38,13 +38,13 @@ class AiBotController extends Controller
         $tenant = $request->attributes->get('tenant');
 
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:100'],
-            'description' => ['nullable', 'string', 'max:255'],
-            'system_instructions' => ['nullable', 'string', 'max:5000'],
-            'privacy_policy' => ['nullable', 'string', 'max:2000'],
+            'name' => ['required', 'string', 'max:150'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'system_instructions' => ['nullable', 'string', 'max:250000'],
+            'privacy_policy' => ['nullable', 'string', 'max:250000'],
             'knowledge_base' => ['nullable', 'array'],
-            'custom_knowledge_prompt' => ['nullable', 'string', 'max:10000'],
-            'fallback_message' => ['nullable', 'string', 'max:500'],
+            'custom_knowledge_prompt' => ['nullable', 'string', 'max:1000000'],
+            'fallback_message' => ['nullable', 'string', 'max:5000'],
             'strict_mode' => ['nullable', 'boolean'],
             'human_delay_seconds' => ['nullable', 'integer', 'min:1', 'max:10'],
             'is_active' => ['nullable', 'boolean'],
@@ -117,13 +117,13 @@ class AiBotController extends Controller
             ->firstOrFail();
 
         $validated = $request->validate([
-            'name' => ['sometimes', 'string', 'max:100'],
-            'description' => ['nullable', 'string', 'max:255'],
-            'system_instructions' => ['nullable', 'string', 'max:5000'],
-            'privacy_policy' => ['nullable', 'string', 'max:2000'],
+            'name' => ['sometimes', 'string', 'max:150'],
+            'description' => ['nullable', 'string', 'max:1000'],
+            'system_instructions' => ['nullable', 'string', 'max:250000'],
+            'privacy_policy' => ['nullable', 'string', 'max:250000'],
             'knowledge_base' => ['nullable', 'array'],
-            'custom_knowledge_prompt' => ['nullable', 'string', 'max:10000'],
-            'fallback_message' => ['nullable', 'string', 'max:500'],
+            'custom_knowledge_prompt' => ['nullable', 'string', 'max:1000000'],
+            'fallback_message' => ['nullable', 'string', 'max:5000'],
             'strict_mode' => ['nullable', 'boolean'],
             'human_delay_seconds' => ['nullable', 'integer', 'min:1', 'max:10'],
             'is_active' => ['nullable', 'boolean'],

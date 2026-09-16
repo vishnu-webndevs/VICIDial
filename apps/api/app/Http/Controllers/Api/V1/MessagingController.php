@@ -392,7 +392,8 @@ class MessagingController extends Controller
                 $caption = (string) data_get($row, "{$type}.caption", '');
                 $body = $caption !== '' ? $caption : ('[' . ucfirst($type) . ']');
             } elseif ($type === 'audio' || $type === 'voice') {
-                $body = '[Voice Note]';
+                $isVoice = (bool) (data_get($row, 'audio.voice') || $type === 'voice');
+                $body = $isVoice ? '[Voice Note]' : '[Audio]';
             } elseif ($type === 'location') {
                 $name = (string) data_get($row, 'location.name', '');
                 $body = $name !== '' ? '[Location: ' . $name . ']' : '[Location]';
@@ -450,7 +451,7 @@ class MessagingController extends Controller
         $mediaId = '';
         $mediaMime = '';
         if (in_array($type, ['image', 'video', 'document', 'audio', 'voice', 'sticker'], true)) {
-            $mediaObj = (array) data_get($row, $type === 'voice' ? 'audio' : $type, []);
+            $mediaObj = (array) (data_get($row, $type) ?: data_get($row, 'audio') ?: data_get($row, 'voice') ?: []);
             $mediaId = (string) ($mediaObj['id'] ?? '');
             $mediaMime = (string) ($mediaObj['mime_type'] ?? '');
             if ($mediaId !== '') {
@@ -460,6 +461,9 @@ class MessagingController extends Controller
                 }
             }
         }
+
+        $isVoiceMsg = (bool) (data_get($row, 'audio.voice') || $type === 'voice');
+        $canonicalMediaType = in_array($type, ['audio', 'voice'], true) ? 'audio' : $type;
 
         $message = Message::query()->create([
             'tenant_id' => $tenantId,
@@ -476,8 +480,9 @@ class MessagingController extends Controller
                 'webhook_event_id' => $webhookEventId,
                 'in_reply_to' => $inReplyTo !== '' ? $inReplyTo : null,
                 'media_id' => $mediaId ?: null,
-                'media_type' => $type,
+                'media_type' => $canonicalMediaType,
                 'mime_type' => $mediaMime ?: null,
+                'voice' => $isVoiceMsg,
                 'meta' => $payload,
             ],
             'sent_at' => $sentAt,

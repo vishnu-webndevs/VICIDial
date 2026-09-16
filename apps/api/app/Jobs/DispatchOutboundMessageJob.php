@@ -450,12 +450,19 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 ],
                 [
                     'contact_id' => null,
-                    'project_id' => null,
+                    'project_id' => $this->campaignId ?: null,
                     'assigned_user_id' => $this->sentByUserId,
                     'status' => 'open',
                     'priority' => 'normal',
                 ]
             );
+            if ($this->campaignId) {
+                $thread->project_id = $this->campaignId;
+                $campaign = \App\Models\Campaign::query()->find($this->campaignId);
+                if ($campaign && !empty($campaign->ai_bot_agent_id)) {
+                    $thread->ai_bot_agent_id = $campaign->ai_bot_agent_id;
+                }
+            }
             $thread->last_message_at = now();
             $thread->save();
 
@@ -528,12 +535,19 @@ class DispatchOutboundMessageJob implements ShouldQueue
             ],
             [
                 'contact_id' => null,
-                'project_id' => null,
+                'project_id' => $this->campaignId ?: null,
                 'assigned_user_id' => $this->sentByUserId,
                 'status' => 'open',
                 'priority' => 'normal',
             ]
         );
+        if ($this->campaignId) {
+            $thread->project_id = $this->campaignId;
+            $campaign = \App\Models\Campaign::query()->find($this->campaignId);
+            if ($campaign && !empty($campaign->ai_bot_agent_id)) {
+                $thread->ai_bot_agent_id = $campaign->ai_bot_agent_id;
+            }
+        }
         $thread->last_message_at = now();
         if (! $thread->first_outbound_at) {
             $thread->first_outbound_at = now();

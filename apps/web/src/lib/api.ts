@@ -88,10 +88,18 @@ export async function apiRequest<T>(
       }
     }
     const usageLimitErrorCode = typeof responseBody?.error === "string" ? responseBody.error : null;
-    const message =
+    let message =
       responseBody?.error?.message ??
       responseBody?.message ??
       `Request failed with status ${response.status}`;
+
+    if (responseBody?.errors && typeof responseBody.errors === "object") {
+      const errorList = Object.values(responseBody.errors).flat().filter(Boolean);
+      if (errorList.length > 0) {
+        message = errorList.join(" ");
+      }
+    }
+
     if (response.status === 403 && usageLimitErrorCode === "usage_limit_reached") {
       const featureKey = String(responseBody?.feature_key ?? "feature");
       throw new ApiError(`Usage limit reached for ${featureKey}. Upgrade your plan to continue.`, response.status);

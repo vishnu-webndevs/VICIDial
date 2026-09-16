@@ -8,7 +8,7 @@ use Illuminate\Support\Str;
 
 class WhatsAppService
 {
-    public function send(string $to, string|array $bodyOrPayload, ?string $statusCallbackUrl = null, ?array $providerCredentials = null): array
+    public function send(string $to, string|array $bodyOrPayload, ?string $statusCallbackUrl = null, ?array $providerCredentials = null, ?string $mediaUrl = null): array
     {
         if (app(\App\Support\IntegrationMode::class)->isSandbox()) {
             return [
@@ -43,6 +43,23 @@ class WhatsAppService
             if (is_array($bodyOrPayload)) {
                 $payload['type'] = 'template';
                 $payload = array_merge($payload, $bodyOrPayload);
+            } elseif ($mediaUrl) {
+                $ext = strtolower(pathinfo(parse_url($mediaUrl, PHP_URL_PATH) ?? '', PATHINFO_EXTENSION));
+                $textCaption = is_string($bodyOrPayload) && trim($bodyOrPayload) !== '' ? trim($bodyOrPayload) : null;
+
+                if (in_array($ext, ['ogg', 'opus', 'mp3', 'wav', 'm4a', 'aac', 'amr'], true)) {
+                    $payload['type'] = 'audio';
+                    $payload['audio'] = ['link' => $mediaUrl];
+                } elseif (in_array($ext, ['jpg', 'jpeg', 'png', 'webp', 'gif'], true)) {
+                    $payload['type'] = 'image';
+                    $payload['image'] = array_filter(['link' => $mediaUrl, 'caption' => $textCaption]);
+                } elseif (in_array($ext, ['mp4', '3gp', 'mov'], true)) {
+                    $payload['type'] = 'video';
+                    $payload['video'] = array_filter(['link' => $mediaUrl, 'caption' => $textCaption]);
+                } else {
+                    $payload['type'] = 'document';
+                    $payload['document'] = array_filter(['link' => $mediaUrl, 'caption' => $textCaption, 'filename' => basename($mediaUrl)]);
+                }
             } else {
                 $payload['type'] = 'text';
                 $payload['text'] = ['body' => $bodyOrPayload];
@@ -102,14 +119,19 @@ class WhatsAppService
             ];
         }
 
+        $twilioParams = [
+            'From' => Str::startsWith($from, 'whatsapp:') ? $from : 'whatsapp:'.$from,
+            'To' => Str::startsWith($to, 'whatsapp:') ? $to : 'whatsapp:'.$to,
+            'Body' => $bodyOrPayload,
+            'StatusCallback' => $statusCallbackUrl,
+        ];
+        if ($mediaUrl) {
+            $twilioParams['MediaUrl'] = $mediaUrl;
+        }
+
         $response = Http::asForm()
             ->withBasicAuth($sid, $token)
-            ->post("https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json", [
-                'From' => Str::startsWith($from, 'whatsapp:') ? $from : 'whatsapp:'.$from,
-                'To' => Str::startsWith($to, 'whatsapp:') ? $to : 'whatsapp:'.$to,
-                'Body' => $bodyOrPayload,
-                'StatusCallback' => $statusCallbackUrl,
-            ]);
+            ->post("https://api.twilio.com/2010-04-01/Accounts/{$sid}/Messages.json", $twilioParams);
 
         if (! $response->successful()) {
             return [

@@ -24,19 +24,13 @@ class AiBotService
                 return;
             }
 
-            // Find AI Bot Agent attached to thread or thread's campaign
+            // Strict Rule: AI Bot MUST ONLY reply if the thread belongs to an assigned AI campaign.
+            // If the customer is NOT in a campaign with an AI agent, DO NOT reply at all.
             $botAgent = null;
-            if ($thread->ai_bot_agent_id) {
-                $botAgent = AiBotAgent::query()
-                    ->where('tenant_id', $tenantId)
-                    ->where('id', $thread->ai_bot_agent_id)
-                    ->where('is_active', true)
-                    ->first();
-            }
 
-            if (!$botAgent && $thread->project_id) {
-                // Try campaign link via project_id / campaign_id if assigned
-                $campaign = \Illuminate\Support\Facades\DB::table('campaigns')
+            // 1. Check if thread is linked to a campaign with an AI agent assigned
+            if ($thread->project_id) {
+                $campaign = \App\Models\Campaign::query()
                     ->where('tenant_id', $tenantId)
                     ->where('id', $thread->project_id)
                     ->first();
@@ -47,21 +41,95 @@ class AiBotService
                         ->where('is_active', true)
                         ->first();
 
-                    if ($botAgent) {
+                    if ($botAgent && $thread->ai_bot_agent_id !== $botAgent->id) {
                         $thread->update(['ai_bot_agent_id' => $botAgent->id]);
                     }
                 }
             }
 
+            // 2. If project_id not yet set on thread, check if any outbound message in this thread was from an AI campaign
             if (!$botAgent) {
-                // Fallback to tenant's default active bot agent if only 1 active bot exists
+                $campaignId = Message::query()
+                    ->where('tenant_id', $tenantId)
+                    ->where('thread_id', $thread->id)
+                    ->where('direction', 'outbound')
+                    ->whereNotNull('metadata->campaign_id')
+                    ->latest('sent_at')
+                    ->value('metadata->campaign_id');
+
+                if ($campaignId) {
+                    $campaign = \App\Models\Campaign::query()
+                        ->where('tenant_id', $tenantId)
+                        ->where('id', $campaignId)
+                        ->first();
+                    if ($campaign && !empty($campaign->ai_bot_agent_id)) {
+                        $botAgent = AiBotAgent::query()
+                            ->where('tenant_id', $tenantId)
+                            ->where('id', $campaign->ai_bot_agent_id)
+                            ->where('is_active', true)
+                            ->first();
+
+                        if ($botAgent) {
+                            $thread->update([
+                                'project_id' => $campaign->id,
+                                'ai_bot_agent_id' => $botAgent->id,
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            // 3. Check if lead with this phone number was targeted by an active AI campaign
+            if (!$botAgent) {
+                $cleanNumber = preg_replace('/[^0-9]/', '', (string) $thread->counterparty_number);
+                $campaignId = \Illuminate\Support\Facades\DB::table('leads')
+                    ->join('lead_timeline_items', 'leads.id', '=', 'lead_timeline_items.lead_id')
+                    ->where('leads.tenant_id', $tenantId)
+                    ->where(function ($q) use ($thread, $cleanNumber) {
+                        $q->where('leads.phone', $thread->counterparty_number)
+                          ->orWhereRaw("REGEXP_REPLACE(leads.phone, '[^0-9]', '') = ?", [$cleanNumber]);
+                    })
+                    ->whereNotNull('lead_timeline_items.metadata->campaign_id')
+                    ->latest('lead_timeline_items.occurred_at')
+                    ->value('lead_timeline_items.metadata->campaign_id');
+
+                if ($campaignId) {
+                    $campaign = \App\Models\Campaign::query()
+                        ->where('tenant_id', $tenantId)
+                        ->where('id', $campaignId)
+                        ->first();
+                    if ($campaign && !empty($campaign->ai_bot_agent_id)) {
+                        $botAgent = AiBotAgent::query()
+                            ->where('tenant_id', $tenantId)
+                            ->where('id', $campaign->ai_bot_agent_id)
+                            ->where('is_active', true)
+                            ->first();
+
+                        if ($botAgent) {
+                            $thread->update([
+                                'project_id' => $campaign->id,
+                                'ai_bot_agent_id' => $botAgent->id,
+                            ]);
+                        }
+                    }
+                }
+            }
+
+            // 4. Explicit thread assignment IF already linked to a campaign
+            if (!$botAgent && $thread->ai_bot_agent_id && $thread->project_id) {
                 $botAgent = AiBotAgent::query()
                     ->where('tenant_id', $tenantId)
+                    ->where('id', $thread->ai_bot_agent_id)
                     ->where('is_active', true)
                     ->first();
             }
 
+            // STRICT: If this customer/thread is NOT part of a campaign with an AI agent assigned, DO NOT REPLY!
             if (!$botAgent) {
+                \Illuminate\Support\Facades\Log::info("AiBotService: Inbound message from {$thread->counterparty_number} skipped — number is not part of any AI campaign.", [
+                    'tenant_id' => $tenantId,
+                    'thread_id' => $thread->id,
+                ]);
                 return;
             }
 
@@ -178,11 +246,17 @@ class AiBotService
         $acknowledgements = ['ok', 'okay', 'haan', 'han', 'theek hai', 'thik hai', 'acha', 'accha', 'hmm', 'hmmm', 'got it', 'sure', 'right', 'ji'];
         $isAck = in_array($cleanUserLower, $acknowledgements, true);
 
-        $isMediaPlaceholder = in_array($cleanUserLower, ['[image]', '[video]', '[document]', '[voice note]', '[location]'], true);
+        $isVoiceOrAudio = ($cleanUserLower === '[voice note]' || $cleanUserLower === '[audio]');
+        $isImage = ($cleanUserLower === '[image]' || $cleanUserLower === '[photo]');
+        $isMediaPlaceholder = in_array($cleanUserLower, ['[image]', '[photo]', '[video]', '[document]', '[voice note]', '[audio]', '[location]'], true);
 
         $dynamicContext = "";
-        if ($isMediaPlaceholder) {
-            $dynamicContext = "\n\nCRITICAL CONTEXT: The customer just sent a photo/attachment ('{$trimmedUser}'). Acknowledge the photo warmly in 1 natural sentence (e.g. 'Ji, photo receive ho gayi hai! Iske baare me bataiye aapko kya details chahiye?'). DO NOT send any fallback message.";
+        if ($isVoiceOrAudio) {
+            $dynamicContext = "\n\nCRITICAL CONTEXT: The customer just sent a voice note/audio message ('{$trimmedUser}'). Acknowledge the voice note warmly in 1 natural sentence (e.g. 'Ji, aapka voice note mil gaya hai! Main ise sun raha hoon, bataiye main aapki kya madad kar sakta hoon?'). DO NOT send any fallback message.";
+        } elseif ($isImage) {
+            $dynamicContext = "\n\nCRITICAL CONTEXT: The customer just sent a photo ('{$trimmedUser}'). Acknowledge the photo warmly in 1 natural sentence (e.g. 'Ji, photo receive ho gayi hai! Iske baare me bataiye aapko kya details chahiye?'). DO NOT send any fallback message.";
+        } elseif ($isMediaPlaceholder) {
+            $dynamicContext = "\n\nCRITICAL CONTEXT: The customer just sent an attachment ('{$trimmedUser}'). Acknowledge the attachment warmly in 1 natural sentence. DO NOT send any fallback message.";
         } elseif ($isEmoji) {
             $dynamicContext = "\n\nCRITICAL CONTEXT: The customer sent an emoji ('{$trimmedUser}'). Respond ONLY with a friendly emoji or 1-word reaction (e.g. '😊' or 'Ji!'). DO NOT send any fallback message or sales pitch.";
         } elseif ($isAck) {
