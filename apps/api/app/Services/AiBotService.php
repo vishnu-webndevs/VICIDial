@@ -297,16 +297,16 @@ class AiBotService
         $promptSections[] = <<<RULES
 === ENFORCED CONVERSATIONAL & ACCURACY RULES ===
 1. MASTER PROMPT COMPLIANCE (TOP PRIORITY):
-   - Thoroughly read and follow all guidelines, facts, prices, locations, and conversational sections in the Master Knowledge Base & Training Manual above.
-   - You are a helpful sales representative. When the customer asks about any property detail, price (2BHK, 3BHK, 4BHK), location, size, or amenities, extract and state the EXACT details provided in the prompt above.
+   - Thoroughly read and follow all instructions, facts, prices, offerings, and guidelines in the Master Knowledge Base & Training Manual above.
+   - You represent {$companyName}. When the customer asks about any detail, pricing, products, services, or information, extract and state the EXACT details provided in the prompt above.
 
 2. GREETINGS, ACKNOWLEDGMENTS & SMALL TALK (CRITICAL — NEVER USE FALLBACK HERE):
    - When customer sends greetings ("hi", "hello", "hey", "namaste", "good morning", etc.):
      DO NOT send any fallback message! Reply warmly: "Hello ji! Main {$companyName} se aapki kya madad kar sakta hoon?"
    - When customer sends short acknowledgments ("Ji", "ok", "haan", "theek hai", "hmm", etc.):
      DO NOT send any fallback message! Reply politely: "Ji sir, bataiye aapko kis detail ke baare me jan-na hai?"
-   - When customer asks about your capabilities ("phir kya pata hai", "aap kya bata sakte ho", "kya information hai"):
-     DO NOT send any fallback message! Briefly summarize your main properties/offerings based on the Master Prompt above.
+   - When customer asks about your scope or capabilities ("phir kya pata hai", "aap kya bata sakte ho", "kya information hai"):
+     DO NOT send any fallback message! Briefly summarize your main products, services, or offerings based strictly on the Master Prompt above.
 
 3. UNSUPPORTED PHONE CALLING & FALSE COMMITMENTS:
    - Outbound voice calling is not supported directly on WhatsApp. If customer asks for a phone call ("call karo"), politely inform them in 1 short sentence that voice calling is unavailable here and you are ready to assist them right here.
@@ -479,9 +479,9 @@ RULES;
             }
             // 3. Capability inquiry check ("phir kya pata hai", "kya detail hai", etc.)
             elseif (str_contains($userLower, 'pata hai') || str_contains($userLower, 'kya pata') || str_contains($userLower, 'kya detail') || str_contains($userLower, 'kya info')) {
-                $aiText = "Ji, main aapko {$companyName} ke properties, pricing, location aur amenities ke baare me poori jankari de sakta hoon. Aap 2BHK, 3BHK ya 4BHK kis baare me jan-na chahte hain?";
+                $aiText = "Ji, main aapko {$companyName} ke details aur services ke baare me bata sakta hoon. Aap kis baare me jan-na chahte hain?";
             }
-            // 4. Keyword matches in Master Prompt & FAQs
+            // 4. Knowledge Base FAQs check
             else {
                 $kbArray = is_array($botAgent->knowledge_base) ? $botAgent->knowledge_base : json_decode((string)$botAgent->knowledge_base, true);
                 if (is_array($kbArray)) {
@@ -491,18 +491,6 @@ RULES;
                             $aiText = (string) ($qa['answer'] ?? '');
                             break;
                         }
-                    }
-                }
-
-                if ($aiText === '') {
-                    if (str_contains($userLower, '2bhk') || str_contains($userLower, '2 bhk')) {
-                        $aiText = "2BHK flats prime location me ₹45 Lakh se start hain jisme Gym, Parking aur Club House included hai.";
-                    } elseif (str_contains($userLower, '3bhk') || str_contains($userLower, '3 bhk')) {
-                        $aiText = "3BHK luxury flats ₹65 Lakh se start hain 1800 sq ft spacious area ke sath.";
-                    } elseif (str_contains($userLower, '4bhk') || str_contains($userLower, '4 bhk')) {
-                        $aiText = "4BHK flats prime location me ₹2 Crore se start hain jisme Gym, Parking aur Club House included hai.";
-                    } elseif (str_contains($userLower, 'location') || str_contains($userLower, 'kaha')) {
-                        $aiText = "Ji, premium luxury flats Ajmer Road par located hain.";
                     }
                 }
 
