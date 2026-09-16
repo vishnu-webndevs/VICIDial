@@ -238,8 +238,6 @@ class AiBotService
             $dynamicContext = "\n\nCRITICAL CONTEXT: The customer just sent a voice note/audio message ('{$trimmedUser}'). Acknowledge the voice note warmly in 1 natural sentence (e.g. 'Ji, aapka voice note mil gaya hai! Main ise sun raha hoon, bataiye main aapki kya madad kar sakta hoon?'). DO NOT send any fallback message.";
         } elseif ($isImage) {
             $dynamicContext = "\n\nCRITICAL CONTEXT: The customer just sent a photo ('{$trimmedUser}'). Acknowledge the photo warmly in 1 natural sentence (e.g. 'Ji, photo receive ho gayi hai! Iske baare me bataiye aapko kya details chahiye?'). DO NOT send any fallback message.";
-        } elseif ($isMediaPlaceholder) {
-            $dynamicContext = "\n\nCRITICAL CONTEXT: The customer just sent an attachment ('{$trimmedUser}'). Acknowledge the attachment warmly in 1 natural sentence. DO NOT send any fallback message.";
         } elseif ($isEmoji) {
             $dynamicContext = "\n\nCRITICAL CONTEXT: The customer sent an emoji ('{$trimmedUser}'). Respond ONLY with a friendly emoji or 1-word reaction (e.g. '😊' or 'Ji!'). DO NOT send any fallback message or sales pitch.";
         } elseif ($isAck) {
@@ -336,97 +334,110 @@ PROMPT;
 
         // Call OpenAI or Gemini API based on provider and API Key
         $provider = strtolower((string) ($aiSetting?->provider ?? 'gemini'));
-        if (str_starts_with(trim($apiKey), 'sk-')) {
+        if (!empty($apiKey) && str_starts_with(trim($apiKey), 'sk-')) {
             $provider = 'openai';
         }
 
         $configuredModel = $aiSetting?->default_model;
         $aiText = '';
 
-        if ($provider === 'openai') {
-            // Format messages for OpenAI Chat Completions API
-            $openAiMessages = [
-                ['role' => 'system', 'content' => $systemPrompt],
-            ];
-            foreach ($recentMessages as $msg) {
-                $role = $msg->direction === 'inbound' ? 'user' : 'assistant';
-                $openAiMessages[] = [
-                    'role' => $role,
-                    'content' => (string) $msg->body,
+        if (!empty($apiKey)) {
+            if ($provider === 'openai') {
+                // Format messages for OpenAI Chat Completions API
+                $openAiMessages = [
+                    ['role' => 'system', 'content' => $systemPrompt],
                 ];
-            }
-
-            $openAiModels = array_filter(array_unique([
-                $configuredModel ?: 'gpt-4o-mini',
-                'gpt-4o-mini',
-                'gpt-4o',
-                'gpt-3.5-turbo',
-            ]));
-
-            foreach ($openAiModels as $modelName) {
-                $response = Http::timeout(15)->withHeaders([
-                    'Authorization' => 'Bearer ' . $apiKey,
-                    'Content-Type' => 'application/json',
-                ])->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => $modelName,
-                    'messages' => $openAiMessages,
-                    'temperature' => 0.2,
-                    'max_tokens' => 1000,
-                ]);
-
-                if ($response->successful()) {
-                    $responseData = $response->json();
-                    $aiText = trim($responseData['choices'][0]['message']['content'] ?? '');
-                    if ($aiText !== '') {
-                        break;
-                    }
-                } else {
-                    Log::warning("AiBotService: OpenAI model {$modelName} failed ({$response->status()}), trying next model...", [
-                        'body' => $response->body(),
-                    ]);
+                foreach ($recentMessages as $msg) {
+                    $role = $msg->direction === 'inbound' ? 'user' : 'assistant';
+                    $openAiMessages[] = [
+                        'role' => $role,
+                        'content' => (string) $msg->body,
+                    ];
                 }
-            }
-        } else {
-            // Call Gemini API with active model fallback array
-            $modelsToTry = array_filter(array_unique([
-                $configuredModel ?: 'gemini-flash-latest',
-                'gemini-flash-latest',
-            ]));
 
-            foreach ($modelsToTry as $modelName) {
-                $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key={$apiKey}";
-                
-                $response = Http::timeout(15)->withHeaders(['Content-Type' => 'application/json'])
-                    ->post($endpoint, [
-                        'system_instruction' => [
-                            'parts' => [['text' => $systemPrompt]]
-                        ],
-                        'contents' => $contents,
-                        'generationConfig' => [
+                $openAiModels = array_filter(array_unique([
+                    $configuredModel ?: 'gpt-4o-mini',
+                    'gpt-4o-mini',
+                    'gpt-4o',
+                    'gpt-3.5-turbo',
+                ]));
+
+                foreach ($openAiModels as $modelName) {
+                    try {
+                        $response = Http::timeout(10)->withHeaders([
+                            'Authorization' => 'Bearer ' . $apiKey,
+                            'Content-Type' => 'application/json',
+                        ])->post('https://api.openai.com/v1/chat/completions', [
+                            'model' => $modelName,
+                            'messages' => $openAiMessages,
                             'temperature' => 0.2,
-                            'maxOutputTokens' => 1000,
-                        ],
-                    ]);
+                            'max_tokens' => 1000,
+                        ]);
 
-                if ($response->successful()) {
-                    $responseData = $response->json();
-                    $aiText = trim($responseData['candidates'][0]['content']['parts'][0]['text'] ?? '');
-                    if ($aiText !== '') {
-                        break;
+                        if ($response->successful()) {
+                            $responseData = $response->json();
+                            $aiText = trim($responseData['choices'][0]['message']['content'] ?? '');
+                            if ($aiText !== '') {
+                                break;
+                            }
+                        } else {
+                            Log::warning("AiBotService: OpenAI model {$modelName} failed ({$response->status()}), trying next model...", [
+                                'body' => $response->body(),
+                            ]);
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning("AiBotService: OpenAI request exception for model {$modelName}: " . $e->getMessage());
                     }
-                } else {
-                    Log::warning("AiBotService: Gemini model {$modelName} failed ({$response->status()}), trying next model...", [
-                        'body' => $response->body(),
-                    ]);
+                }
+            } else {
+                // Call Gemini API with active model fallback array
+                $modelsToTry = array_filter(array_unique([
+                    ($configuredModel && $configuredModel !== 'gemini-flash-latest') ? $configuredModel : 'gemini-1.5-flash',
+                    'gemini-1.5-flash',
+                    'gemini-2.0-flash',
+                    'gemini-1.5-flash-latest',
+                    'gemini-1.5-pro',
+                ]));
+
+                foreach ($modelsToTry as $modelName) {
+                    $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key={$apiKey}";
+                    try {
+                        $response = Http::timeout(10)->withHeaders(['Content-Type' => 'application/json'])
+                            ->post($endpoint, [
+                                'system_instruction' => [
+                                    'parts' => [['text' => $systemPrompt]]
+                                ],
+                                'contents' => $contents,
+                                'generationConfig' => [
+                                    'temperature' => 0.2,
+                                    'maxOutputTokens' => 1000,
+                                ],
+                            ]);
+
+                        if ($response->successful()) {
+                            $responseData = $response->json();
+                            $aiText = trim($responseData['candidates'][0]['content']['parts'][0]['text'] ?? '');
+                            if ($aiText !== '') {
+                                break;
+                            }
+                        } else {
+                            Log::warning("AiBotService: Gemini model {$modelName} failed ({$response->status()}), trying next model...", [
+                                'body' => $response->body(),
+                            ]);
+                        }
+                    } catch (\Throwable $e) {
+                        Log::warning("AiBotService: Gemini request exception for model {$modelName}: " . $e->getMessage());
+                    }
                 }
             }
         }
 
         if ($aiText === '') {
-            Log::warning("AiBotService: Gemini API failed or empty for tenant {$tenantId}. Checking direct Knowledge Base match...");
+            Log::warning("AiBotService: AI generation unavailable for tenant {$tenantId}. Checking direct Knowledge Base / Flow match...");
             $kbArray = is_array($botAgent->knowledge_base) ? $botAgent->knowledge_base : json_decode((string)$botAgent->knowledge_base, true);
+            $userLower = strtolower($userText);
+
             if (is_array($kbArray)) {
-                $userLower = strtolower($userText);
                 foreach ($kbArray as $qa) {
                     $qLower = strtolower($qa['question'] ?? '');
                     if ($qLower !== '' && (str_contains($userLower, $qLower) || str_contains($qLower, $userLower))) {
@@ -435,6 +446,18 @@ PROMPT;
                     }
                 }
             }
+
+            // Keyword-based fallback for common real-estate selections (2BHK, 3BHK, 4BHK)
+            if ($aiText === '') {
+                if (preg_match('/\b4\s*bhk\b/i', $userText)) {
+                    $aiText = "Ji, 4BHK luxury flat ke floor plans aur pricing details hamare sales executive aapse jald share karenge. Kya aap site visit schedule karna chahenge?";
+                } elseif (preg_match('/\b3\s*bhk\b/i', $userText)) {
+                    $aiText = "Ji, 3BHK flat ke plans aur pricing details hamari team aapse share karegi. Kya aap project location dekhna chahte hain?";
+                } elseif (preg_match('/\b2\s*bhk\b/i', $userText)) {
+                    $aiText = "Ji, 2BHK flat prime location par available hai. Kya aap brochure chahte hain?";
+                }
+            }
+
             if ($aiText === '') {
                 $aiText = $fallback;
             }
