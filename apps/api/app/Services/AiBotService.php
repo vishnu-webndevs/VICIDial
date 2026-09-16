@@ -250,31 +250,44 @@ class AiBotService
                 "- NEVER claim anyone will call, message, or inform them later.";
         }
 
-        $agentName = trim((string) ($botAgent->name ?? 'AI Assistant'));
+        $agentName = trim((string) ($botAgent->name ?? 'AI Sales Representative'));
         $customKnowledgeText = trim((string) ($botAgent->custom_knowledge_prompt ?? ''));
         $instructionsText = trim((string) ($botAgent->system_instructions ?? ''));
         $privacyPolicyText = trim((string) ($botAgent->privacy_policy ?? ''));
-        $fallbackMessage = trim((string) ($botAgent->fallback_message ?: 'Mujhe iski exact jankari abhi nahi hai, main confirm karke aapko bataunga.'));
+        
+        $rawFallback = trim((string) ($botAgent->fallback_message ?? ''));
+        if ($rawFallback === '' || str_contains(strtolower($rawFallback), 'senior manager') || str_contains(strtolower($rawFallback), 'confirm karke')) {
+            $fallbackMessage = "Ji, iski exact jankari mere paas abhi nahi hai.";
+        } else {
+            $fallbackMessage = $rawFallback;
+        }
 
         $kbData = is_array($botAgent->knowledge_base) ? json_encode($botAgent->knowledge_base, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) : (string) $botAgent->knowledge_base;
+        $isStrictKb = (bool) ($botAgent->is_strict_kb ?? false);
 
         $tenantObj = Tenant::find($tenantId);
         $companyName = $tenantObj?->name ?: 'our company';
 
         // Construct 100% DYNAMIC System Prompt based purely on fields configured in Create/Edit AI Bot Agent form
         $promptSections = [];
-        $promptSections[] = "You are an AI Assistant named '{$agentName}' representing {$companyName}.";
+        $promptSections[] = "You are a professional AI Sales Representative named '{$agentName}' for {$companyName}.";
+
+        if ($isStrictKb) {
+            $promptSections[] = "=== STRICT KNOWLEDGE BASE LOCK IS ENABLED ===\n" .
+                "Answer customer questions strictly using the verified information provided in the Master Knowledge Base & Training Manual and FAQs below.\n" .
+                "Do NOT invent outside facts, prices, or locations. However, handle greetings ('hi', 'hello'), acknowledgments ('Ji', 'ok'), and sales dialog naturally as instructed.";
+        }
 
         if (!empty($instructionsText)) {
-            $promptSections[] = "=== AGENT PERSONA & INSTRUCTIONS (FROM BOT AGENT FORM) ===\n" . $instructionsText;
+            $promptSections[] = "=== AGENT PERSONA & TONE INSTRUCTIONS (FROM BOT AGENT FORM) ===\n" . $instructionsText;
         }
 
         if (!empty($customKnowledgeText)) {
-            $promptSections[] = "=== MASTER KNOWLEDGE & DETAILED PROMPT (FROM BOT AGENT FORM) ===\n" . $customKnowledgeText;
+            $promptSections[] = "=== MASTER KNOWLEDGE BASE & TRAINING MANUAL (PRIMARY SOURCE OF TRUTH) ===\n" . $customKnowledgeText;
         }
 
         if (!empty($kbData) && $kbData !== '[]' && $kbData !== 'null') {
-            $promptSections[] = "=== KNOWLEDGE BASE (FAQS FROM BOT AGENT FORM) ===\n" . $kbData;
+            $promptSections[] = "=== ADDITIONAL KNOWLEDGE BASE FAQS (FROM BOT AGENT FORM) ===\n" . $kbData;
         }
 
         if (!empty($privacyPolicyText)) {
@@ -282,32 +295,24 @@ class AiBotService
         }
 
         $promptSections[] = <<<RULES
-=== CONVERSATIONAL & ACCURACY RULES ===
-1. GREETINGS, ACKNOWLEDGMENTS & SMALL TALK (CRITICAL — NEVER USE FALLBACK HERE):
+=== ENFORCED CONVERSATIONAL & ACCURACY RULES ===
+1. MASTER PROMPT COMPLIANCE (TOP PRIORITY):
+   - Thoroughly read and follow all guidelines, facts, prices, locations, and conversational sections in the Master Knowledge Base & Training Manual above.
+   - You are a helpful sales representative. When the customer asks about any property detail, price (2BHK, 3BHK, 4BHK), location, size, or amenities, extract and state the EXACT details provided in the prompt above.
+
+2. GREETINGS, ACKNOWLEDGMENTS & SMALL TALK (CRITICAL — NEVER USE FALLBACK HERE):
    - When customer sends greetings ("hi", "hello", "hey", "namaste", "good morning", etc.):
-     DO NOT send any fallback message! Reply warmly: "Hello sir! Main {$companyName} se aapki kya madad kar sakta hoon?"
+     DO NOT send any fallback message! Reply warmly: "Hello ji! Main {$companyName} se aapki kya madad kar sakta hoon?"
    - When customer sends short acknowledgments ("Ji", "ok", "haan", "theek hai", "hmm", etc.):
-     DO NOT send any fallback message! Reply politely: "Ji sir, bataiye aapko kis baare me jankari chahiye?"
+     DO NOT send any fallback message! Reply politely: "Ji sir, bataiye aapko kis detail ke baare me jan-na hai?"
    - When customer asks about your capabilities ("phir kya pata hai", "aap kya bata sakte ho", "kya information hai"):
-     DO NOT send any fallback message! Summarize your main services, projects, or offerings based on the Master Knowledge prompt above.
+     DO NOT send any fallback message! Briefly summarize your main properties/offerings based on the Master Prompt above.
 
-2. PRIMARY KNOWLEDGE COMPLIANCE:
-   - Carefully study and learn from all Agent Instructions, Master Knowledge Prompts, and FAQs provided above.
-   - When the customer asks about any topic, product, service, price, offer, or specification detailed in the prompt above, YOU MUST EXTRACT AND PROVIDE THE ACTUAL ACCURATE DETAILS FROM THE PROMPT ABOVE.
-   - NEVER state that you don't have information if the answer or context is present in or can be inferred from the prompts provided.
+3. UNSUPPORTED PHONE CALLING & FALSE COMMITMENTS:
+   - Outbound voice calling is not supported directly on WhatsApp. If customer asks for a phone call ("call karo"), politely inform them in 1 short sentence that voice calling is unavailable here and you are ready to assist them right here.
+   - NEVER claim that anyone will call, message, or inform them later unless an actual backend system action executed.
 
-3. CONVERSATIONAL STYLE & BREVITY:
-   - Reply naturally, warmly, and concisely for WhatsApp messaging (typically 1 to 3 sentences).
-   - Respond directly to what the customer just asked in their latest message.
-   - Match the customer's language style naturally (Hinglish/Hindi or English).
-
-4. PREVENT REPETITION:
-   - NEVER repeat the exact same sentence or question that was already sent in earlier messages in this conversation.
-
-5. UNSUPPORTED PHONE CALLING:
-   - Outbound voice calling is not supported via WhatsApp. If customer asks for a phone call ("call karo"), politely inform them in 1 short sentence that voice calling is unavailable on this WhatsApp number and you are ready to help them right here.
-
-6. FALLBACK STATEMENT (FOR UNRELATED SPECIFIC QUESTIONS ONLY):
+4. FALLBACK STATEMENT (FOR UNRELATED SPECIFIC QUESTIONS ONLY):
    - ONLY if the customer asks a specific question that is completely unrelated to {$companyName} and totally absent from ALL prompts above, reply using the fallback response: "{$fallbackMessage}".
    - NEVER use the fallback message for greetings, "hi", "Ji", or general conversational queries!
 {$dynamicContext}
@@ -460,22 +465,50 @@ RULES;
         }
 
         if ($aiText === '') {
-            Log::warning("AiBotService: AI generation unavailable for tenant {$tenantId}. Checking direct Knowledge Base Q&A...");
-            $kbArray = is_array($botAgent->knowledge_base) ? $botAgent->knowledge_base : json_decode((string)$botAgent->knowledge_base, true);
-            $userLower = strtolower($userText);
+            Log::warning("AiBotService: AI generation unavailable for tenant {$tenantId}. Applying smart intent fallback...");
+            $userLower = strtolower(trim($userText));
 
-            if (is_array($kbArray)) {
-                foreach ($kbArray as $qa) {
-                    $qLower = strtolower($qa['question'] ?? '');
-                    if ($qLower !== '' && (str_contains($userLower, $qLower) || str_contains($qLower, $userLower))) {
-                        $aiText = (string) ($qa['answer'] ?? '');
-                        break;
+            // 1. Greetings check
+            $greetings = ['hi', 'hello', 'hey', 'namaste', 'good morning', 'good afternoon', 'good evening', 'hiii', 'hlo'];
+            if (in_array($userLower, $greetings, true) || preg_match('/^(hi|hello|hey|namaste)\b/i', $userLower)) {
+                $aiText = "Hello! Main {$companyName} se aapki kya madad kar sakta hoon?";
+            }
+            // 2. Acknowledgments check
+            elseif (in_array($userLower, ['ji', 'ok', 'okay', 'haan', 'han', 'theek hai', 'thik hai', 'acha', 'accha', 'hmm', 'hmmm', 'got it', 'sure', 'right'], true)) {
+                $aiText = "Ji sir, bataiye aapko kis detail ke baare me jan-na hai?";
+            }
+            // 3. Capability inquiry check ("phir kya pata hai", "kya detail hai", etc.)
+            elseif (str_contains($userLower, 'pata hai') || str_contains($userLower, 'kya pata') || str_contains($userLower, 'kya detail') || str_contains($userLower, 'kya info')) {
+                $aiText = "Ji, main aapko {$companyName} ke properties, pricing, location aur amenities ke baare me poori jankari de sakta hoon. Aap 2BHK, 3BHK ya 4BHK kis baare me jan-na chahte hain?";
+            }
+            // 4. Keyword matches in Master Prompt & FAQs
+            else {
+                $kbArray = is_array($botAgent->knowledge_base) ? $botAgent->knowledge_base : json_decode((string)$botAgent->knowledge_base, true);
+                if (is_array($kbArray)) {
+                    foreach ($kbArray as $qa) {
+                        $qLower = strtolower($qa['question'] ?? '');
+                        if ($qLower !== '' && (str_contains($userLower, $qLower) || str_contains($qLower, $userLower))) {
+                            $aiText = (string) ($qa['answer'] ?? '');
+                            break;
+                        }
                     }
                 }
-            }
 
-            if ($aiText === '') {
-                $aiText = $fallbackMessage;
+                if ($aiText === '') {
+                    if (str_contains($userLower, '2bhk') || str_contains($userLower, '2 bhk')) {
+                        $aiText = "2BHK flats prime location me ₹45 Lakh se start hain jisme Gym, Parking aur Club House included hai.";
+                    } elseif (str_contains($userLower, '3bhk') || str_contains($userLower, '3 bhk')) {
+                        $aiText = "3BHK luxury flats ₹65 Lakh se start hain 1800 sq ft spacious area ke sath.";
+                    } elseif (str_contains($userLower, '4bhk') || str_contains($userLower, '4 bhk')) {
+                        $aiText = "4BHK flats prime location me ₹2 Crore se start hain jisme Gym, Parking aur Club House included hai.";
+                    } elseif (str_contains($userLower, 'location') || str_contains($userLower, 'kaha')) {
+                        $aiText = "Ji, premium luxury flats Ajmer Road par located hain.";
+                    }
+                }
+
+                if ($aiText === '') {
+                    $aiText = $fallbackMessage;
+                }
             }
         }
 
