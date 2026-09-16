@@ -173,17 +173,31 @@ class AiBotService
      */
     private static function generateAndSendAiResponse(string $tenantId, MessageThread $thread, AiBotAgent $botAgent, string $userText): void
     {
-        // Fetch Tenant AI Setting / API Key
+        // Fetch Tenant AI Setting & Resolve API Keys (OpenAI Primary, Gemini Fallback)
         $aiSetting = TenantAiSetting::query()->where('tenant_id', $tenantId)->first();
-        $provider = strtolower((string) ($aiSetting?->provider ?? 'gemini'));
-        $apiKey = $aiSetting?->api_key;
+        $configuredProvider = strtolower((string) ($aiSetting?->provider ?? ''));
+        $tenantApiKey = trim((string) ($aiSetting?->api_key ?? ''));
 
-        if (empty($apiKey)) {
-            $apiKey = ($provider === 'openai') ? (env('OPENAI_API_KEY') ?: env('GEMINI_API_KEY')) : (env('GEMINI_API_KEY') ?: env('OPENAI_API_KEY'));
+        $openAiKey = null;
+        if ($configuredProvider === 'openai' && !empty($tenantApiKey)) {
+            $openAiKey = $tenantApiKey;
+        } elseif (!empty($tenantApiKey) && str_starts_with($tenantApiKey, 'sk-')) {
+            $openAiKey = $tenantApiKey;
+        } else {
+            $openAiKey = env('OPENAI_API_KEY') ?: null;
         }
 
-        if (empty($apiKey)) {
-            Log::warning("AiBotService: No API key found for tenant {$tenantId}");
+        $geminiKey = null;
+        if ($configuredProvider === 'gemini' && !empty($tenantApiKey)) {
+            $geminiKey = $tenantApiKey;
+        } elseif (!empty($tenantApiKey) && !str_starts_with($tenantApiKey, 'sk-')) {
+            $geminiKey = $tenantApiKey;
+        } else {
+            $geminiKey = env('GEMINI_API_KEY') ?: null;
+        }
+
+        if (empty($openAiKey) && empty($geminiKey)) {
+            Log::warning("AiBotService: Neither OpenAI nor Gemini API key found for tenant {$tenantId}");
             return;
         }
 
@@ -229,13 +243,13 @@ class AiBotService
         $promptSections = [];
 
         if (!empty($agentName) || !empty($companyName)) {
-            $promptSections[] = "You are a human-like AI Representative named '{$agentName}'" . ($companyName ? " for {$companyName}." : ".");
+            $promptSections[] = "You are an intelligent, human-like AI Representative named '{$agentName}'" . ($companyName ? " for {$companyName}." : ".");
         }
 
         if ($isStrictKb) {
             $promptSections[] = "=== STRICT KNOWLEDGE BASE LOCK IS ENABLED ===\n" .
-                "1. All factual, pricing, location, specification, and project details MUST come strictly from the Knowledge Base and Master Prompt below. Do NOT invent outside facts.\n" .
-                "2. HOWEVER, normal conversational messages (greetings, acknowledgments, emojis, small talk, casual follow-ups) are NOT out-of-scope questions! Handle them naturally in character.";
+                "1. All factual, pricing, location, specification, and business details MUST come strictly from the Knowledge Base and Master Prompt below. Do NOT invent outside facts or hallucinate unapproved information.\n" .
+                "2. STRICT LOCK DEFINITION: Strict KB Lock means you may only make factual claims supported by the Knowledge Base. It does NOT mean the customer's message must match a Q&A key word-for-word. You MUST understand intent, synonyms, Hinglish, and context.";
         }
 
         if (!empty($instructionsText)) {
@@ -247,7 +261,7 @@ class AiBotService
         }
 
         if (!empty($kbData) && $kbData !== '[]' && $kbData !== 'null') {
-            $promptSections[] = "=== KNOWLEDGE BASE FAQS ===\n" . $kbData;
+            $promptSections[] = "=== KNOWLEDGE BASE FAQS & FACTS ===\n" . $kbData;
         }
 
         if (!empty($privacyPolicyText)) {
@@ -257,23 +271,40 @@ class AiBotService
         // Add Enforced Conversational & Intent Rules
         $activeFallbackString = $fallbackMessage ?: "Ji, iski exact jankari mere paas abhi nahi hai.";
         $promptSections[] = <<<RULES
-=== ENFORCED CONVERSATIONAL RULES ===
-1. CONVERSATIONAL INTENT HANDLING:
-   - Greetings ("hi", "hello", "hey", "hii", "namaste", "good morning", "good afternoon", "good evening"): Respond naturally and warmly in character (e.g. "Hello ji! Main aapki kya madad kar sakta hoon?"). NEVER output a fallback message for greetings!
-   - Acknowledgments ("okay", "ok", "haan", "han", "ji", "yes", "sure", "theek hai", "thik hai", "acha", "accha", "hmm", "thanks", "thank you"): Respond naturally or continue dialog. NEVER output a fallback message!
-   - Emojis ("😂", "👍", "🙂", "😊", "❤️"): Respond warmly with a short friendly reaction or emoji. NEVER output a fallback message!
-   - Casual follow-ups ("maine sirf hi bola hai", "arey", "kya pata hai"): Answer naturally in character without triggering fallback!
+=== ENFORCED CONVERSATIONAL & INTENT RULES ===
 
-2. WHATSAPP VOICE CALL LIMITATION (NO FALSE COMMITMENTS):
-   - Outbound voice calling is not supported directly on WhatsApp. If customer asks for a phone call ("call kro", "call karo", "mujhe call kro"), inform them politely in 1 short sentence that voice calling is unavailable here and you are ready to assist right here.
-   - NEVER claim that a call has been arranged, scheduled, or that a manager will call.
+1. SEMANTIC INTENT & SYNONYM UNDERSTANDING:
+   - Do NOT expect exact keyword or Q&A key matches from the customer.
+   - Understand intent, synonyms, natural language, and Hinglish. (e.g. "location?", "kaha hai?", "address?", "project kaha par hai?", "where is it?" all express location intent. If your Knowledge Base contains location info, answer using that info!)
+   - Use conversation history to resolve pronouns and references like "uska price?", "kitne ka hai?", "details?", "haan wahi wala".
 
-3. OUT-OF-SCOPE FALLBACK MESSAGE:
-   - ONLY if the customer asks a specific factual question completely absent from your knowledge base, respond using the fallback: "{$activeFallbackString}"
+2. CONVERSATIONAL MESSAGES vs OUT-OF-SCOPE FALLBACK:
+   - Greetings ("hi", "hello", "hey", "hii", "namaste", "good morning", "good afternoon", "good evening"): Respond naturally and warmly in character (e.g. "Hello ji! Main aapki kya madad kar sakta hoon?"). NEVER output fallback for greetings!
+   - Acknowledgments ("okay", "ok", "haan", "han", "ji", "yes", "sure", "theek hai", "thik hai", "acha", "accha", "hmm", "thanks", "thank you"): Respond naturally in character or ask if they need anything else. NEVER output fallback for acknowledgments!
+   - Emojis ("😂", "👍", "🙂", "😊", "❤️"): Respond warmly with a short friendly reaction. NEVER output fallback!
+   - Buying & Service Intent ("mujhe flat dekhna hai", "mujhe property chahiye", "service chahiye", "mujhe cleaning karwani hai", "vegetables order karne hain", "fees ke baare me baat karni hai", "details batao"):
+     The customer is expressing interest in the business/service! Respond warmly using your Knowledge Base / Master Prompt context and continue the conversation. Ask ONE natural follow-up question if needed. NEVER trigger fallback for buying/service intent!
+
+3. OUT-OF-SCOPE FALLBACK RULE:
+   - ONLY send the out-of-scope fallback when the customer asks for a specific, unknown factual detail (e.g., RERA number, owner phone number, specific legal document) that genuinely does NOT exist anywhere in your configured Knowledge Base or Master Prompt.
+   - Configured Fallback Message: "{$activeFallbackString}"
+
+4. FALLBACK REPETITION PREVENTION:
+   - Never send the exact same fallback repeatedly in the same conversation.
+   - If fallback was already sent recently and the customer changes topic to something you know, answer the new topic!
+   - If customer sends an acknowledgment or emoji after fallback, acknowledge naturally without repeating fallback.
+
+5. ACTION REALITY & NO FALSE PROMISES:
+   - Do NOT claim an action occurred (e.g. "call scheduled", "manager will call you", "brochure sent to your WhatsApp", "site visit booked", "payment confirmed", "order placed") UNLESS a backend system actually performed it.
+   - Outbound voice calling is not supported directly on WhatsApp. If customer asks for a call ("call kro", "call karo"), politely inform them in 1 short sentence that voice calling is unavailable here and you are happy to answer all their questions right here in chat.
+
+6. RESPONSE STYLE & BREVITY:
+   - Keep responses short, clear, and professional (1 to 2 short sentences).
+   - Ask at most ONE question at a time. Do not produce long sales pitches.
 RULES;
 
         if ($fallbackSentInHistory) {
-            $promptSections[] = "CRITICAL: A fallback message was ALREADY sent in this conversation. If customer repeats the same unknown question, do NOT repeat the exact same fallback sentence! Use a short alternative like 'Ji, ye detail abhi available nahi hai.'";
+            $promptSections[] = "CRITICAL NOTICE: A fallback message was ALREADY sent recently in this thread. If the customer repeats the unknown question, do NOT repeat the fallback sentence! Provide a short alternative response or ask how else you can assist.";
         }
 
         $systemPrompt = implode("\n\n", $promptSections);
@@ -334,90 +365,92 @@ RULES;
             ];
         }
 
-        // Call OpenAI or Gemini API based on provider and API Key
-        $provider = strtolower((string) ($aiSetting?->provider ?? 'gemini'));
-        if (!empty($apiKey) && str_starts_with(trim($apiKey), 'sk-')) {
-            $provider = 'openai';
-        }
-
         $configuredModel = $aiSetting?->default_model;
         $aiText = '';
 
-        if (!empty($apiKey)) {
-            if ($provider === 'openai') {
-                $openAiModels = array_filter(array_unique([
-                    $configuredModel ?: 'gpt-4o-mini',
-                    'gpt-4o-mini',
-                    'gpt-4o',
-                    'gpt-3.5-turbo',
-                ]));
+        // 1. PRIMARY PROVIDER: Try OpenAI first if key is available
+        if (!empty($openAiKey)) {
+            $openAiModelToUse = ($configuredProvider === 'openai' && !empty($configuredModel)) ? $configuredModel : 'gpt-4o-mini';
+            $openAiModels = array_filter(array_unique([
+                $openAiModelToUse,
+                'gpt-4o-mini',
+                'gpt-4o',
+                'gpt-3.5-turbo',
+            ]));
 
-                foreach ($openAiModels as $modelName) {
-                    try {
-                        $response = Http::timeout(12)->withHeaders([
-                            'Authorization' => 'Bearer ' . $apiKey,
-                            'Content-Type' => 'application/json',
-                        ])->post('https://api.openai.com/v1/chat/completions', [
-                            'model' => $modelName,
-                            'messages' => $openAiMessages,
-                            'temperature' => 0.6,
-                            'max_tokens' => 1000,
+            foreach ($openAiModels as $modelName) {
+                try {
+                    $response = Http::timeout(12)->withHeaders([
+                        'Authorization' => 'Bearer ' . $openAiKey,
+                        'Content-Type' => 'application/json',
+                    ])->post('https://api.openai.com/v1/chat/completions', [
+                        'model' => $modelName,
+                        'messages' => $openAiMessages,
+                        'temperature' => 0.6,
+                        'max_tokens' => 1000,
+                    ]);
+
+                    if ($response->successful()) {
+                        $responseData = $response->json();
+                        $aiText = trim($responseData['choices'][0]['message']['content'] ?? '');
+                        if ($aiText !== '') {
+                            Log::info("AiBotService: Generated response via OpenAI ({$modelName}) for tenant {$tenantId}");
+                            break;
+                        }
+                    } else {
+                        Log::warning("AiBotService: OpenAI model {$modelName} failed (HTTP {$response->status()}) for tenant {$tenantId}: " . substr($response->body(), 0, 200));
+                    }
+                } catch (\Throwable $e) {
+                    Log::warning("AiBotService: OpenAI request exception for model {$modelName} (tenant {$tenantId}): " . $e->getMessage());
+                }
+            }
+        }
+
+        // 2. SECONDARY PROVIDER: Try Gemini ONLY if OpenAI was not available or failed to produce a valid response
+        if ($aiText === '' && !empty($geminiKey)) {
+            if (!empty($openAiKey)) {
+                Log::info("AiBotService: OpenAI provider unavailable/failed for tenant {$tenantId}. Falling back to Gemini provider...");
+            }
+
+            $geminiModelToUse = ($configuredProvider === 'gemini' && !empty($configuredModel) && $configuredModel !== 'gemini-flash-latest')
+                ? $configuredModel
+                : 'gemini-1.5-flash';
+
+            $geminiModels = array_filter(array_unique([
+                $geminiModelToUse,
+                'gemini-1.5-flash',
+                'gemini-2.0-flash',
+                'gemini-1.5-flash-latest',
+                'gemini-1.5-pro',
+            ]));
+
+            foreach ($geminiModels as $modelName) {
+                $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key={$geminiKey}";
+                try {
+                    $response = Http::timeout(12)->withHeaders(['Content-Type' => 'application/json'])
+                        ->post($endpoint, [
+                            'system_instruction' => [
+                                'parts' => [['text' => $systemPrompt]]
+                            ],
+                            'contents' => $contents,
+                            'generationConfig' => [
+                                'temperature' => 0.6,
+                                'maxOutputTokens' => 1000,
+                            ],
                         ]);
 
-                        if ($response->successful()) {
-                            $responseData = $response->json();
-                            $aiText = trim($responseData['choices'][0]['message']['content'] ?? '');
-                            if ($aiText !== '') {
-                                break;
-                            }
-                        } else {
-                            Log::warning("AiBotService: OpenAI model {$modelName} failed ({$response->status()}), trying next model...", [
-                                'body' => $response->body(),
-                            ]);
+                    if ($response->successful()) {
+                        $responseData = $response->json();
+                        $aiText = trim($responseData['candidates'][0]['content']['parts'][0]['text'] ?? '');
+                        if ($aiText !== '') {
+                            Log::info("AiBotService: Generated response via Gemini ({$modelName}) for tenant {$tenantId}");
+                            break;
                         }
-                    } catch (\Throwable $e) {
-                        Log::warning("AiBotService: OpenAI request exception for model {$modelName}: " . $e->getMessage());
+                    } else {
+                        Log::warning("AiBotService: Gemini model {$modelName} failed (HTTP {$response->status()}) for tenant {$tenantId}: " . substr($response->body(), 0, 200));
                     }
-                }
-            } else {
-                // Call Gemini API with active model fallback array
-                $modelsToTry = array_filter(array_unique([
-                    ($configuredModel && $configuredModel !== 'gemini-flash-latest') ? $configuredModel : 'gemini-1.5-flash',
-                    'gemini-1.5-flash',
-                    'gemini-2.0-flash',
-                    'gemini-1.5-flash-latest',
-                    'gemini-1.5-pro',
-                ]));
-
-                foreach ($modelsToTry as $modelName) {
-                    $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key={$apiKey}";
-                    try {
-                        $response = Http::timeout(12)->withHeaders(['Content-Type' => 'application/json'])
-                            ->post($endpoint, [
-                                'system_instruction' => [
-                                    'parts' => [['text' => $systemPrompt]]
-                                ],
-                                'contents' => $contents,
-                                'generationConfig' => [
-                                    'temperature' => 0.6,
-                                    'maxOutputTokens' => 1000,
-                                ],
-                            ]);
-
-                        if ($response->successful()) {
-                            $responseData = $response->json();
-                            $aiText = trim($responseData['candidates'][0]['content']['parts'][0]['text'] ?? '');
-                            if ($aiText !== '') {
-                                break;
-                            }
-                        } else {
-                            Log::warning("AiBotService: Gemini model {$modelName} failed ({$response->status()}), trying next model...", [
-                                'body' => $response->body(),
-                            ]);
-                        }
-                    } catch (\Throwable $e) {
-                        Log::warning("AiBotService: Gemini request exception for model {$modelName}: " . $e->getMessage());
-                    }
+                } catch (\Throwable $e) {
+                    Log::warning("AiBotService: Gemini request exception for model {$modelName} (tenant {$tenantId}): " . $e->getMessage());
                 }
             }
         }
@@ -436,7 +469,17 @@ RULES;
             $isAck = in_array($userLower, $acks, true) || str_contains($userLower, 'maine sirf hi') || str_contains($userLower, 'arey');
 
             // 3. Detect Emoji-only
-            $isEmoji = (preg_match('/^[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}\x{1F900}-\x{1F9FF}\x{1F1E6}-\x{1F1FF}\s]+$/u', $trimmedUser) === 1);
+            $isEmoji = (preg_match('/^[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{2600}-\x{26FF}\x{1F900}-\x{1F9FF}\x{1F1E6}-\x{1F1FF}\s]+$/u', $trimmedUser) === 1);
+
+            // 4. Detect Buying/Service Intent / Detail Requests
+            $intentKeywords = ['dekhna', 'chahiye', 'buy', 'order', 'detail', 'details', 'jankari', 'info', 'information', 'service', 'baat'];
+            $isIntent = false;
+            foreach ($intentKeywords as $kw) {
+                if (str_contains($userLower, $kw)) {
+                    $isIntent = true;
+                    break;
+                }
+            }
 
             if ($isGreeting) {
                 $aiText = "Hello ji! Main " . ($companyName ? "{$companyName} se " : "") . "aapki kya madad kar sakta hoon?";
@@ -444,8 +487,20 @@ RULES;
                 $aiText = "Ji, bataiye aapko kis detail ke baare me jan-na hai?";
             } elseif ($isEmoji) {
                 $aiText = "😊";
+            } elseif ($isIntent) {
+                // If Knowledge Base has entries, offer help using agent knowledge context
+                $kbArray = is_array($botAgent->knowledge_base) ? $botAgent->knowledge_base : json_decode((string)$botAgent->knowledge_base, true);
+                if (is_array($kbArray) && !empty($kbArray)) {
+                    $firstAnswer = reset($kbArray)['answer'] ?? '';
+                    if ($firstAnswer !== '') {
+                        $aiText = "Ji, " . (mb_strlen($firstAnswer) > 100 ? mb_substr($firstAnswer, 0, 100) . '...' : $firstAnswer);
+                    }
+                }
+                if ($aiText === '') {
+                    $aiText = "Ji! Main " . ($companyName ? "{$companyName} se " : "") . "aapki bilkul madad kar sakta hoon. Aapko kya detail chahiye?";
+                }
             } else {
-                // Search Knowledge Base Q&A Array
+                // Search Knowledge Base Q&A Array (Exact or substring)
                 $kbArray = is_array($botAgent->knowledge_base) ? $botAgent->knowledge_base : json_decode((string)$botAgent->knowledge_base, true);
                 if (is_array($kbArray)) {
                     foreach ($kbArray as $qa) {
