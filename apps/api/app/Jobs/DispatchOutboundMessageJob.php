@@ -27,7 +27,7 @@ class DispatchOutboundMessageJob implements ShouldQueue
     use Queueable;
     use InteractsWithQueue;
 
-    public int $tries = 50;
+    public int $tries = 1;
 
     public int $timeout = 30;
 
@@ -450,14 +450,13 @@ class DispatchOutboundMessageJob implements ShouldQueue
                 ],
                 [
                     'contact_id' => null,
-                    'project_id' => $this->campaignId ?: null,
+                    'project_id' => null,
                     'assigned_user_id' => $this->sentByUserId,
                     'status' => 'open',
                     'priority' => 'normal',
                 ]
             );
             if ($this->campaignId) {
-                $thread->project_id = $this->campaignId;
                 $campaign = \App\Models\Campaign::query()->find($this->campaignId);
                 if ($campaign && !empty($campaign->ai_bot_agent_id)) {
                     $thread->ai_bot_agent_id = $campaign->ai_bot_agent_id;
@@ -535,14 +534,13 @@ class DispatchOutboundMessageJob implements ShouldQueue
             ],
             [
                 'contact_id' => null,
-                'project_id' => $this->campaignId ?: null,
+                'project_id' => null,
                 'assigned_user_id' => $this->sentByUserId,
                 'status' => 'open',
                 'priority' => 'normal',
             ]
         );
         if ($this->campaignId) {
-            $thread->project_id = $this->campaignId;
             $campaign = \App\Models\Campaign::query()->find($this->campaignId);
             if ($campaign && !empty($campaign->ai_bot_agent_id)) {
                 $thread->ai_bot_agent_id = $campaign->ai_bot_agent_id;

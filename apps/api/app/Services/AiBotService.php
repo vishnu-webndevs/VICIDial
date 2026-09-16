@@ -28,26 +28,16 @@ class AiBotService
             // If the customer is NOT in a campaign with an AI agent, DO NOT reply at all.
             $botAgent = null;
 
-            // 1. Check if thread is linked to a campaign with an AI agent assigned
-            if ($thread->project_id) {
-                $campaign = \App\Models\Campaign::query()
+            // 1. Check if thread already has an active AI Bot assigned
+            if ($thread->ai_bot_agent_id) {
+                $botAgent = AiBotAgent::query()
                     ->where('tenant_id', $tenantId)
-                    ->where('id', $thread->project_id)
+                    ->where('id', $thread->ai_bot_agent_id)
+                    ->where('is_active', true)
                     ->first();
-                if ($campaign && !empty($campaign->ai_bot_agent_id)) {
-                    $botAgent = AiBotAgent::query()
-                        ->where('tenant_id', $tenantId)
-                        ->where('id', $campaign->ai_bot_agent_id)
-                        ->where('is_active', true)
-                        ->first();
-
-                    if ($botAgent && $thread->ai_bot_agent_id !== $botAgent->id) {
-                        $thread->update(['ai_bot_agent_id' => $botAgent->id]);
-                    }
-                }
             }
 
-            // 2. If project_id not yet set on thread, check if any outbound message in this thread was from an AI campaign
+            // 2. If not yet set on thread, check if any outbound message in this thread was from an AI campaign
             if (!$botAgent) {
                 $campaignId = Message::query()
                     ->where('tenant_id', $tenantId)
@@ -71,7 +61,6 @@ class AiBotService
 
                         if ($botAgent) {
                             $thread->update([
-                                'project_id' => $campaign->id,
                                 'ai_bot_agent_id' => $botAgent->id,
                             ]);
                         }
@@ -107,21 +96,11 @@ class AiBotService
 
                         if ($botAgent) {
                             $thread->update([
-                                'project_id' => $campaign->id,
                                 'ai_bot_agent_id' => $botAgent->id,
                             ]);
                         }
                     }
                 }
-            }
-
-            // 4. Explicit thread assignment IF already linked to a campaign
-            if (!$botAgent && $thread->ai_bot_agent_id && $thread->project_id) {
-                $botAgent = AiBotAgent::query()
-                    ->where('tenant_id', $tenantId)
-                    ->where('id', $thread->ai_bot_agent_id)
-                    ->where('is_active', true)
-                    ->first();
             }
 
             // STRICT: If this customer/thread is NOT part of a campaign with an AI agent assigned, DO NOT REPLY!
@@ -138,10 +117,14 @@ class AiBotService
                 return;
             }
 
-            // 1. Check for Interactive Button Flow Trigger
+            // 1. Check for Interactive Button Flow Trigger (Exact or Keyword match)
+            $cleanUser = strtolower($userText);
             $flow = AiBotInteractiveFlow::query()
                 ->where('ai_bot_agent_id', $botAgent->id)
-                ->whereRaw('LOWER(trigger_keyword) = ?', [strtolower($userText)])
+                ->where(function ($q) use ($cleanUser) {
+                    $q->whereRaw('LOWER(trigger_keyword) = ?', [$cleanUser])
+                      ->orWhereRaw('? LIKE CONCAT("%", LOWER(trigger_keyword), "%")', [$cleanUser]);
+                })
                 ->first();
 
             if ($flow) {
