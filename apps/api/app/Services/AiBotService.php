@@ -250,85 +250,110 @@ class AiBotService
                 "- NEVER claim anyone will call, message, or inform them later.";
         }
 
-        $customPrompt = !empty($botAgent->custom_knowledge_prompt) ? "\nMASTER CUSTOM KNOWLEDGE PROMPT:\n" . $botAgent->custom_knowledge_prompt : "";
-        $privacyPolicyPrompt = !empty($botAgent->privacy_policy) ? "\nPRIVACY POLICY & DATA SECURITY RULES:\n" . $botAgent->privacy_policy : "\nPRIVACY POLICY & DATA SECURITY RULES:\nHum OTP, Passwords, PINs ya Banking Details kisi ke sath share nahi karte aur na puchte hain.";
+        $customKnowledgeText = trim((string) ($botAgent->custom_knowledge_prompt ?? ''));
+        $instructionsText = trim((string) ($botAgent->system_instructions ?? ''));
+        $privacyPolicyPrompt = !empty($botAgent->privacy_policy) ? trim((string) $botAgent->privacy_policy) : "Hum OTP, Passwords, PINs ya Banking Details kisi ke sath share nahi karte aur na puchte hain.";
 
         $systemPrompt = <<<PROMPT
-You are a warm, helpful sales representative working for {$companyName}.
-Your ONLY goal is to have a natural, human, WhatsApp-style conversation with customers based strictly on the Knowledge Base below.
+You are a warm, highly knowledgeable, and helpful Sales & Customer Support Specialist representing {$companyName}.
 
-STRICT CONVERSATIONAL RULES:
-1. BREVITY (DEFAULT 1 SENTENCE):
-   - By default, reply in ONLY 1 short sentence (maximum 15 words).
-   - Maximum 2 short sentences ONLY if absolutely necessary.
-   - NEVER send large paragraphs or bulleted lists unless the user explicitly asks for detailed info (e.g. "full details do", "brochure send kro").
+================================================================================
+CRITICAL DIRECTIVE — READ, LEARN AND STRICTLY ANSWER BASED ON THE MASTER PROMPT:
+================================================================================
+You have been provided with comprehensive, detailed business knowledge and instructions below.
+YOU MUST THOROUGHLY STUDY, UNDERSTAND, AND USE THIS INFORMATION AS YOUR PRIMARY SOURCE OF TRUTH:
 
-2. ANSWER LATEST MESSAGE FIRST & NO SCRIPTED FORCING:
-   - Always respond directly to what the customer JUST said in their latest message.
-   - Do NOT force or restart a scripted sales pitch.
-   - If user says "abhi", reply naturally to "abhi" without forcing qualification.
+--- MASTER BUSINESS KNOWLEDGE & DETAILED SPECIFICATIONS ---
+{$customKnowledgeText}
 
-3. NO CALLING PROMISES & UNSUPPORTED CAPABILITIES:
-   - Meta WhatsApp integration does NOT support calling or placing outbound phone calls.
-   - NEVER claim that you can call, arrange a call, or that a manager/senior will call the customer.
-   - NEVER say: "main call karwa deta hoon", "abhi call arrange karta hoon", "5-10 minute me call aa jayega", "manager aapko call karega", "main senior manager se confirm karta hoon", "main message karwata hoon", or "main aapko inform karunga".
-   - When a customer asks for a call ("mujhe call kro", "call kar do", "mujhe phone karo", "abhi call kro", "isi number pe call kro", "WhatsApp pe call kar sakte ho?"):
-     State clearly in 1 short sentence that WhatsApp calling is not available and invite them to chat here on WhatsApp.
+--- DETAILED AGENT INSTRUCTIONS & GUIDELINES ---
+{$instructionsText}
 
-4. NO REPETITION & CONVERSATION MEMORY:
-   - NEVER ask for information that the customer has ALREADY provided in the conversation history.
-   - NEVER repeat property specs, prices, or contact offers unless asked.
-
-5. ASK ONLY ONE QUESTION AT A TIME:
-   - NEVER combine multiple questions into a single message.
-   - Ask at most ONE simple question per response, and wait for customer's reply.
-
-6. NATURAL LANGUAGE & HINGLISH MATCHING:
-   - Match customer's language (Hinglish/Hindi or English) naturally.
-   - Avoid robotic phrases like "poori jankari ke saath aapse baat karein".
-   - Use natural phrases like "Ji bilkul", "Theek hai", "Sure", "Haan, bataiye" appropriately.
-   - Avoid unnecessary emojis and scripted closings (do NOT say "Thank you! 😊" after every message).
-
-7. COMMON SCENARIO RESPONSES & EMOJIS:
-   - Customer: "OTP nahi aa raha" / OTP query -> "Hum OTP ya banking details share nahi karte."
-   - Customer: "nahi chahiye" -> "Theek hai sir, koi baat nahi."
-   - Customer: "details WhatsApp kar do" -> "Ji, main details WhatsApp par share kar deta hoon."
-   - Customer asks for contact details ("contact details", "phone number kya hai", "apka number", "office contact") -> Provide the contact details / phone number listed in Knowledge Base.
-   - Customer sends emoji (😂, 👍, 🙂, etc.) -> Reply with matching emoji or warm 1-word reaction (e.g. "😊", "👍"). DO NOT send fallback message.
-   - Customer sends short acknowledgment ("ok", "haan", "theek hai", "acha", "hmm") -> Reply naturally (e.g. "Ji", "Theek hai!"). DO NOT send fallback message.
-
-8. FALLBACK DEDUPLICATION & LAST RESORT RULES:
-   - Fallback is a LAST RESORT for unlisted questions only.
-   - NEVER repeat the exact same fallback response twice in the same conversation.
-   - First occurrence of an unlisted question -> "Ji, iski exact jankari mere paas abhi nahi hai."
-   - Repeated same/similar unknown question -> "Ji, iski exact jankari abhi available nahi hai."
-   - If customer changes topic to a Knowledge Base topic, answer the new topic normally.
-   - NEVER invent missing information to avoid fallback.
-   - NEVER claim that anyone will call, message, or inform the customer later.
-
-KNOWLEDGE BASE:
+--- STRUCTURED KNOWLEDGE BASE (FAQS) ---
 {$kbData}
-{$customPrompt}
 
-AGENT PERSONA & SYSTEM INSTRUCTIONS:
-{$botAgent->system_instructions}
+--- PRIVACY & SECURITY POLICY ---
 {$privacyPolicyPrompt}
+================================================================================
+
+RULES FOR ANSWERING CUSTOMERS:
+1. ALWAYS CONSULT THE MASTER KNOWLEDGE PROMPT FIRST:
+   - When the customer asks about ANY flat type (e.g. 2BHK, 3BHK, 4BHK, penthouse), pricing, carpet area, project location, amenities, discounts, booking, or possession:
+     YOU MUST EXTRACT AND PROVIDE THE ACTUAL FACTS, SPECS, AND DETAILS FROM THE MASTER KNOWLEDGE PROMPT ABOVE.
+   - NEVER say "mere paas jankari nahi hai", "senior se puchna hoga", or "abhi information available nahi hai" if the answer is mentioned, described, or implied anywhere in the prompt above!
+
+2. NATURAL, DIRECT & HELPFUL RESPONSES (WHATSAPP CONVERSATIONAL STYLE):
+   - Answer directly what the customer just asked.
+   - Keep replies natural, warm, and concise for WhatsApp (typically 1 to 3 sentences).
+   - If customer asks for specific details (like prices, 4BHK features, or brochure), provide the factual details clearly and naturally.
+   - Match the customer's language style naturally (Hinglish/Hindi or English).
+
+3. PREVENT ROBOTIC REPETITIONS & ADVANCE THE CONVERSATION:
+   - NEVER repeat the exact same sentence or question that was already sent in earlier messages.
+   - Each response must acknowledge what the customer just said and provide new helpful value.
+
+4. NO UNSUPPORTED CALLING PROMISES:
+   - Outbound calling on WhatsApp is not supported.
+   - If customer asks to call ("mujhe call karo", "phone pe baat karo"), politely reply in 1 sentence that WhatsApp voice calling is not active and you are glad to share all details right here on WhatsApp.
+
+5. GENUINELY UNRELATED QUESTIONS ONLY:
+   - Only if a user asks something completely outside real estate and {$companyName} (e.g. general sports, politics, weather), politely say in 1 short sentence that you can help them with {$companyName} properties.
 {$dynamicContext}
 PROMPT;
 
+        // Build cleanly alternating conversation history for Gemini API
         $contents = [];
+        $lastRole = null;
         foreach ($recentMessages as $msg) {
             $role = $msg->direction === 'inbound' ? 'user' : 'model';
-            $contents[] = [
-                'role' => $role,
-                'parts' => [['text' => (string) $msg->body]],
-            ];
+            $text = trim((string) $msg->body);
+            if ($text === '') continue;
+
+            if ($role === $lastRole) {
+                // Merge consecutive messages of the same role to adhere to Gemini alternating turn rules
+                $lastIndex = count($contents) - 1;
+                $contents[$lastIndex]['parts'][0]['text'] .= "\n" . $text;
+            } else {
+                $contents[] = [
+                    'role' => $role,
+                    'parts' => [['text' => $text]],
+                ];
+                $lastRole = $role;
+            }
         }
 
-        if (empty($contents)) {
+        // Gemini conversation must start with 'user'
+        while (!empty($contents) && $contents[0]['role'] !== 'user') {
+            array_shift($contents);
+        }
+
+        // Gemini conversation must end with 'user'
+        if (empty($contents) || end($contents)['role'] !== 'user') {
             $contents[] = [
                 'role' => 'user',
                 'parts' => [['text' => $userText]],
+            ];
+        }
+
+        // Build messages for OpenAI API
+        $openAiMessages = [
+            ['role' => 'system', 'content' => $systemPrompt],
+        ];
+        foreach ($recentMessages as $msg) {
+            $role = $msg->direction === 'inbound' ? 'user' : 'assistant';
+            $text = trim((string) $msg->body);
+            if ($text !== '') {
+                $openAiMessages[] = [
+                    'role' => $role,
+                    'content' => $text,
+                ];
+            }
+        }
+        $lastOpenAi = end($openAiMessages);
+        if (!$lastOpenAi || $lastOpenAi['role'] !== 'user' || $lastOpenAi['content'] !== $userText) {
+            $openAiMessages[] = [
+                'role' => 'user',
+                'content' => $userText,
             ];
         }
 
@@ -343,18 +368,6 @@ PROMPT;
 
         if (!empty($apiKey)) {
             if ($provider === 'openai') {
-                // Format messages for OpenAI Chat Completions API
-                $openAiMessages = [
-                    ['role' => 'system', 'content' => $systemPrompt],
-                ];
-                foreach ($recentMessages as $msg) {
-                    $role = $msg->direction === 'inbound' ? 'user' : 'assistant';
-                    $openAiMessages[] = [
-                        'role' => $role,
-                        'content' => (string) $msg->body,
-                    ];
-                }
-
                 $openAiModels = array_filter(array_unique([
                     $configuredModel ?: 'gpt-4o-mini',
                     'gpt-4o-mini',
@@ -364,13 +377,13 @@ PROMPT;
 
                 foreach ($openAiModels as $modelName) {
                     try {
-                        $response = Http::timeout(10)->withHeaders([
+                        $response = Http::timeout(12)->withHeaders([
                             'Authorization' => 'Bearer ' . $apiKey,
                             'Content-Type' => 'application/json',
                         ])->post('https://api.openai.com/v1/chat/completions', [
                             'model' => $modelName,
                             'messages' => $openAiMessages,
-                            'temperature' => 0.2,
+                            'temperature' => 0.6,
                             'max_tokens' => 1000,
                         ]);
 
@@ -402,14 +415,14 @@ PROMPT;
                 foreach ($modelsToTry as $modelName) {
                     $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key={$apiKey}";
                     try {
-                        $response = Http::timeout(10)->withHeaders(['Content-Type' => 'application/json'])
+                        $response = Http::timeout(12)->withHeaders(['Content-Type' => 'application/json'])
                             ->post($endpoint, [
                                 'system_instruction' => [
                                     'parts' => [['text' => $systemPrompt]]
                                 ],
                                 'contents' => $contents,
                                 'generationConfig' => [
-                                    'temperature' => 0.2,
+                                    'temperature' => 0.6,
                                     'maxOutputTokens' => 1000,
                                 ],
                             ]);
