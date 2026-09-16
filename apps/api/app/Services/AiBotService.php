@@ -250,56 +250,61 @@ class AiBotService
                 "- NEVER claim anyone will call, message, or inform them later.";
         }
 
+        $agentName = trim((string) ($botAgent->name ?? 'AI Assistant'));
         $customKnowledgeText = trim((string) ($botAgent->custom_knowledge_prompt ?? ''));
         $instructionsText = trim((string) ($botAgent->system_instructions ?? ''));
-        $privacyPolicyPrompt = !empty($botAgent->privacy_policy) ? trim((string) $botAgent->privacy_policy) : "Hum OTP, Passwords, PINs ya Banking Details kisi ke sath share nahi karte aur na puchte hain.";
+        $privacyPolicyText = trim((string) ($botAgent->privacy_policy ?? ''));
+        $fallbackMessage = trim((string) ($botAgent->fallback_message ?: 'Mujhe iski exact jankari abhi nahi hai, main confirm karke aapko bataunga.'));
 
-        $systemPrompt = <<<PROMPT
-You are a warm, highly knowledgeable, and helpful Sales & Customer Support Specialist representing {$companyName}.
+        $kbData = is_array($botAgent->knowledge_base) ? json_encode($botAgent->knowledge_base, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) : (string) $botAgent->knowledge_base;
 
-================================================================================
-CRITICAL DIRECTIVE — READ, LEARN AND STRICTLY ANSWER BASED ON THE MASTER PROMPT:
-================================================================================
-You have been provided with comprehensive, detailed business knowledge and instructions below.
-YOU MUST THOROUGHLY STUDY, UNDERSTAND, AND USE THIS INFORMATION AS YOUR PRIMARY SOURCE OF TRUTH:
+        $tenantObj = Tenant::find($tenantId);
+        $companyName = $tenantObj?->name ?: 'our company';
 
---- MASTER BUSINESS KNOWLEDGE & DETAILED SPECIFICATIONS ---
-{$customKnowledgeText}
+        // Construct 100% DYNAMIC System Prompt based purely on fields configured in Create/Edit AI Bot Agent form
+        $promptSections = [];
+        $promptSections[] = "You are an AI Assistant named '{$agentName}' representing {$companyName}.";
 
---- DETAILED AGENT INSTRUCTIONS & GUIDELINES ---
-{$instructionsText}
+        if (!empty($instructionsText)) {
+            $promptSections[] = "=== AGENT PERSONA & INSTRUCTIONS (FROM BOT AGENT FORM) ===\n" . $instructionsText;
+        }
 
---- STRUCTURED KNOWLEDGE BASE (FAQS) ---
-{$kbData}
+        if (!empty($customKnowledgeText)) {
+            $promptSections[] = "=== MASTER KNOWLEDGE & DETAILED PROMPT (FROM BOT AGENT FORM) ===\n" . $customKnowledgeText;
+        }
 
---- PRIVACY & SECURITY POLICY ---
-{$privacyPolicyPrompt}
-================================================================================
+        if (!empty($kbData) && $kbData !== '[]' && $kbData !== 'null') {
+            $promptSections[] = "=== KNOWLEDGE BASE (FAQS FROM BOT AGENT FORM) ===\n" . $kbData;
+        }
 
-RULES FOR ANSWERING CUSTOMERS:
-1. ALWAYS CONSULT THE MASTER KNOWLEDGE PROMPT FIRST:
-   - When the customer asks about ANY flat type (e.g. 2BHK, 3BHK, 4BHK, penthouse), pricing, carpet area, project location, amenities, discounts, booking, or possession:
-     YOU MUST EXTRACT AND PROVIDE THE ACTUAL FACTS, SPECS, AND DETAILS FROM THE MASTER KNOWLEDGE PROMPT ABOVE.
-   - NEVER say "mere paas jankari nahi hai", "senior se puchna hoga", or "abhi information available nahi hai" if the answer is mentioned, described, or implied anywhere in the prompt above!
+        if (!empty($privacyPolicyText)) {
+            $promptSections[] = "=== PRIVACY & DATA SECURITY RULES ===\n" . $privacyPolicyText;
+        }
 
-2. NATURAL, DIRECT & HELPFUL RESPONSES (WHATSAPP CONVERSATIONAL STYLE):
-   - Answer directly what the customer just asked.
-   - Keep replies natural, warm, and concise for WhatsApp (typically 1 to 3 sentences).
-   - If customer asks for specific details (like prices, 4BHK features, or brochure), provide the factual details clearly and naturally.
+        $promptSections[] = <<<RULES
+=== CONVERSATIONAL & ACCURACY RULES ===
+1. PRIMARY KNOWLEDGE COMPLIANCE:
+   - Carefully study and learn from all Agent Instructions, Master Knowledge Prompts, and FAQs provided above.
+   - When the customer asks about any topic, product, service, price, offer, or specification detailed in the prompt above, YOU MUST EXTRACT AND PROVIDE THE ACTUAL ACCURATE DETAILS FROM THE PROMPT ABOVE.
+   - NEVER state that you don't have information if the answer or context is present in the prompts provided.
+
+2. CONVERSATIONAL STYLE & BREVITY:
+   - Reply naturally, warmly, and concisely for WhatsApp messaging (typically 1 to 3 sentences).
+   - Respond directly to what the customer just asked in their latest message.
    - Match the customer's language style naturally (Hinglish/Hindi or English).
 
-3. PREVENT ROBOTIC REPETITIONS & ADVANCE THE CONVERSATION:
-   - NEVER repeat the exact same sentence or question that was already sent in earlier messages.
-   - Each response must acknowledge what the customer just said and provide new helpful value.
+3. PREVENT REPETITION:
+   - Never repeat the exact same sentence or question that was already sent in earlier messages in this conversation.
 
-4. NO UNSUPPORTED CALLING PROMISES:
-   - Outbound calling on WhatsApp is not supported.
-   - If customer asks to call ("mujhe call karo", "phone pe baat karo"), politely reply in 1 sentence that WhatsApp voice calling is not active and you are glad to share all details right here on WhatsApp.
+4. UNSUPPORTED PHONE CALLING:
+   - Outbound voice calling is not supported via WhatsApp. If customer asks for a phone call ("call karo"), politely inform them in 1 short sentence that voice calling is unavailable on this WhatsApp number and you are ready to help them right here.
 
-5. GENUINELY UNRELATED QUESTIONS ONLY:
-   - Only if a user asks something completely outside real estate and {$companyName} (e.g. general sports, politics, weather), politely say in 1 short sentence that you can help them with {$companyName} properties.
+5. FALLBACK STATEMENT:
+   - Only if a question is completely unrelated or genuinely absent from ALL prompts and knowledge base above, reply using the fallback response: "{$fallbackMessage}".
 {$dynamicContext}
-PROMPT;
+RULES;
+
+        $systemPrompt = implode("\n\n", $promptSections);
 
         // Build cleanly alternating conversation history for Gemini API
         $contents = [];
@@ -446,7 +451,7 @@ PROMPT;
         }
 
         if ($aiText === '') {
-            Log::warning("AiBotService: AI generation unavailable for tenant {$tenantId}. Checking direct Knowledge Base / Flow match...");
+            Log::warning("AiBotService: AI generation unavailable for tenant {$tenantId}. Checking direct Knowledge Base Q&A...");
             $kbArray = is_array($botAgent->knowledge_base) ? $botAgent->knowledge_base : json_decode((string)$botAgent->knowledge_base, true);
             $userLower = strtolower($userText);
 
@@ -460,19 +465,8 @@ PROMPT;
                 }
             }
 
-            // Keyword-based fallback for common real-estate selections (2BHK, 3BHK, 4BHK)
             if ($aiText === '') {
-                if (preg_match('/\b4\s*bhk\b/i', $userText)) {
-                    $aiText = "Ji, 4BHK luxury flat ke floor plans aur pricing details hamare sales executive aapse jald share karenge. Kya aap site visit schedule karna chahenge?";
-                } elseif (preg_match('/\b3\s*bhk\b/i', $userText)) {
-                    $aiText = "Ji, 3BHK flat ke plans aur pricing details hamari team aapse share karegi. Kya aap project location dekhna chahte hain?";
-                } elseif (preg_match('/\b2\s*bhk\b/i', $userText)) {
-                    $aiText = "Ji, 2BHK flat prime location par available hai. Kya aap brochure chahte hain?";
-                }
-            }
-
-            if ($aiText === '') {
-                $aiText = $fallback;
+                $aiText = $fallbackMessage;
             }
         }
 
