@@ -218,12 +218,7 @@ class AiBotService
             if ($msg->direction === 'outbound') {
                 $lastOutboundBody = (string) $msg->body;
                 $lowerBody = strtolower($msg->body);
-                if (
-                    str_contains($lowerBody, 'jankari') ||
-                    str_contains($lowerBody, 'available nahi') ||
-                    str_contains($lowerBody, 'mere paas abhi nahi') ||
-                    ($fallbackMessage !== '' && str_contains($lowerBody, strtolower(substr($fallbackMessage, 0, 15))))
-                ) {
+                if ($fallbackMessage !== '' && str_contains($lowerBody, strtolower(substr($fallbackMessage, 0, 15)))) {
                     $fallbackSentInHistory = true;
                 }
             }
@@ -254,8 +249,7 @@ class AiBotService
 
         if ($isStrictKb) {
             $promptSections[] = "=== STRICT KNOWLEDGE BASE LOCK ===\n" .
-                "1. All factual details (prices, availability, locations, specs, terms, policies) MUST come strictly from the Knowledge Base and Master Prompt below. Do NOT invent outside facts or hallucinate unapproved business information.\n" .
-                "2. STRICT LOCK DEFINITION: Strict KB Lock prevents you from inventing fake business facts. It does NOT restrict your conversational reasoning, understanding intent, handling objections, or guiding customers using your configured purpose and knowledge!";
+                "All factual details (prices, specs, terms, availability) MUST come strictly from the Knowledge Base and Master Prompt below. Do NOT invent outside business facts or unapproved information.";
         }
 
         if (!empty($instructionsText)) {
@@ -274,43 +268,18 @@ class AiBotService
             $promptSections[] = "=== PRIVACY & SECURITY RULES ===\n" . $privacyPolicyText;
         }
 
-        // Add Enforced Conversational & Intent Rules
+        // Generic platform safety & calling limitation rule
+        $promptSections[] = "=== GENERAL PLATFORM SAFETY RULES ===\n" .
+            "1. Do NOT claim system actions occurred (e.g. call scheduled, payment processed, brochure sent) unless confirmed by backend context.\n" .
+            "2. Outbound voice calling is unavailable on WhatsApp. If customer asks for a call, politely inform them in 1 short sentence that voice calling is unavailable here and you are happy to assist in chat.";
+
+        // Configured Out-of-Scope Fallback rule
         $activeFallbackString = $fallbackMessage ?: "Ji, iski exact jankari mere paas abhi nahi hai.";
-        $promptSections[] = <<<RULES
-=== AUTONOMOUS CONVERSATIONAL REASONING & RULES ===
-
-1. AUTONOMOUS AGENT REASONING & INTENT UNDERSTANDING:
-   - You are a true business AI Agent, NOT a rigid FAQ lookup bot.
-   - Synthesize your AGENT PURPOSE, SYSTEM INSTRUCTIONS, and BUSINESS KNOWLEDGE to determine the best response for the customer's actual intent and situation.
-   - Do NOT expect exact keyword or FAQ matches from the customer. Understand intent, Hinglish, synonyms, casual phrasing, and customer context:
-     * Open-ended requests ("bhai kuch accha sa dikhao", "details batao", "kuch dikhao"): Understand customer interest and continue the conversation using your knowledge base and agent purpose.
-     * Objections & concerns ("budget thoda kam hai", "thoda mehnga lag raha hai"): Understand the customer's objection and respond helpfully according to your agent purpose and available options.
-     * Conversational & decision updates ("mummy se puch ke batata hu", "kal baat karte hain"): Understand these as normal conversation steps and reply naturally in character.
-     * Synonyms & locations ("kaha hai?", "address?", "where is it?"): Answer using your location info from knowledge.
-
-2. CONVERSATIONAL MESSAGES vs OUT-OF-SCOPE FALLBACK:
-   - Greetings ("hi", "hello", "hey", "namaste", "good morning"): Respond naturally and warmly in character. NEVER output fallback for greetings!
-   - Acknowledgments ("okay", "ok", "haan", "han", "ji", "theek hai", "acha", "hmm", "thanks"): Respond naturally in character. NEVER output fallback for acknowledgments!
-   - Emojis ("😂", "👍", "🙂", "😊", "❤️"): Respond warmly with a short friendly reaction. NEVER output fallback!
-   - Buying / Service Interest: Respond warmly using your Knowledge Base / Master Prompt context and continue the conversation towards your agent's objective.
-
-3. STRICT FACTUAL SAFETY (NO HALLUCINATIONS OR FAKE ACTIONS):
-   - You MUST NOT invent business facts (prices, availability, location, amenities, specifications, legal/RERA info, policies, order/payment status, appointments).
-   - NEVER claim that a system action occurred (e.g., "call scheduled", "manager will call you", "brochure sent to your WhatsApp", "site visit booked", "payment confirmed", "order placed") UNLESS a real backend action performed it.
-   - Outbound voice calling is unavailable on WhatsApp. If customer asks for a call ("call kro", "call karo"), politely inform them in 1 short sentence that voice calling is unavailable here and you are happy to answer all questions right here in chat.
-
-4. FALLBACK RULE (LAST RESORT ONLY):
-   - ONLY send the out-of-scope fallback when the customer asks for a specific, unresolvable factual detail that genuinely does NOT exist anywhere in your configured Knowledge Base or Master Prompt.
-   - Configured Fallback Message: "{$activeFallbackString}"
-   - Never send the exact same fallback sentence repeatedly in the same conversation.
-
-5. RESPONSE STYLE & BREVITY:
-   - Keep responses short, natural, clear, and professional (1 to 2 short sentences).
-   - Ask at most ONE useful question at a time to guide the customer. Do not produce long mechanical sales pitches.
-RULES;
+        $promptSections[] = "=== OUT-OF-SCOPE FALLBACK RULE ===\n" .
+            "If the customer asks for a specific factual detail that genuinely does NOT exist anywhere in your configured Knowledge Base or Master Prompt, output your configured fallback message: \"{$activeFallbackString}\".";
 
         if ($fallbackSentInHistory) {
-            $promptSections[] = "CRITICAL NOTICE: A fallback message was ALREADY sent recently in this thread. If the customer repeats the unknown question, do NOT repeat the fallback sentence! Provide a short alternative response or ask how else you can assist.";
+            $promptSections[] = "CRITICAL NOTICE: Your fallback message was ALREADY sent recently in this thread. If the customer repeats an unresolvable question, do NOT repeat the fallback sentence verbatim; provide a brief alternative polite response.";
         }
 
         $systemPrompt = implode("\n\n", $promptSections);
@@ -418,16 +387,16 @@ RULES;
                 Log::info("AiBotService: OpenAI provider unavailable/failed for tenant {$tenantId}. Falling back to Gemini provider...");
             }
 
-            $geminiModelToUse = ($configuredProvider === 'gemini' && !empty($configuredModel) && $configuredModel !== 'gemini-flash-latest')
+            $geminiModelToUse = ($configuredProvider === 'gemini' && !empty($configuredModel))
                 ? $configuredModel
-                : 'gemini-1.5-flash';
+                : 'gemini-2.5-flash';
 
             $geminiModels = array_filter(array_unique([
                 $geminiModelToUse,
-                'gemini-1.5-flash',
-                'gemini-2.0-flash',
-                'gemini-1.5-flash-latest',
-                'gemini-1.5-pro',
+                'gemini-2.5-flash',
+                'gemini-flash-latest',
+                'gemini-3.5-flash',
+                'gemini-2.5-pro',
             ]));
 
             foreach ($geminiModels as $modelName) {
@@ -462,71 +431,12 @@ RULES;
         }
 
         if ($aiText === '') {
-            Log::warning("AiBotService: AI generation unavailable for tenant {$tenantId}. Applying smart intent fallback...");
-            $trimmedUser = trim($userText);
-            $userLower = strtolower($trimmedUser);
-
-            // 1. Detect Greetings
-            $greetings = ['hi', 'hello', 'hey', 'hii', 'namaste', 'good morning', 'good afternoon', 'good evening', 'hlo'];
-            $isGreeting = in_array($userLower, $greetings, true) || preg_match('/^(hi|hello|hey|namaste)\b/i', $userLower);
-
-            // 2. Detect Acknowledgments & Casual
-            $acks = ['ok', 'okay', 'haan', 'han', 'ji', 'yes', 'sure', 'theek hai', 'thik hai', 'acha', 'accha', 'hmm', 'hmmm', 'got it', 'right', 'thanks', 'thank you'];
-            $isAck = in_array($userLower, $acks, true) || str_contains($userLower, 'maine sirf hi') || str_contains($userLower, 'arey');
-
-            // 3. Detect Emoji-only
-            $isEmoji = (preg_match('/^[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{2600}-\x{26FF}\x{1F900}-\x{1F9FF}\x{1F1E6}-\x{1F1FF}\s]+$/u', $trimmedUser) === 1);
-
-            // 4. Detect Buying/Service Intent / Detail Requests
-            $intentKeywords = ['dekhna', 'chahiye', 'buy', 'order', 'detail', 'details', 'jankari', 'info', 'information', 'service', 'baat'];
-            $isIntent = false;
-            foreach ($intentKeywords as $kw) {
-                if (str_contains($userLower, $kw)) {
-                    $isIntent = true;
-                    break;
-                }
-            }
-
-            if ($isGreeting) {
-                $aiText = "Hello ji! Main " . ($companyName ? "{$companyName} se " : "") . "aapki kya madad kar sakta hoon?";
-            } elseif ($isAck) {
-                $aiText = "Ji, bataiye aapko kis detail ke baare me jan-na hai?";
-            } elseif ($isEmoji) {
-                $aiText = "😊";
-            } elseif ($isIntent) {
-                // If Knowledge Base has entries, offer help using agent knowledge context
-                $kbArray = is_array($botAgent->knowledge_base) ? $botAgent->knowledge_base : json_decode((string)$botAgent->knowledge_base, true);
-                if (is_array($kbArray) && !empty($kbArray)) {
-                    $firstAnswer = reset($kbArray)['answer'] ?? '';
-                    if ($firstAnswer !== '') {
-                        $aiText = "Ji, " . (mb_strlen($firstAnswer) > 100 ? mb_substr($firstAnswer, 0, 100) . '...' : $firstAnswer);
-                    }
-                }
-                if ($aiText === '') {
-                    $aiText = "Ji! Main " . ($companyName ? "{$companyName} se " : "") . "aapki bilkul madad kar sakta hoon. Aapko kya detail chahiye?";
-                }
+            Log::warning("AiBotService: AI generation unavailable for tenant {$tenantId}. Applying technical safety fallback...");
+            $activeFallback = $fallbackMessage ?: "Ji, iski exact jankari mere paas abhi nahi hai.";
+            if ($fallbackSentInHistory) {
+                $aiText = "Ji, ye detail abhi available nahi hai.";
             } else {
-                // Search Knowledge Base Q&A Array (Exact or substring)
-                $kbArray = is_array($botAgent->knowledge_base) ? $botAgent->knowledge_base : json_decode((string)$botAgent->knowledge_base, true);
-                if (is_array($kbArray)) {
-                    foreach ($kbArray as $qa) {
-                        $qLower = strtolower($qa['question'] ?? '');
-                        if ($qLower !== '' && (str_contains($userLower, $qLower) || str_contains($qLower, $userLower))) {
-                            $aiText = (string) ($qa['answer'] ?? '');
-                            break;
-                        }
-                    }
-                }
-
-                // If still empty, handle out-of-scope fallback with anti-repetition
-                if ($aiText === '') {
-                    $activeFallback = $fallbackMessage ?: "Ji, iski exact jankari mere paas abhi nahi hai.";
-                    if ($fallbackSentInHistory || ($lastOutboundBody && str_contains(strtolower($lastOutboundBody), 'jankari'))) {
-                        $aiText = "Ji, ye detail abhi available nahi hai.";
-                    } else {
-                        $aiText = $activeFallback;
-                    }
-                }
+                $aiText = $activeFallback;
             }
         }
 
