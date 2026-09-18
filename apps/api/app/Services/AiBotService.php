@@ -174,31 +174,14 @@ class AiBotService
      */
     private static function generateAndSendAiResponse(string $tenantId, MessageThread $thread, AiBotAgent $botAgent, string $userText): void
     {
-        // Fetch Tenant AI Setting & Resolve API Keys (OpenAI Primary, Gemini Fallback)
+        // Fetch Tenant AI Setting & Resolve OpenAI API Key
         $aiSetting = TenantAiSetting::query()->where('tenant_id', $tenantId)->first();
-        $configuredProvider = strtolower((string) ($aiSetting?->provider ?? ''));
         $tenantApiKey = trim((string) ($aiSetting?->api_key ?? ''));
 
-        $openAiKey = null;
-        if ($configuredProvider === 'openai' && !empty($tenantApiKey)) {
-            $openAiKey = $tenantApiKey;
-        } elseif (!empty($tenantApiKey) && str_starts_with($tenantApiKey, 'sk-')) {
-            $openAiKey = $tenantApiKey;
-        } else {
-            $openAiKey = env('OPENAI_API_KEY') ?: null;
-        }
+        $openAiKey = !empty($tenantApiKey) ? $tenantApiKey : (env('OPENAI_API_KEY') ?: null);
 
-        $geminiKey = null;
-        if ($configuredProvider === 'gemini' && !empty($tenantApiKey)) {
-            $geminiKey = $tenantApiKey;
-        } elseif (!empty($tenantApiKey) && !str_starts_with($tenantApiKey, 'sk-')) {
-            $geminiKey = $tenantApiKey;
-        } else {
-            $geminiKey = env('GEMINI_API_KEY') ?: null;
-        }
-
-        if (empty($openAiKey) && empty($geminiKey)) {
-            Log::warning("AiBotService: Neither OpenAI nor Gemini API key found for tenant {$tenantId}");
+        if (empty($openAiKey)) {
+            Log::warning("AiBotService: OpenAI API key not found for tenant {$tenantId}");
             return;
         }
 
@@ -284,40 +267,6 @@ class AiBotService
 
         $systemPrompt = implode("\n\n", $promptSections);
 
-        // Build cleanly alternating conversation history for Gemini API
-        $contents = [];
-        $lastRole = null;
-        foreach ($recentMessages as $msg) {
-            $role = $msg->direction === 'inbound' ? 'user' : 'model';
-            $text = trim((string) $msg->body);
-            if ($text === '') continue;
-
-            if ($role === $lastRole) {
-                // Merge consecutive messages of the same role to adhere to Gemini alternating turn rules
-                $lastIndex = count($contents) - 1;
-                $contents[$lastIndex]['parts'][0]['text'] .= "\n" . $text;
-            } else {
-                $contents[] = [
-                    'role' => $role,
-                    'parts' => [['text' => $text]],
-                ];
-                $lastRole = $role;
-            }
-        }
-
-        // Gemini conversation must start with 'user'
-        while (!empty($contents) && $contents[0]['role'] !== 'user') {
-            array_shift($contents);
-        }
-
-        // Gemini conversation must end with 'user'
-        if (empty($contents) || end($contents)['role'] !== 'user') {
-            $contents[] = [
-                'role' => 'user',
-                'parts' => [['text' => $userText]],
-            ];
-        }
-
         // Build messages for OpenAI API
         $openAiMessages = [
             ['role' => 'system', 'content' => $systemPrompt],
@@ -343,90 +292,39 @@ class AiBotService
         $configuredModel = $aiSetting?->default_model;
         $aiText = '';
 
-        // 1. PRIMARY PROVIDER: Try OpenAI first if key is available
-        if (!empty($openAiKey)) {
-            $openAiModelToUse = ($configuredProvider === 'openai' && !empty($configuredModel)) ? $configuredModel : 'gpt-4o-mini';
-            $openAiModels = array_filter(array_unique([
-                $openAiModelToUse,
-                'gpt-4o-mini',
-                'gpt-4o',
-                'gpt-3.5-turbo',
-            ]));
+        // Generate response using OpenAI API exclusively
+        $openAiModelToUse = (!empty($configuredModel) && str_starts_with($configuredModel, 'gpt-')) ? $configuredModel : 'gpt-4o-mini';
+        $openAiModels = array_filter(array_unique([
+            $openAiModelToUse,
+            'gpt-4o-mini',
+            'gpt-4o',
+            'gpt-3.5-turbo',
+        ]));
 
-            foreach ($openAiModels as $modelName) {
-                try {
-                    $response = Http::timeout(12)->withHeaders([
-                        'Authorization' => 'Bearer ' . $openAiKey,
-                        'Content-Type' => 'application/json',
-                    ])->post('https://api.openai.com/v1/chat/completions', [
-                        'model' => $modelName,
-                        'messages' => $openAiMessages,
-                        'temperature' => 0.6,
-                        'max_tokens' => 1000,
-                    ]);
+        foreach ($openAiModels as $modelName) {
+            try {
+                $response = Http::timeout(12)->withHeaders([
+                    'Authorization' => 'Bearer ' . $openAiKey,
+                    'Content-Type' => 'application/json',
+                ])->post('https://api.openai.com/v1/chat/completions', [
+                    'model' => $modelName,
+                    'messages' => $openAiMessages,
+                    'temperature' => 0.6,
+                    'max_tokens' => 1000,
+                ]);
 
-                    if ($response->successful()) {
-                        $responseData = $response->json();
-                        $aiText = trim($responseData['choices'][0]['message']['content'] ?? '');
-                        if ($aiText !== '') {
-                            Log::info("AiBotService: Generated response via OpenAI ({$modelName}) for tenant {$tenantId}");
-                            break;
-                        }
-                    } else {
-                        Log::warning("AiBotService: OpenAI model {$modelName} failed (HTTP {$response->status()}) for tenant {$tenantId}: " . substr($response->body(), 0, 200));
+                if ($response->successful()) {
+                    $responseData = $response->json();
+                    $aiText = trim($responseData['choices'][0]['message']['content'] ?? '');
+                    if ($aiText !== '') {
+                        Log::info("AiBotService: Generated response via OpenAI ({$modelName}) for tenant {$tenantId}");
+                        break;
                     }
-                } catch (\Throwable $e) {
-                    Log::warning("AiBotService: OpenAI request exception for model {$modelName} (tenant {$tenantId}): " . $e->getMessage());
+                } else {
+                    Log::warning("AiBotService: OpenAI model {$modelName} failed (HTTP {$response->status()}) for tenant {$tenantId}: " . substr($response->body(), 0, 200));
                 }
-            }
-        }
-
-        // 2. SECONDARY PROVIDER: Try Gemini ONLY if OpenAI was not available or failed to produce a valid response
-        if ($aiText === '' && !empty($geminiKey)) {
-            if (!empty($openAiKey)) {
-                Log::info("AiBotService: OpenAI provider unavailable/failed for tenant {$tenantId}. Falling back to Gemini provider...");
-            }
-
-            $geminiModelToUse = ($configuredProvider === 'gemini' && !empty($configuredModel))
-                ? $configuredModel
-                : 'gemini-2.5-flash';
-
-            $geminiModels = array_filter(array_unique([
-                $geminiModelToUse,
-                'gemini-2.5-flash',
-                'gemini-flash-latest',
-                'gemini-3.5-flash',
-                'gemini-2.5-pro',
-            ]));
-
-            foreach ($geminiModels as $modelName) {
-                $endpoint = "https://generativelanguage.googleapis.com/v1beta/models/{$modelName}:generateContent?key={$geminiKey}";
-                try {
-                    $response = Http::timeout(12)->withHeaders(['Content-Type' => 'application/json'])
-                        ->post($endpoint, [
-                            'system_instruction' => [
-                                'parts' => [['text' => $systemPrompt]]
-                            ],
-                            'contents' => $contents,
-                            'generationConfig' => [
-                                'temperature' => 0.6,
-                                'maxOutputTokens' => 1000,
-                            ],
-                        ]);
-
-                    if ($response->successful()) {
-                        $responseData = $response->json();
-                        $aiText = trim($responseData['candidates'][0]['content']['parts'][0]['text'] ?? '');
-                        if ($aiText !== '') {
-                            Log::info("AiBotService: Generated response via Gemini ({$modelName}) for tenant {$tenantId}");
-                            break;
-                        }
-                    } else {
-                        Log::warning("AiBotService: Gemini model {$modelName} failed (HTTP {$response->status()}) for tenant {$tenantId}: " . substr($response->body(), 0, 200));
-                    }
-                } catch (\Throwable $e) {
-                    Log::warning("AiBotService: Gemini request exception for model {$modelName} (tenant {$tenantId}): " . $e->getMessage());
-                }
+            } catch (\Throwable $e) {
+                Log::warning("AiBotService: OpenAI request exception for model {$modelName} (tenant {$tenantId}): " . $e->getMessage());
             }
         }
 

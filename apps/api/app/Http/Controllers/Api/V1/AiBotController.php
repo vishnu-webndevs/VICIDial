@@ -191,10 +191,10 @@ class AiBotController extends Controller
         return response()->json([
             'success' => true,
             'data' => [
-                'provider' => $settings?->provider ?? 'gemini',
+                'provider' => $settings?->provider ?? 'openai',
                 'enabled' => $settings?->enabled ?? true,
                 'has_api_key' => !empty($settings?->api_key),
-                'default_model' => $settings?->default_model ?? 'gemini-flash-latest',
+                'default_model' => $settings?->default_model ?? 'gpt-4o-mini',
             ],
         ]);
     }
@@ -214,9 +214,9 @@ class AiBotController extends Controller
         ]);
 
         $dataToUpdate = [
-            'provider' => $validated['provider'] ?? 'gemini',
+            'provider' => 'openai',
             'enabled' => $validated['enabled'] ?? true,
-            'default_model' => $validated['default_model'] ?? (($validated['provider'] ?? '') === 'openai' ? 'gpt-4o-mini' : 'gemini-flash-latest'),
+            'default_model' => $validated['default_model'] ?? 'gpt-4o-mini',
         ];
 
         if (!empty($validated['api_key'])) {
