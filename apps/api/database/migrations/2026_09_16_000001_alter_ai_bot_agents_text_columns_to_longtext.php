@@ -16,6 +16,7 @@ return new class extends Migration
         }
 
         if (DB::getDriverName() === 'mysql') {
+            DB::statement('ALTER TABLE ai_bot_agents MODIFY description TEXT NULL');
             DB::statement('ALTER TABLE ai_bot_agents MODIFY system_instructions LONGTEXT NULL');
             DB::statement('ALTER TABLE ai_bot_agents MODIFY privacy_policy LONGTEXT NULL');
             DB::statement('ALTER TABLE ai_bot_agents MODIFY custom_knowledge_prompt LONGTEXT NULL');

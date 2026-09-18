@@ -39,7 +39,7 @@ class AiBotController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
-            'description' => ['nullable', 'string', 'max:1000'],
+            'description' => ['nullable', 'string', 'max:250000'],
             'system_instructions' => ['nullable', 'string', 'max:250000'],
             'privacy_policy' => ['nullable', 'string', 'max:250000'],
             'knowledge_base' => ['nullable', 'array'],
@@ -118,7 +118,7 @@ class AiBotController extends Controller
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:150'],
-            'description' => ['nullable', 'string', 'max:1000'],
+            'description' => ['nullable', 'string', 'max:250000'],
             'system_instructions' => ['nullable', 'string', 'max:250000'],
             'privacy_policy' => ['nullable', 'string', 'max:250000'],
             'knowledge_base' => ['nullable', 'array'],
