@@ -130,12 +130,15 @@ class AiBotController extends Controller
             'interactive_flows' => ['nullable', 'array'],
         ]);
 
+        $interactiveFlows = $validated['interactive_flows'] ?? null;
+        unset($validated['interactive_flows']);
+
         $agent->update($validated);
 
-        if (isset($validated['interactive_flows']) && is_array($validated['interactive_flows'])) {
+        if ($interactiveFlows !== null && is_array($interactiveFlows)) {
             // Re-sync interactive flows
             AiBotInteractiveFlow::where('ai_bot_agent_id', $agent->id)->delete();
-            foreach ($validated['interactive_flows'] as $flow) {
+            foreach ($interactiveFlows as $flow) {
                 if (!empty($flow['trigger_keyword']) && !empty($flow['question_text'])) {
                     AiBotInteractiveFlow::create([
                         'ai_bot_agent_id' => $agent->id,

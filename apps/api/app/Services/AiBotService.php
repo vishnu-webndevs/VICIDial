@@ -8,6 +8,7 @@ use App\Models\Message;
 use App\Models\MessageThread;
 use App\Models\Tenant;
 use App\Models\TenantAiSetting;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -71,7 +72,7 @@ class AiBotService
             // 3. Check if lead with this phone number was targeted by an active AI campaign
             if (!$botAgent) {
                 $cleanNumber = preg_replace('/[^0-9]/', '', (string) $thread->counterparty_number);
-                $campaignId = \Illuminate\Support\Facades\DB::table('leads')
+                $campaignId = DB::table('leads')
                     ->join('lead_timeline_items', 'leads.id', '=', 'lead_timeline_items.lead_id')
                     ->where('leads.tenant_id', $tenantId)
                     ->where(function ($q) use ($thread, $cleanNumber) {
@@ -105,7 +106,7 @@ class AiBotService
 
             // STRICT: If this customer/thread is NOT part of a campaign with an AI agent assigned, DO NOT REPLY!
             if (!$botAgent) {
-                \Illuminate\Support\Facades\Log::info("AiBotService: Inbound message from {$thread->counterparty_number} skipped — number is not part of any AI campaign.", [
+                Log::info("AiBotService: Inbound message from {$thread->counterparty_number} skipped — number is not part of any AI campaign.", [
                     'tenant_id' => $tenantId,
                     'thread_id' => $thread->id,
                 ]);
@@ -229,10 +230,11 @@ class AiBotService
         }
 
         $agentName = trim((string) ($botAgent->name ?? ''));
+        $agentDescription = trim((string) ($botAgent->description ?? ''));
         $instructionsText = trim((string) ($botAgent->system_instructions ?? ''));
         $customKnowledgeText = trim((string) ($botAgent->custom_knowledge_prompt ?? ''));
         $privacyPolicyText = trim((string) ($botAgent->privacy_policy ?? ''));
-        $isStrictKb = (bool) ($botAgent->is_strict_kb ?? false);
+        $isStrictKb = (bool) ($botAgent->strict_mode ?? $botAgent->is_strict_kb ?? false);
 
         $kbData = is_array($botAgent->knowledge_base) ? json_encode($botAgent->knowledge_base, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE) : (string) $botAgent->knowledge_base;
 
@@ -242,26 +244,30 @@ class AiBotService
         // Construct 100% PURE DYNAMIC System Prompt strictly from fields configured in the AI Bot Agent Form
         $promptSections = [];
 
-        if (!empty($agentName) || !empty($companyName)) {
-            $promptSections[] = "You are an intelligent, human-like AI Representative named '{$agentName}'" . ($companyName ? " for {$companyName}." : ".");
+        if (!empty($agentName) || !empty($companyName) || !empty($agentDescription)) {
+            $identity = "You are an autonomous AI Agent named '{$agentName}'" . ($companyName ? " representing {$companyName}." : ".");
+            if (!empty($agentDescription)) {
+                $identity .= "\n=== AGENT PURPOSE & PRIMARY OBJECTIVE ===\n" . $agentDescription;
+            }
+            $promptSections[] = $identity;
         }
 
         if ($isStrictKb) {
-            $promptSections[] = "=== STRICT KNOWLEDGE BASE LOCK IS ENABLED ===\n" .
-                "1. All factual, pricing, location, specification, and business details MUST come strictly from the Knowledge Base and Master Prompt below. Do NOT invent outside facts or hallucinate unapproved information.\n" .
-                "2. STRICT LOCK DEFINITION: Strict KB Lock means you may only make factual claims supported by the Knowledge Base. It does NOT mean the customer's message must match a Q&A key word-for-word. You MUST understand intent, synonyms, Hinglish, and context.";
+            $promptSections[] = "=== STRICT KNOWLEDGE BASE LOCK ===\n" .
+                "1. All factual details (prices, availability, locations, specs, terms, policies) MUST come strictly from the Knowledge Base and Master Prompt below. Do NOT invent outside facts or hallucinate unapproved business information.\n" .
+                "2. STRICT LOCK DEFINITION: Strict KB Lock prevents you from inventing fake business facts. It does NOT restrict your conversational reasoning, understanding intent, handling objections, or guiding customers using your configured purpose and knowledge!";
         }
 
         if (!empty($instructionsText)) {
-            $promptSections[] = "=== AGENT PERSONA & TONE INSTRUCTIONS ===\n" . $instructionsText;
+            $promptSections[] = "=== AGENT PERSONA & INSTRUCTIONS ===\n" . $instructionsText;
         }
 
         if (!empty($customKnowledgeText)) {
-            $promptSections[] = "=== MASTER KNOWLEDGE & CUSTOM PROMPT (PRIMARY SOURCE OF TRUTH) ===\n" . $customKnowledgeText;
+            $promptSections[] = "=== MASTER BUSINESS KNOWLEDGE & PROMPT ===\n" . $customKnowledgeText;
         }
 
         if (!empty($kbData) && $kbData !== '[]' && $kbData !== 'null') {
-            $promptSections[] = "=== KNOWLEDGE BASE FAQS & FACTS ===\n" . $kbData;
+            $promptSections[] = "=== AUTHORITATIVE BUSINESS KNOWLEDGE BASE ===\n" . $kbData;
         }
 
         if (!empty($privacyPolicyText)) {
@@ -271,36 +277,36 @@ class AiBotService
         // Add Enforced Conversational & Intent Rules
         $activeFallbackString = $fallbackMessage ?: "Ji, iski exact jankari mere paas abhi nahi hai.";
         $promptSections[] = <<<RULES
-=== ENFORCED CONVERSATIONAL & INTENT RULES ===
+=== AUTONOMOUS CONVERSATIONAL REASONING & RULES ===
 
-1. SEMANTIC INTENT & SYNONYM UNDERSTANDING:
-   - Do NOT expect exact keyword or Q&A key matches from the customer.
-   - Understand intent, synonyms, natural language, and Hinglish. (e.g. "location?", "kaha hai?", "address?", "project kaha par hai?", "where is it?" all express location intent. If your Knowledge Base contains location info, answer using that info!)
-   - Use conversation history to resolve pronouns and references like "uska price?", "kitne ka hai?", "details?", "haan wahi wala".
+1. AUTONOMOUS AGENT REASONING & INTENT UNDERSTANDING:
+   - You are a true business AI Agent, NOT a rigid FAQ lookup bot.
+   - Synthesize your AGENT PURPOSE, SYSTEM INSTRUCTIONS, and BUSINESS KNOWLEDGE to determine the best response for the customer's actual intent and situation.
+   - Do NOT expect exact keyword or FAQ matches from the customer. Understand intent, Hinglish, synonyms, casual phrasing, and customer context:
+     * Open-ended requests ("bhai kuch accha sa dikhao", "details batao", "kuch dikhao"): Understand customer interest and continue the conversation using your knowledge base and agent purpose.
+     * Objections & concerns ("budget thoda kam hai", "thoda mehnga lag raha hai"): Understand the customer's objection and respond helpfully according to your agent purpose and available options.
+     * Conversational & decision updates ("mummy se puch ke batata hu", "kal baat karte hain"): Understand these as normal conversation steps and reply naturally in character.
+     * Synonyms & locations ("kaha hai?", "address?", "where is it?"): Answer using your location info from knowledge.
 
 2. CONVERSATIONAL MESSAGES vs OUT-OF-SCOPE FALLBACK:
-   - Greetings ("hi", "hello", "hey", "hii", "namaste", "good morning", "good afternoon", "good evening"): Respond naturally and warmly in character (e.g. "Hello ji! Main aapki kya madad kar sakta hoon?"). NEVER output fallback for greetings!
-   - Acknowledgments ("okay", "ok", "haan", "han", "ji", "yes", "sure", "theek hai", "thik hai", "acha", "accha", "hmm", "thanks", "thank you"): Respond naturally in character or ask if they need anything else. NEVER output fallback for acknowledgments!
+   - Greetings ("hi", "hello", "hey", "namaste", "good morning"): Respond naturally and warmly in character. NEVER output fallback for greetings!
+   - Acknowledgments ("okay", "ok", "haan", "han", "ji", "theek hai", "acha", "hmm", "thanks"): Respond naturally in character. NEVER output fallback for acknowledgments!
    - Emojis ("😂", "👍", "🙂", "😊", "❤️"): Respond warmly with a short friendly reaction. NEVER output fallback!
-   - Buying & Service Intent ("mujhe flat dekhna hai", "mujhe property chahiye", "service chahiye", "mujhe cleaning karwani hai", "vegetables order karne hain", "fees ke baare me baat karni hai", "details batao"):
-     The customer is expressing interest in the business/service! Respond warmly using your Knowledge Base / Master Prompt context and continue the conversation. Ask ONE natural follow-up question if needed. NEVER trigger fallback for buying/service intent!
+   - Buying / Service Interest: Respond warmly using your Knowledge Base / Master Prompt context and continue the conversation towards your agent's objective.
 
-3. OUT-OF-SCOPE FALLBACK RULE:
-   - ONLY send the out-of-scope fallback when the customer asks for a specific, unknown factual detail (e.g., RERA number, owner phone number, specific legal document) that genuinely does NOT exist anywhere in your configured Knowledge Base or Master Prompt.
+3. STRICT FACTUAL SAFETY (NO HALLUCINATIONS OR FAKE ACTIONS):
+   - You MUST NOT invent business facts (prices, availability, location, amenities, specifications, legal/RERA info, policies, order/payment status, appointments).
+   - NEVER claim that a system action occurred (e.g., "call scheduled", "manager will call you", "brochure sent to your WhatsApp", "site visit booked", "payment confirmed", "order placed") UNLESS a real backend action performed it.
+   - Outbound voice calling is unavailable on WhatsApp. If customer asks for a call ("call kro", "call karo"), politely inform them in 1 short sentence that voice calling is unavailable here and you are happy to answer all questions right here in chat.
+
+4. FALLBACK RULE (LAST RESORT ONLY):
+   - ONLY send the out-of-scope fallback when the customer asks for a specific, unresolvable factual detail that genuinely does NOT exist anywhere in your configured Knowledge Base or Master Prompt.
    - Configured Fallback Message: "{$activeFallbackString}"
+   - Never send the exact same fallback sentence repeatedly in the same conversation.
 
-4. FALLBACK REPETITION PREVENTION:
-   - Never send the exact same fallback repeatedly in the same conversation.
-   - If fallback was already sent recently and the customer changes topic to something you know, answer the new topic!
-   - If customer sends an acknowledgment or emoji after fallback, acknowledge naturally without repeating fallback.
-
-5. ACTION REALITY & NO FALSE PROMISES:
-   - Do NOT claim an action occurred (e.g. "call scheduled", "manager will call you", "brochure sent to your WhatsApp", "site visit booked", "payment confirmed", "order placed") UNLESS a backend system actually performed it.
-   - Outbound voice calling is not supported directly on WhatsApp. If customer asks for a call ("call kro", "call karo"), politely inform them in 1 short sentence that voice calling is unavailable here and you are happy to answer all their questions right here in chat.
-
-6. RESPONSE STYLE & BREVITY:
-   - Keep responses short, clear, and professional (1 to 2 short sentences).
-   - Ask at most ONE question at a time. Do not produce long sales pitches.
+5. RESPONSE STYLE & BREVITY:
+   - Keep responses short, natural, clear, and professional (1 to 2 short sentences).
+   - Ask at most ONE useful question at a time to guide the customer. Do not produce long mechanical sales pitches.
 RULES;
 
         if ($fallbackSentInHistory) {

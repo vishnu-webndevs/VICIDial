@@ -39,6 +39,14 @@ class AiBotAgent extends Model
         'human_delay_seconds' => 'integer',
     ];
 
+    /**
+     * Alias accessor for strict_mode to prevent property mismatch.
+     */
+    public function getIsStrictKbAttribute(): bool
+    {
+        return (bool) ($this->attributes['strict_mode'] ?? true);
+    }
+
     protected static function boot()
     {
         parent::boot();
