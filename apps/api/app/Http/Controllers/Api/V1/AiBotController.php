@@ -46,7 +46,7 @@ class AiBotController extends Controller
             'custom_knowledge_prompt' => ['nullable', 'string', 'max:1000000'],
             'fallback_message' => ['nullable', 'string', 'max:5000'],
             'strict_mode' => ['nullable', 'boolean'],
-            'human_delay_seconds' => ['nullable', 'integer', 'min:1', 'max:10'],
+            'human_delay_seconds' => ['nullable', 'integer', 'min:0', 'max:86400'],
             'is_active' => ['nullable', 'boolean'],
             'interactive_flows' => ['nullable', 'array'],
         ]);
@@ -125,7 +125,7 @@ class AiBotController extends Controller
             'custom_knowledge_prompt' => ['nullable', 'string', 'max:1000000'],
             'fallback_message' => ['nullable', 'string', 'max:5000'],
             'strict_mode' => ['nullable', 'boolean'],
-            'human_delay_seconds' => ['nullable', 'integer', 'min:1', 'max:10'],
+            'human_delay_seconds' => ['nullable', 'integer', 'min:0', 'max:86400'],
             'is_active' => ['nullable', 'boolean'],
             'interactive_flows' => ['nullable', 'array'],
         ]);

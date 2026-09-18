@@ -133,7 +133,7 @@ class AiBotService
                 return;
             }
 
-            // 2. Generate AI Response using Gemini API
+            // 2. Generate AI Response using OpenAI API
             self::generateAndSendAiResponse($tenantId, $thread, $botAgent, $userText);
 
         } catch (\Throwable $e) {
@@ -153,8 +153,11 @@ class AiBotService
         $options = (array) ($flow->options ?? []);
         $questionText = $flow->question_text;
 
-        // Simulate natural human typing delay (2-3 sec)
-        sleep(min($bot->human_delay_seconds ?? 3, 5));
+        // Simulate natural human typing delay as configured on AI Agent
+        $delaySeconds = (int) max(0, $bot->human_delay_seconds ?? 3);
+        if ($delaySeconds > 0) {
+            sleep(min($delaySeconds, 3600));
+        }
 
         // Format message body with clear options list if WhatsApp interactive payload or plain text
         $body = $questionText;
@@ -170,7 +173,7 @@ class AiBotService
     }
 
     /**
-     * Call Gemini API with Human Persona System Prompt & Knowledge Base Context
+     * Call OpenAI API with Human Persona System Prompt & Knowledge Base Context
      */
     private static function generateAndSendAiResponse(string $tenantId, MessageThread $thread, AiBotAgent $botAgent, string $userText): void
     {
@@ -193,17 +196,21 @@ class AiBotService
             ->get()
             ->reverse();
 
-        $lastOutboundBody = null;
-        $fallbackSentInHistory = false;
         $fallbackMessage = trim((string) ($botAgent->fallback_message ?? ''));
 
-        foreach ($recentMessages as $msg) {
-            if ($msg->direction === 'outbound') {
-                $lastOutboundBody = (string) $msg->body;
-                $lowerBody = strtolower($msg->body);
-                if ($fallbackMessage !== '' && str_contains($lowerBody, strtolower(substr($fallbackMessage, 0, 15)))) {
-                    $fallbackSentInHistory = true;
-                }
+        // ------------------------------------------------------------------
+        // FIX: pehle yeh poori last-10 history me fallback ke first 15 chars
+        // dhoondta tha — isse ek purani fallback line permanently future
+        // replies ko bhi "fallback already sent" bana deti thi (chahe
+        // customer sirf "Hi" hi kyun na bole). Ab sirf SABSE AAKHRI
+        // outbound message ko EXACT match check karte hain.
+        // ------------------------------------------------------------------
+        $fallbackSentInHistory = false;
+        $lastOutbound = $recentMessages->filter(fn($m) => $m->direction === 'outbound')->last();
+        if ($lastOutbound && $fallbackMessage !== '') {
+            $lastOutboundTrimmed = strtolower(trim((string) $lastOutbound->body));
+            if ($lastOutboundTrimmed === strtolower(trim($fallbackMessage))) {
+                $fallbackSentInHistory = true;
             }
         }
 
@@ -262,7 +269,7 @@ class AiBotService
             "If the customer asks for a specific factual detail that genuinely does NOT exist anywhere in your configured Knowledge Base or Master Prompt, output your configured fallback message: \"{$activeFallbackString}\".";
 
         if ($fallbackSentInHistory) {
-            $promptSections[] = "CRITICAL NOTICE: Your fallback message was ALREADY sent recently in this thread. If the customer repeats an unresolvable question, do NOT repeat the fallback sentence verbatim; provide a brief alternative polite response.";
+            $promptSections[] = "CRITICAL NOTICE: Your fallback message was ALREADY sent as your last reply in this thread. If the customer repeats an unresolvable question, do NOT repeat the fallback sentence verbatim; provide a brief alternative polite response. If the customer's new message is unrelated (a greeting, casual chat, or a new/different question), respond to it normally — do NOT treat it as a continuation of the unresolved question.";
         }
 
         $systemPrompt = implode("\n\n", $promptSections);
@@ -301,9 +308,13 @@ class AiBotService
             'gpt-3.5-turbo',
         ]));
 
+        $lastFailureReason = null;
+
         foreach ($openAiModels as $modelName) {
             try {
-                $response = Http::timeout(12)->withHeaders([
+                // FIX: timeout 12s se 20s kiya — bada system prompt (21 sections + KB)
+                // hone se response me zyada time lag sakta hai, khaaskar gpt-4o par.
+                $response = Http::timeout(20)->withHeaders([
                     'Authorization' => 'Bearer ' . $openAiKey,
                     'Content-Type' => 'application/json',
                 ])->post('https://api.openai.com/v1/chat/completions', [
@@ -321,25 +332,42 @@ class AiBotService
                         break;
                     }
                 } else {
-                    Log::warning("AiBotService: OpenAI model {$modelName} failed (HTTP {$response->status()}) for tenant {$tenantId}: " . substr($response->body(), 0, 200));
+                    $lastFailureReason = "HTTP {$response->status()}: " . substr($response->body(), 0, 300);
+                    Log::warning("AiBotService: OpenAI model {$modelName} failed (HTTP {$response->status()}) for tenant {$tenantId}: " . substr($response->body(), 0, 300));
                 }
             } catch (\Throwable $e) {
-                Log::warning("AiBotService: OpenAI request exception for model {$modelName} (tenant {$tenantId}): " . $e->getMessage());
+                $lastFailureReason = $e->getMessage();
+                Log::error("AiBotService: OpenAI request exception for model {$modelName} (tenant {$tenantId}): " . $e->getMessage(), [
+                    'trace' => $e->getTraceAsString(),
+                ]);
             }
         }
 
+        // ------------------------------------------------------------------
+        // FIX: Pehle yahan OpenAI poori tarah fail hone par ek HARDCODED
+        // generic PHP string bhej di jaati thi ("Ji, ye detail abhi
+        // available nahi hai.") — jo poora 21-section persona/KB prompt
+        // bypass kar deti thi. Isi wajah se "Hi" jaisa greeting bhejne par
+        // bhi wahi unrelated fallback line aa rahi thi (screenshots wali
+        // dikkat). Ab agar AI generate hi nahi ho paaya, to hum galat
+        // generic reply customer ko nahi bhejenge — thread ko flag karke
+        // human review ke liye chhod denge.
+        // ------------------------------------------------------------------
         if ($aiText === '') {
-            Log::warning("AiBotService: AI generation unavailable for tenant {$tenantId}. Applying technical safety fallback...");
-            $activeFallback = $fallbackMessage ?: "Ji, iski exact jankari mere paas abhi nahi hai.";
-            if ($fallbackSentInHistory) {
-                $aiText = "Ji, ye detail abhi available nahi hai.";
-            } else {
-                $aiText = $activeFallback;
-            }
+            Log::error("AiBotService: ALL OpenAI models failed for tenant {$tenantId}, thread {$thread->id}. Reason: " . ($lastFailureReason ?? 'unknown') . ". Skipping AI reply — flagging thread for human review instead of sending a generic mismatched fallback.");
+
+            $thread->update([
+                'bot_status' => 'ai_error_needs_review',
+            ]);
+
+            return;
         }
 
-        // Simulate natural human typing delay (2-4 seconds)
-        sleep(min($botAgent->human_delay_seconds ?? 3, 5));
+        // Simulate natural human typing delay as configured on AI Agent
+        $delaySeconds = (int) max(0, $botAgent->human_delay_seconds ?? 3);
+        if ($delaySeconds > 0) {
+            sleep(min($delaySeconds, 3600));
+        }
 
         // Dispatch outbound AI message to provider (Meta WhatsApp / Twilio)
         self::dispatchOutboundMessage($tenantId, $thread, $aiText, [
