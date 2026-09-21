@@ -4,10 +4,12 @@ namespace App\Services;
 
 use App\Models\AiBotAgent;
 use App\Models\AiBotInteractiveFlow;
+use App\Models\GraphBooking;
 use App\Models\Message;
 use App\Models\MessageThread;
 use App\Models\Tenant;
 use App\Models\TenantAiSetting;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -198,13 +200,6 @@ class AiBotService
 
         $fallbackMessage = trim((string) ($botAgent->fallback_message ?? ''));
 
-        // ------------------------------------------------------------------
-        // FIX: pehle yeh poori last-10 history me fallback ke first 15 chars
-        // dhoondta tha — isse ek purani fallback line permanently future
-        // replies ko bhi "fallback already sent" bana deti thi (chahe
-        // customer sirf "Hi" hi kyun na bole). Ab sirf SABSE AAKHRI
-        // outbound message ko EXACT match check karte hain.
-        // ------------------------------------------------------------------
         $fallbackSentInHistory = false;
         $lastOutbound = $recentMessages->filter(fn($m) => $m->direction === 'outbound')->last();
         if ($lastOutbound && $fallbackMessage !== '') {
@@ -226,8 +221,20 @@ class AiBotService
         $tenantObj = Tenant::find($tenantId);
         $companyName = $tenantObj?->name ?: '';
 
+        // Real-Time System Date & Time context (Asia/Kolkata timezone)
+        $now = Carbon::now('Asia/Kolkata');
+        $todayStr = $now->format('l, d F Y (h:i A)');
+        $tomorrowStr = $now->copy()->addDay()->format('l, d F Y');
+        $dayAfterTomorrowStr = $now->copy()->addDays(2)->format('l, d F Y');
+
         // Construct 100% PURE DYNAMIC System Prompt strictly from fields configured in the AI Bot Agent Form
         $promptSections = [];
+
+        $promptSections[] = "=== REAL-TIME DATE & CALENDAR CONTEXT ===\n" .
+            "Current System Date & Time: {$todayStr} IST\n" .
+            "Tomorrow: {$tomorrowStr}\n" .
+            "Day After Tomorrow (Parso): {$dayAfterTomorrowStr}\n" .
+            "Use this exact real-time date context to calculate relative dates mentioned by customer (e.g. '25', 'parso', 'kal', 'next Monday').";
 
         if (!empty($agentName) || !empty($companyName) || !empty($agentDescription)) {
             $identity = "You are an autonomous AI Agent named '{$agentName}'" . ($companyName ? " representing {$companyName}." : ".");
@@ -258,9 +265,15 @@ class AiBotService
             $promptSections[] = "=== PRIVACY & SECURITY RULES ===\n" . $privacyPolicyText;
         }
 
+        // Calendar & Invitation Link Rule
+        $promptSections[] = "=== CALENDAR & APPOINTMENT SCHEDULING RULES ===\n" .
+            "1. When the customer requests or agrees to a date/time for a site visit, call, demo, or meeting, use the `schedule_calendar_appointment` tool to schedule it.\n" .
+            "2. ALWAYS include the returned Google Calendar Invitation Link in your final response to the customer so they can click and save it to their calendar.\n" .
+            "3. Format your reply nicely in friendly language, confirming the scheduled date, time, and sending the invitation link URL clearly.";
+
         // Generic platform safety & calling limitation rule
         $promptSections[] = "=== GENERAL PLATFORM SAFETY RULES ===\n" .
-            "1. Do NOT claim system actions occurred (e.g. call scheduled, payment processed, brochure sent) unless confirmed by backend context.\n" .
+            "1. Do NOT claim system actions occurred (e.g. payment processed, brochure sent) unless confirmed by backend context/tools.\n" .
             "2. Outbound voice calling is unavailable on WhatsApp. If customer asks for a call, politely inform them in 1 short sentence that voice calling is unavailable here and you are happy to assist in chat.";
 
         // Configured Out-of-Scope Fallback rule
@@ -296,6 +309,39 @@ class AiBotService
             ];
         }
 
+        // Tools / Function Calling definition
+        $tools = [
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'schedule_calendar_appointment',
+                    'description' => 'Schedule a calendar appointment, site visit, or meeting with the customer and generate a Google Calendar invitation link.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'title' => [
+                                'type' => 'string',
+                                'description' => 'Title of the event, e.g. "Site Visit - Totan Reality"'
+                            ],
+                            'date' => [
+                                'type' => 'string',
+                                'description' => 'Exact date in YYYY-MM-DD format (e.g. 2026-09-23)'
+                            ],
+                            'time' => [
+                                'type' => 'string',
+                                'description' => 'Time of visit in HH:MM format (24h) or readable format e.g. "11:00 AM"'
+                            ],
+                            'notes' => [
+                                'type' => 'string',
+                                'description' => 'Additional notes or requirements'
+                            ],
+                        ],
+                        'required' => ['title', 'date'],
+                    ],
+                ],
+            ],
+        ];
+
         $configuredModel = $aiSetting?->default_model;
         $aiText = '';
 
@@ -312,21 +358,114 @@ class AiBotService
 
         foreach ($openAiModels as $modelName) {
             try {
-                // FIX: timeout 12s se 20s kiya — bada system prompt (21 sections + KB)
-                // hone se response me zyada time lag sakta hai, khaaskar gpt-4o par.
                 $response = Http::timeout(20)->withHeaders([
                     'Authorization' => 'Bearer ' . $openAiKey,
                     'Content-Type' => 'application/json',
                 ])->post('https://api.openai.com/v1/chat/completions', [
                     'model' => $modelName,
                     'messages' => $openAiMessages,
+                    'tools' => $tools,
+                    'tool_choice' => 'auto',
                     'temperature' => 0.6,
                     'max_tokens' => 1000,
                 ]);
 
                 if ($response->successful()) {
                     $responseData = $response->json();
-                    $aiText = trim($responseData['choices'][0]['message']['content'] ?? '');
+                    $choiceMsg = $responseData['choices'][0]['message'] ?? [];
+                    $toolCalls = $choiceMsg['tool_calls'] ?? [];
+
+                    if (!empty($toolCalls)) {
+                        foreach ($toolCalls as $toolCall) {
+                            $funcName = $toolCall['function']['name'] ?? '';
+                            $funcArgs = json_decode($toolCall['function']['arguments'] ?? '{}', true) ?: [];
+
+                            if ($funcName === 'schedule_calendar_appointment') {
+                                $eventTitle = $funcArgs['title'] ?? ($agentName ? "Site Visit - {$agentName}" : "Site Visit");
+                                $dateStr = $funcArgs['date'] ?? $now->format('Y-m-d');
+                                $timeStr = $funcArgs['time'] ?? '11:00 AM';
+                                $notesStr = $funcArgs['notes'] ?? '';
+
+                                try {
+                                    $startCarbon = Carbon::parse("{$dateStr} {$timeStr}", 'Asia/Kolkata');
+                                } catch (\Throwable $e) {
+                                    $startCarbon = Carbon::parse($dateStr, 'Asia/Kolkata')->setHour(11)->setMinute(0);
+                                }
+                                $endCarbon = $startCarbon->copy()->addHour();
+
+                                $attendeePhone = (string) $thread->counterparty_number;
+                                $attendeeEmail = $attendeePhone . '@customer.wnd';
+
+                                $booking = GraphBooking::query()->create([
+                                    'tenant_id' => $tenantId,
+                                    'external_booking_id' => 'ai_book_' . \Illuminate\Support\Str::random(12),
+                                    'calendar_event_id' => 'evt_' . \Illuminate\Support\Str::random(12),
+                                    'attendee_email' => $attendeeEmail,
+                                    'subject' => $eventTitle,
+                                    'start_at' => $startCarbon->toDateTimeString(),
+                                    'end_at' => $endCarbon->toDateTimeString(),
+                                    'confirmation_sent' => true,
+                                    'status' => 'confirmed',
+                                    'provider_mode' => 'ai_bot',
+                                    'metadata' => [
+                                        'thread_id' => $thread->id,
+                                        'phone' => $attendeePhone,
+                                        'notes' => $notesStr,
+                                        'created_by' => 'ai_bot_service',
+                                    ],
+                                ]);
+
+                                $gCalStart = $startCarbon->utc()->format('Ymd\THis\Z');
+                                $gCalEnd = $endCarbon->utc()->format('Ymd\THis\Z');
+                                $gCalTitle = urlencode($eventTitle);
+                                $gCalDetails = urlencode("Site Visit / Meeting scheduled via AI Agent for customer {$attendeePhone}. " . ($notesStr ? "Notes: {$notesStr}" : ""));
+                                $invitationUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE&text={$gCalTitle}&dates={$gCalStart}/{$gCalEnd}&details={$gCalDetails}";
+
+                                Log::info("AiBotService: Scheduled calendar booking {$booking->id} for tenant {$tenantId}. Invite URL: {$invitationUrl}");
+
+                                // Append tool response & query OpenAI for final user text
+                                $openAiMessages[] = $choiceMsg;
+                                $openAiMessages[] = [
+                                    'role' => 'tool',
+                                    'tool_call_id' => $toolCall['id'],
+                                    'content' => json_encode([
+                                        'status' => 'success',
+                                        'booking_id' => $booking->id,
+                                        'formatted_date' => $startCarbon->format('l, d F Y'),
+                                        'formatted_time' => $startCarbon->format('h:i A'),
+                                        'invitation_link' => $invitationUrl,
+                                        'instruction' => 'ALWAYS include the exact invitation_link in your final response to the customer so they can add it to their Google Calendar.',
+                                    ]),
+                                ];
+
+                                $secondResponse = Http::timeout(20)->withHeaders([
+                                    'Authorization' => 'Bearer ' . $openAiKey,
+                                    'Content-Type' => 'application/json',
+                                ])->post('https://api.openai.com/v1/chat/completions', [
+                                    'model' => $modelName,
+                                    'messages' => $openAiMessages,
+                                    'temperature' => 0.6,
+                                    'max_tokens' => 1000,
+                                ]);
+
+                                if ($secondResponse->successful()) {
+                                    $secData = $secondResponse->json();
+                                    $aiText = trim($secData['choices'][0]['message']['content'] ?? '');
+                                }
+
+                                if ($aiText === '' || !str_contains($aiText, 'calendar.google.com')) {
+                                    $fDate = $startCarbon->format('l, d F Y');
+                                    $fTime = $startCarbon->format('h:i A');
+                                    $aiText = "Aapka site visit {$fDate} ko {$fTime} par schedule kar diya gaya hai! 📅\n\n" .
+                                              "🔗 **Calendar Invitation Link:**\n{$invitationUrl}\n\n" .
+                                              "Aap upar diye gaye link par click karke ise apne Google Calendar me add kar sakte hain. Kya aapko kisi aur madad ki zarurat hai?";
+                                }
+                                break 2;
+                            }
+                        }
+                    }
+
+                    $aiText = trim($choiceMsg['content'] ?? '');
                     if ($aiText !== '') {
                         Log::info("AiBotService: Generated response via OpenAI ({$modelName}) for tenant {$tenantId}");
                         break;
@@ -343,16 +482,6 @@ class AiBotService
             }
         }
 
-        // ------------------------------------------------------------------
-        // FIX: Pehle yahan OpenAI poori tarah fail hone par ek HARDCODED
-        // generic PHP string bhej di jaati thi ("Ji, ye detail abhi
-        // available nahi hai.") — jo poora 21-section persona/KB prompt
-        // bypass kar deti thi. Isi wajah se "Hi" jaisa greeting bhejne par
-        // bhi wahi unrelated fallback line aa rahi thi (screenshots wali
-        // dikkat). Ab agar AI generate hi nahi ho paaya, to hum galat
-        // generic reply customer ko nahi bhejenge — thread ko flag karke
-        // human review ke liye chhod denge.
-        // ------------------------------------------------------------------
         if ($aiText === '') {
             Log::error("AiBotService: ALL OpenAI models failed for tenant {$tenantId}, thread {$thread->id}. Reason: " . ($lastFailureReason ?? 'unknown') . ". Skipping AI reply — flagging thread for human review instead of sending a generic mismatched fallback.");
 
