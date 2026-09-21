@@ -74,7 +74,7 @@ export default function AiBotsManagementPage() {
     if (!apiKey.trim()) return;
     setSavingKey(true);
     try {
-      await updateTenantAiSettings({ api_key: apiKey.trim() });
+      await saveTenantAiSettings({ api_key: apiKey.trim(), provider: "openai", default_model: "gpt-4o-mini" });
       setToastMsg("OpenAI API Key saved and encrypted successfully.");
       setToastTone("success");
       setApiKey("");
