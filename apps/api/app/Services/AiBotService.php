@@ -157,10 +157,10 @@ class AiBotService
         $options = (array) ($flow->options ?? []);
         $questionText = $flow->question_text;
 
-        // Simulate natural human typing delay as configured on AI Agent
-        $delaySeconds = (int) max(0, $bot->human_delay_seconds ?? 3);
+        // Simulate natural human typing delay as configured on AI Agent (capped to max 2s for synchronous webhooks)
+        $delaySeconds = (int) max(0, $bot->human_delay_seconds ?? 2);
         if ($delaySeconds > 0) {
-            sleep(min($delaySeconds, 3600));
+            sleep(min($delaySeconds, 2));
         }
 
         // Format message body with clear options list if WhatsApp interactive payload or plain text
@@ -360,7 +360,7 @@ class AiBotService
 
         foreach ($openAiModels as $modelName) {
             try {
-                $response = Http::timeout(20)->withHeaders([
+                $response = Http::timeout(12)->withHeaders([
                     'Authorization' => 'Bearer ' . $openAiKey,
                     'Content-Type' => 'application/json',
                 ])->post('https://api.openai.com/v1/chat/completions', [
@@ -391,7 +391,11 @@ class AiBotService
                                 try {
                                     $startCarbon = Carbon::parse("{$dateStr} {$timeStr}", 'Asia/Kolkata');
                                 } catch (\Throwable $e) {
-                                    $startCarbon = Carbon::parse($dateStr, 'Asia/Kolkata')->setHour(11)->setMinute(0);
+                                    try {
+                                        $startCarbon = Carbon::parse($dateStr, 'Asia/Kolkata')->setHour(11)->setMinute(0);
+                                    } catch (\Throwable $e2) {
+                                        $startCarbon = Carbon::now('Asia/Kolkata')->addDay()->setHour(11)->setMinute(0);
+                                    }
                                 }
                                 $endCarbon = $startCarbon->copy()->addHour();
 
@@ -473,12 +477,13 @@ class AiBotService
                                     ]),
                                 ];
 
-                                $secondResponse = Http::timeout(20)->withHeaders([
+                                $secondResponse = Http::timeout(12)->withHeaders([
                                     'Authorization' => 'Bearer ' . $openAiKey,
                                     'Content-Type' => 'application/json',
                                 ])->post('https://api.openai.com/v1/chat/completions', [
                                     'model' => $modelName,
                                     'messages' => $openAiMessages,
+                                    'tools' => $tools,
                                     'temperature' => 0.6,
                                     'max_tokens' => 1000,
                                 ]);
@@ -527,10 +532,15 @@ class AiBotService
             return;
         }
 
-        // Simulate natural human typing delay as configured on AI Agent
-        $delaySeconds = (int) max(0, $botAgent->human_delay_seconds ?? 3);
+        // Auto-recover thread bot status if it was previously in error state
+        if ($thread->bot_status === 'ai_error_needs_review') {
+            $thread->update(['bot_status' => 'active']);
+        }
+
+        // Simulate natural human typing delay as configured on AI Agent (capped to max 2s for synchronous webhooks)
+        $delaySeconds = (int) max(0, $botAgent->human_delay_seconds ?? 2);
         if ($delaySeconds > 0) {
-            sleep(min($delaySeconds, 3600));
+            sleep(min($delaySeconds, 2));
         }
 
         // Dispatch outbound AI message to provider (Meta WhatsApp / Twilio)
