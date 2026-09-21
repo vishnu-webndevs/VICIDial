@@ -269,9 +269,10 @@ class AiBotService
 
         // Calendar & Invitation Link Rule
         $promptSections[] = "=== CALENDAR & APPOINTMENT SCHEDULING RULES ===\n" .
-            "1. When the customer requests or agrees to a date/time for a site visit, call, demo, or meeting, use the `schedule_calendar_appointment` tool to schedule it.\n" .
-            "2. ALWAYS include the returned Google Calendar Invitation Link in your final response to the customer so they can click and save it to their calendar.\n" .
-            "3. Format your reply nicely in friendly language, confirming the scheduled date, time, and sending the invitation link URL clearly.";
+            "1. When the customer requests, wants, or agrees to schedule a site visit, call, demo, or meeting (e.g. 'schedule fix kro', 'kal aunga', '23 ko kre', 'kal ka schedule'), IMMEDIATELY call the `schedule_calendar_appointment` tool.\n" .
+            "2. If the customer specifies a date or asks to fix schedule (e.g. 'kal', 'parso', '23', 'kal ka schedule fix kro') without specifying an exact time, IMMEDIATELY call the `schedule_calendar_appointment` tool with default time '11:00 AM'!\n" .
+            "3. ALWAYS include the returned Google Calendar Invitation Link in your final response to the customer so they can click and save it to their calendar.\n" .
+            "4. Format your reply nicely in friendly language, confirming the scheduled date, time, and sending the invitation link URL clearly. Mention that if they wish to adjust the time, they can let you know.";
 
         // Generic platform safety & calling limitation rule
         $promptSections[] = "=== GENERAL PLATFORM SAFETY RULES ===\n" .
@@ -526,14 +527,14 @@ class AiBotService
             Log::error("AiBotService: ALL OpenAI models failed for tenant {$tenantId}, thread {$thread->id}. Reason: " . ($lastFailureReason ?? 'unknown') . ". Skipping AI reply — flagging thread for human review instead of sending a generic mismatched fallback.");
 
             $thread->update([
-                'bot_status' => 'ai_error_needs_review',
+                'bot_status' => 'needs_review',
             ]);
 
             return;
         }
 
         // Auto-recover thread bot status if it was previously in error state
-        if ($thread->bot_status === 'ai_error_needs_review') {
+        if ($thread->bot_status === 'needs_review') {
             $thread->update(['bot_status' => 'active']);
         }
 
