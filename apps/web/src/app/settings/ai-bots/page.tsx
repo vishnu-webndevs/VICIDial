@@ -374,11 +374,18 @@ export default function AiBotsManagementPage() {
             
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField
-                fullWidth
+                sx={{ flex: 1 }}
                 label="Bot Agent Name"
                 placeholder="e.g. Real Estate Sales Manager"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+              />
+              <TextField
+                sx={{ flex: 1 }}
+                label="📅 Agent Email (Calendar Invites)"
+                placeholder="e.g. agent@company.com"
+                value={agentEmail}
+                onChange={(e) => setAgentEmail(e.target.value)}
               />
               <TextField
                 type="number"
@@ -386,19 +393,10 @@ export default function AiBotsManagementPage() {
                 value={humanDelay}
                 onChange={(e) => setHumanDelay(Math.max(0, Number(e.target.value)))}
                 inputProps={{ min: 0, max: 86400 }}
-                helperText="Delay in seconds (e.g. 30, 60, 1200)"
-                sx={{ width: 250 }}
+                helperText="Delay in seconds"
+                sx={{ width: 200 }}
               />
             </Box>
-
-            <TextField
-              fullWidth
-              label="📅 Agent / Sales Rep Email (For Calendar Invitations)"
-              placeholder="e.g. agent@company.com"
-              helperText="When AI schedules a site visit/meeting, calendar invites are automatically sent to this Agent Email and the customer."
-              value={agentEmail}
-              onChange={(e) => setAgentEmail(e.target.value)}
-            />
 
             <TextField
               fullWidth
