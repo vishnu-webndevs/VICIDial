@@ -21,6 +21,7 @@ class AiBotAgent extends Model
         'id',
         'tenant_id',
         'name',
+        'agent_email',
         'description',
         'system_instructions',
         'privacy_policy',

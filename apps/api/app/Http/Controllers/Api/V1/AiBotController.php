@@ -39,6 +39,7 @@ class AiBotController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
+            'agent_email' => ['nullable', 'email', 'max:255'],
             'description' => ['nullable', 'string', 'max:250000'],
             'system_instructions' => ['nullable', 'string', 'max:250000'],
             'privacy_policy' => ['nullable', 'string', 'max:250000'],
@@ -54,6 +55,7 @@ class AiBotController extends Controller
         $agent = AiBotAgent::create([
             'tenant_id' => $tenant->id,
             'name' => $validated['name'],
+            'agent_email' => $validated['agent_email'] ?? null,
             'description' => $validated['description'] ?? null,
             'system_instructions' => $validated['system_instructions'] ?? null,
             'privacy_policy' => $validated['privacy_policy'] ?? null,
@@ -118,6 +120,7 @@ class AiBotController extends Controller
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:150'],
+            'agent_email' => ['nullable', 'email', 'max:255'],
             'description' => ['nullable', 'string', 'max:250000'],
             'system_instructions' => ['nullable', 'string', 'max:250000'],
             'privacy_policy' => ['nullable', 'string', 'max:250000'],

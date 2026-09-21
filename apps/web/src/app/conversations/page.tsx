@@ -689,6 +689,8 @@ function ConversationsContent() {
                         <Box sx={{
                           alignSelf: isOutbound ? 'flex-end' : 'flex-start',
                           maxWidth: { xs: '85%', md: '65%' },
+                          wordBreak: 'break-word',
+                          overflowWrap: 'anywhere',
                           background: isOutbound ? 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)' : '#ffffff',
                           p: 1.5,
                           pt: 1,
@@ -699,7 +701,7 @@ function ConversationsContent() {
                         }}>
                           {/* Message Text Body */}
                           {msg.body && (!msg.media || msg.media.length === 0 || (msg.body !== '[Image]' && msg.body !== '[Photo]' && msg.body !== '[Video]' && msg.body !== '[Document]' && msg.body !== '[Voice Note]' && msg.body !== '[Audio]')) ? (
-                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', fontSize: '0.9rem', color: isOutbound ? '#ffffff' : '#1e293b', lineHeight: 1.5 }}>
+                            <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', overflowWrap: 'anywhere', fontSize: '0.9rem', color: isOutbound ? '#ffffff' : '#1e293b', lineHeight: 1.5 }}>
                               {msg.body}
                             </Typography>
                           ) : null}

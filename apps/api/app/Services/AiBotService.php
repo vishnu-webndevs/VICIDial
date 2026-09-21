@@ -5,10 +5,12 @@ namespace App\Services;
 use App\Models\AiBotAgent;
 use App\Models\AiBotInteractiveFlow;
 use App\Models\GraphBooking;
+use App\Models\Membership;
 use App\Models\Message;
 use App\Models\MessageThread;
 use App\Models\Tenant;
 use App\Models\TenantAiSetting;
+use App\Models\User;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -396,6 +398,36 @@ class AiBotService
                                 $attendeePhone = (string) $thread->counterparty_number;
                                 $attendeeEmail = $attendeePhone . '@customer.wnd';
 
+                                // Resolve Customer Name if available
+                                $customerName = null;
+                                if ($thread->contact_id) {
+                                    $customerName = \App\Models\Contact::where('id', $thread->contact_id)->value('name');
+                                }
+                                if (empty($customerName)) {
+                                    $cleanNum = preg_replace('/[^0-9]/', '', (string) $thread->counterparty_number);
+                                    $customerName = DB::table('leads')
+                                        ->where('tenant_id', $tenantId)
+                                        ->where(function ($q) use ($thread, $cleanNum) {
+                                            $q->where('phone', $thread->counterparty_number)
+                                              ->orWhereRaw("REGEXP_REPLACE(phone, '[^0-9]', '') = ?", [$cleanNum]);
+                                        })
+                                        ->value('name');
+                                }
+                                $customerDisplayName = !empty($customerName) ? "{$customerName} ({$attendeePhone})" : $attendeePhone;
+
+                                // Resolve Agent / Representative email for calendar invitation (configured Agent Email > Thread assigned user > Tenant owner)
+                                $agentEmail = trim((string) ($botAgent->agent_email ?? ''));
+                                if (empty($agentEmail) && !empty($thread->assigned_user_id)) {
+                                    $agentEmail = User::where('id', $thread->assigned_user_id)->value('email');
+                                }
+                                if (empty($agentEmail)) {
+                                    $agentEmail = Membership::where('tenant_id', $tenantId)->with('user')->first()?->user?->email;
+                                }
+
+                                if (!empty($customerName) && !str_contains(strtolower($eventTitle), strtolower($customerName))) {
+                                    $eventTitle .= " with " . $customerName;
+                                }
+
                                 $booking = GraphBooking::query()->create([
                                     'tenant_id' => $tenantId,
                                     'external_booking_id' => 'ai_book_' . \Illuminate\Support\Str::random(12),
@@ -410,6 +442,8 @@ class AiBotService
                                     'metadata' => [
                                         'thread_id' => $thread->id,
                                         'phone' => $attendeePhone,
+                                        'customer_name' => $customerName,
+                                        'agent_email' => $agentEmail,
                                         'notes' => $notesStr,
                                         'created_by' => 'ai_bot_service',
                                     ],
@@ -418,8 +452,9 @@ class AiBotService
                                 $gCalStart = $startCarbon->utc()->format('Ymd\THis\Z');
                                 $gCalEnd = $endCarbon->utc()->format('Ymd\THis\Z');
                                 $gCalTitle = urlencode($eventTitle);
-                                $gCalDetails = urlencode("Site Visit / Meeting scheduled via AI Agent for customer {$attendeePhone}. " . ($notesStr ? "Notes: {$notesStr}" : ""));
-                                $invitationUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE&text={$gCalTitle}&dates={$gCalStart}/{$gCalEnd}&details={$gCalDetails}";
+                                $gCalDetails = urlencode("Site Visit / Meeting scheduled via AI Agent for customer {$customerDisplayName}. " . ($notesStr ? "Notes: {$notesStr}" : ""));
+                                $addGuestParam = !empty($agentEmail) ? "&add=" . urlencode($agentEmail) : '';
+                                $invitationUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE&text={$gCalTitle}&dates={$gCalStart}/{$gCalEnd}&details={$gCalDetails}{$addGuestParam}";
 
                                 Log::info("AiBotService: Scheduled calendar booking {$booking->id} for tenant {$tenantId}. Invite URL: {$invitationUrl}");
 
@@ -434,7 +469,7 @@ class AiBotService
                                         'formatted_date' => $startCarbon->format('l, d F Y'),
                                         'formatted_time' => $startCarbon->format('h:i A'),
                                         'invitation_link' => $invitationUrl,
-                                        'instruction' => 'ALWAYS include the exact invitation_link in your final response to the customer so they can add it to their Google Calendar.',
+                                        'instruction' => 'ALWAYS include the exact invitation_link in your final response. You may write it cleanly like: [Add to Google Calendar](invitation_link) or as a clickable URL line.',
                                     ]),
                                 ];
 

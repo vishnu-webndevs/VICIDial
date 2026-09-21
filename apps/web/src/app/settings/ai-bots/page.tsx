@@ -33,6 +33,7 @@ export default function AiBotsManagementPage() {
   const [customKnowledgePrompt, setCustomKnowledgePrompt] = useState("");
   const [humanDelay, setHumanDelay] = useState(3);
   const [strictMode, setStrictMode] = useState(true);
+  const [agentEmail, setAgentEmail] = useState("");
 
   // Knowledge Base Q&A Array
   const [qaList, setQaList] = useState<{ question: string; answer: string }[]>([
@@ -58,7 +59,7 @@ export default function AiBotsManagementPage() {
       setProvider("openai");
       setActiveProviderName("openai");
     } catch (err) {
-      setToastMsg("Failed to load AI bots.");
+      setToastMsg("Failed to load AI Bots configuration.");
       setToastTone("error");
     } finally {
       setLoading(false);
@@ -73,16 +74,11 @@ export default function AiBotsManagementPage() {
     if (!apiKey.trim()) return;
     setSavingKey(true);
     try {
-      await saveTenantAiSettings({
-        api_key: apiKey.trim(),
-        provider: "openai",
-        default_model: "gpt-4o-mini"
-      });
-      setHasApiKey(true);
-      setActiveProviderName("openai");
-      setApiKey("");
-      setToastMsg("Tenant OpenAI (ChatGPT) API Key saved securely.");
+      await updateTenantAiSettings({ api_key: apiKey.trim() });
+      setToastMsg("OpenAI API Key saved and encrypted successfully.");
       setToastTone("success");
+      setApiKey("");
+      void loadData();
     } catch (err) {
       setToastMsg("Failed to save API key.");
       setToastTone("error");
@@ -95,6 +91,7 @@ export default function AiBotsManagementPage() {
     if (bot) {
       setEditingBot(bot);
       setName(bot.name || "");
+      setAgentEmail(bot.agent_email || "");
       setDescription(bot.description || "");
       setSystemInstructions(bot.system_instructions || "");
       setPrivacyPolicy(bot.privacy_policy || "");
@@ -123,6 +120,7 @@ export default function AiBotsManagementPage() {
     } else {
       setEditingBot(null);
       setName("");
+      setAgentEmail("");
       setDescription("");
       setSystemInstructions("Aap ek warm aur helpful Sales Executive ki tarah real person ki bhasha me baat karein. Kabhi robot jaise mat bolna.");
       setPrivacyPolicy("Hum OTP, Passwords, PINs ya Banking Details kisi ke sath share nahi karte aur na puchte hain.");
@@ -148,6 +146,7 @@ export default function AiBotsManagementPage() {
     try {
       const payload = {
         name: name.trim(),
+        agent_email: agentEmail.trim(),
         description: description.trim(),
         system_instructions: systemInstructions.trim(),
         privacy_policy: privacyPolicy.trim(),
@@ -331,6 +330,15 @@ export default function AiBotsManagementPage() {
                         variant="outlined"
                       />
                     )}
+                    {bot.agent_email && (
+                      <Chip
+                        icon={<i className="bx bx-envelope" style={{ fontSize: 16 }} />}
+                        label={`Calendar Email: ${bot.agent_email}`}
+                        size="small"
+                        color="secondary"
+                        variant="outlined"
+                      />
+                    )}
                     {bot.privacy_policy && (
                       <Chip
                         icon={<i className="bx bx-shield-quarter" style={{ fontSize: 16 }} />}
@@ -382,6 +390,15 @@ export default function AiBotsManagementPage() {
                 sx={{ width: 250 }}
               />
             </Box>
+
+            <TextField
+              fullWidth
+              label="📅 Agent / Sales Rep Email (For Calendar Invitations)"
+              placeholder="e.g. agent@company.com"
+              helperText="When AI schedules a site visit/meeting, calendar invites are automatically sent to this Agent Email and the customer."
+              value={agentEmail}
+              onChange={(e) => setAgentEmail(e.target.value)}
+            />
 
             <TextField
               fullWidth
