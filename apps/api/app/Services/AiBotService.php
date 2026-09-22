@@ -108,9 +108,24 @@ class AiBotService
                 }
             }
 
-            // STRICT: If this customer/thread is NOT part of a campaign with an AI agent assigned, DO NOT REPLY!
+            // 4. Fallback: If no campaign bound, check if tenant has an active AI Bot Agent for direct incoming WhatsApp messages
             if (!$botAgent) {
-                Log::info("AiBotService: Inbound message from {$thread->counterparty_number} skipped — number is not part of any AI campaign.", [
+                $botAgent = AiBotAgent::query()
+                    ->where('tenant_id', $tenantId)
+                    ->where('is_active', true)
+                    ->latest('updated_at')
+                    ->first();
+
+                if ($botAgent) {
+                    $thread->update([
+                        'ai_bot_agent_id' => $botAgent->id,
+                    ]);
+                }
+            }
+
+            // If no active AI agent exists for this tenant, DO NOT reply
+            if (!$botAgent) {
+                Log::info("AiBotService: Inbound message from {$thread->counterparty_number} skipped — no active AI agent found for tenant.", [
                     'tenant_id' => $tenantId,
                     'thread_id' => $thread->id,
                 ]);
