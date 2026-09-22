@@ -109,11 +109,36 @@ class GoogleCalendarService
                 $payload['attendees'] = $attendees;
             }
 
-            $encodedCalendarId = urlencode($calendarId);
+            $targetId = (!empty($calendarId) && $calendarId !== 'primary') ? $calendarId : 'primary';
+            $encodedCalendarId = urlencode($targetId);
+            $eventUrl = "https://www.googleapis.com/calendar/v3/calendars/{$encodedCalendarId}/events";
+            
+            // Try 1: Send with attendees & sendUpdates
             $eventResponse = Http::withHeaders([
                 'Authorization' => "Bearer {$accessToken}",
                 'Content-Type' => 'application/json',
-            ])->post("https://www.googleapis.com/calendar/v3/calendars/{$encodedCalendarId}/events?sendUpdates=all", $payload);
+            ])->post("{$eventUrl}?sendUpdates=all", $payload);
+
+            // Try 2: If 404 (invalid custom calendar ID), switch to 'primary' calendar
+            if (!$eventResponse->successful() && $eventResponse->status() === 404 && $targetId !== 'primary') {
+                Log::info("GoogleCalendarService: Calendar ID '{$targetId}' returned 404. Retrying with 'primary' calendar.");
+                $targetId = 'primary';
+                $eventUrl = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+                $eventResponse = Http::withHeaders([
+                    'Authorization' => "Bearer {$accessToken}",
+                    'Content-Type' => 'application/json',
+                ])->post("{$eventUrl}?sendUpdates=all", $payload);
+            }
+
+            // Try 3: If 403 forbiddenForServiceAccounts, strip external attendees & post directly to calendar
+            if (!$eventResponse->successful() && (str_contains($eventResponse->body(), 'forbiddenForServiceAccounts') || $eventResponse->status() === 403)) {
+                Log::info("GoogleCalendarService: Retrying direct event creation without external attendees payload for calendar '{$targetId}'.");
+                unset($payload['attendees']);
+                $eventResponse = Http::withHeaders([
+                    'Authorization' => "Bearer {$accessToken}",
+                    'Content-Type' => 'application/json',
+                ])->post($eventUrl, $payload);
+            }
 
             if (!$eventResponse->successful()) {
                 $errBody = $eventResponse->body();
