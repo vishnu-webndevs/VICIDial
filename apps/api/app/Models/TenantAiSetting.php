@@ -24,6 +24,8 @@ class TenantAiSetting extends Model
         'api_key',
         'enabled',
         'default_model',
+        'google_calendar_service_account_json',
+        'google_calendar_id',
     ];
 
     protected $casts = [
@@ -51,6 +53,27 @@ class TenantAiSetting extends Model
     }
 
     public function getApiKeyAttribute($value): ?string
+    {
+        if (empty($value)) {
+            return null;
+        }
+        try {
+            return Crypt::decryptString($value);
+        } catch (\Throwable $e) {
+            return $value;
+        }
+    }
+
+    public function setGoogleCalendarServiceAccountJsonAttribute($value): void
+    {
+        if (empty($value)) {
+            $this->attributes['google_calendar_service_account_json'] = null;
+        } else {
+            $this->attributes['google_calendar_service_account_json'] = Crypt::encryptString(is_array($value) ? json_encode($value) : $value);
+        }
+    }
+
+    public function getGoogleCalendarServiceAccountJsonAttribute($value): ?string
     {
         if (empty($value)) {
             return null;

@@ -40,6 +40,7 @@ class AiBotController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
             'agent_email' => ['nullable', 'email', 'max:255'],
+            'calendar_id' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:250000'],
             'system_instructions' => ['nullable', 'string', 'max:250000'],
             'privacy_policy' => ['nullable', 'string', 'max:250000'],
@@ -56,6 +57,7 @@ class AiBotController extends Controller
             'tenant_id' => $tenant->id,
             'name' => $validated['name'],
             'agent_email' => $validated['agent_email'] ?? null,
+            'calendar_id' => $validated['calendar_id'] ?? null,
             'description' => $validated['description'] ?? null,
             'system_instructions' => $validated['system_instructions'] ?? null,
             'privacy_policy' => $validated['privacy_policy'] ?? null,
@@ -121,6 +123,7 @@ class AiBotController extends Controller
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:150'],
             'agent_email' => ['nullable', 'email', 'max:255'],
+            'calendar_id' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:250000'],
             'system_instructions' => ['nullable', 'string', 'max:250000'],
             'privacy_policy' => ['nullable', 'string', 'max:250000'],
@@ -198,6 +201,8 @@ class AiBotController extends Controller
                 'enabled' => $settings?->enabled ?? true,
                 'has_api_key' => !empty($settings?->api_key),
                 'default_model' => $settings?->default_model ?? 'gpt-4o-mini',
+                'google_calendar_id' => $settings?->google_calendar_id ?? '',
+                'has_google_calendar_json' => !empty($settings?->google_calendar_service_account_json),
             ],
         ]);
     }
@@ -214,6 +219,8 @@ class AiBotController extends Controller
             'api_key' => ['nullable', 'string', 'max:255'],
             'enabled' => ['nullable', 'boolean'],
             'default_model' => ['nullable', 'string', 'max:50'],
+            'google_calendar_id' => ['nullable', 'string', 'max:255'],
+            'google_calendar_service_account_json' => ['nullable', 'string', 'max:1000000'],
         ]);
 
         $dataToUpdate = [
@@ -221,6 +228,14 @@ class AiBotController extends Controller
             'enabled' => $validated['enabled'] ?? true,
             'default_model' => $validated['default_model'] ?? 'gpt-4o-mini',
         ];
+
+        if (array_key_exists('google_calendar_id', $validated)) {
+            $dataToUpdate['google_calendar_id'] = $validated['google_calendar_id'];
+        }
+
+        if (array_key_exists('google_calendar_service_account_json', $validated) && !empty($validated['google_calendar_service_account_json'])) {
+            $dataToUpdate['google_calendar_service_account_json'] = $validated['google_calendar_service_account_json'];
+        }
 
         if (!empty($validated['api_key'])) {
             $dataToUpdate['api_key'] = $validated['api_key'];

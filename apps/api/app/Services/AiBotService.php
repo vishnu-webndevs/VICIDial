@@ -426,7 +426,7 @@ class AiBotService
                                 // Resolve Customer Name if available
                                 $customerName = null;
                                 if ($thread->contact_id) {
-                                    $customerName = \App\Models\Contact::where('id', $thread->contact_id)->value('name');
+                                    $customerName = \App\Models\Contact::where('id', $thread->contact_id)->value('display_name');
                                 }
                                 if (empty($customerName)) {
                                     $cleanNum = preg_replace('/[^0-9]/', '', (string) $thread->counterparty_number);
@@ -436,7 +436,7 @@ class AiBotService
                                             $q->where('phone', $thread->counterparty_number)
                                                 ->orWhereRaw("REGEXP_REPLACE(phone, '[^0-9]', '') = ?", [$cleanNum]);
                                         })
-                                        ->value('name');
+                                        ->value('full_name');
                                 }
                                 $customerDisplayName = !empty($customerName) ? "{$customerName} ({$attendeePhone})" : $attendeePhone;
 
@@ -486,6 +486,42 @@ class AiBotService
                                 $gCalDetails = urlencode("Site Visit / Meeting scheduled via AI Agent for customer {$customerDisplayName}. " . ($notesStr ? "Notes: {$notesStr}" : ""));
                                 $addGuestParam = !empty($agentEmail) ? "&add=" . urlencode($agentEmail) : '';
                                 $invitationUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE&text={$gCalTitle}&dates={$gCalStart}/{$gCalEnd}&details={$gCalDetails}{$addGuestParam}";
+
+                                // Direct Google Calendar API Event Creation via Service Account if configured
+                                $serviceAccountJson = $aiSetting?->google_calendar_service_account_json;
+                                $targetCalendarId = !empty($botAgent->calendar_id)
+                                    ? $botAgent->calendar_id
+                                    : (!empty($aiSetting?->google_calendar_id)
+                                        ? $aiSetting->google_calendar_id
+                                        : (!empty($agentEmail) ? $agentEmail : 'primary'));
+
+                                if (!empty($serviceAccountJson) && !empty($targetCalendarId)) {
+                                    $gcalRes = \App\Services\GoogleCalendarService::createEvent(
+                                        $serviceAccountJson,
+                                        $targetCalendarId,
+                                        [
+                                            'title' => $eventTitle,
+                                            'description' => "Site Visit / Meeting scheduled via AI Agent for customer {$customerDisplayName}. " . ($notesStr ? "Notes: {$notesStr}" : ""),
+                                            'start_iso' => $startCarbon->toIso8601String(),
+                                            'end_iso' => $endCarbon->toIso8601String(),
+                                            'timezone' => 'Asia/Kolkata',
+                                            'attendee_emails' => array_filter([$agentEmail]),
+                                        ]
+                                    );
+
+                                    if ($gcalRes['success'] && !empty($gcalRes['html_link'])) {
+                                        $invitationUrl = $gcalRes['html_link'];
+                                        Log::info("AiBotService: Successfully created Google Calendar event via API: {$gcalRes['event_id']}. Link: {$invitationUrl}");
+                                        if (isset($booking)) {
+                                            $booking->update([
+                                                'calendar_event_id' => $gcalRes['event_id'],
+                                                'metadata' => array_merge($booking->metadata ?? [], ['google_event_link' => $gcalRes['html_link']]),
+                                            ]);
+                                        }
+                                    } else {
+                                        Log::warning("AiBotService: Direct Google Calendar API event creation notice: " . ($gcalRes['error'] ?? 'Unknown error') . ". Using web link fallback.");
+                                    }
+                                }
 
                                 Log::info("AiBotService: Scheduled calendar booking {$bookingId} for tenant {$tenantId}. Invite URL: {$invitationUrl}");
 

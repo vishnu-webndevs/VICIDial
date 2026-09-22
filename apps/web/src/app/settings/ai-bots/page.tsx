@@ -12,13 +12,19 @@ export default function AiBotsManagementPage() {
   const [toastMsg, setToastMsg] = useState("");
   const [toastTone, setToastTone] = useState<"neutral" | "success" | "error">("neutral");
 
-  // API Key Settings
+  // API Key & Calendar Settings
   const [apiKey, setApiKey] = useState("");
   const [hasApiKey, setHasApiKey] = useState(false);
   const [provider, setProvider] = useState<"openai">("openai");
   const [activeProviderName, setActiveProviderName] = useState("openai");
   const [savingKey, setSavingKey] = useState(false);
   const [savingBot, setSavingBot] = useState(false);
+
+  // Google Calendar API Settings
+  const [googleCalendarId, setGoogleCalendarId] = useState("");
+  const [googleCalendarJson, setGoogleCalendarJson] = useState("");
+  const [hasGoogleCalendarJson, setHasGoogleCalendarJson] = useState(false);
+  const [savingGcal, setSavingGcal] = useState(false);
 
   // Dialog State
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -34,6 +40,7 @@ export default function AiBotsManagementPage() {
   const [humanDelay, setHumanDelay] = useState(3);
   const [strictMode, setStrictMode] = useState(true);
   const [agentEmail, setAgentEmail] = useState("");
+  const [calendarId, setCalendarId] = useState("");
 
   // Knowledge Base Q&A Array
   const [qaList, setQaList] = useState<{ question: string; answer: string }[]>([
@@ -56,6 +63,8 @@ export default function AiBotsManagementPage() {
       ]);
       setBots(botsData);
       setHasApiKey(settingsData.has_api_key);
+      setGoogleCalendarId(settingsData.google_calendar_id || "");
+      setHasGoogleCalendarJson(settingsData.has_google_calendar_json || false);
       setProvider("openai");
       setActiveProviderName("openai");
     } catch (err) {
@@ -87,11 +96,34 @@ export default function AiBotsManagementPage() {
     }
   };
 
+  const handleSaveGoogleCalendar = async () => {
+    setSavingGcal(true);
+    try {
+      const payload: any = {
+        google_calendar_id: googleCalendarId.trim()
+      };
+      if (googleCalendarJson.trim()) {
+        payload.google_calendar_service_account_json = googleCalendarJson.trim();
+      }
+      await saveTenantAiSettings(payload);
+      setToastMsg("Google Calendar Service Account settings saved successfully.");
+      setToastTone("success");
+      setGoogleCalendarJson("");
+      void loadData();
+    } catch (err) {
+      setToastMsg("Failed to save Google Calendar settings.");
+      setToastTone("error");
+    } finally {
+      setSavingGcal(false);
+    }
+  };
+
   const handleOpenDialog = (bot?: any) => {
     if (bot) {
       setEditingBot(bot);
       setName(bot.name || "");
       setAgentEmail(bot.agent_email || "");
+      setCalendarId(bot.calendar_id || "");
       setDescription(bot.description || "");
       setSystemInstructions(bot.system_instructions || "");
       setPrivacyPolicy(bot.privacy_policy || "");
@@ -121,6 +153,7 @@ export default function AiBotsManagementPage() {
       setEditingBot(null);
       setName("");
       setAgentEmail("");
+      setCalendarId("");
       setDescription("");
       setSystemInstructions("Aap ek warm aur helpful Sales Executive ki tarah real person ki bhasha me baat karein. Kabhi robot jaise mat bolna.");
       setPrivacyPolicy("Hum OTP, Passwords, PINs ya Banking Details kisi ke sath share nahi karte aur na puchte hain.");
@@ -147,6 +180,7 @@ export default function AiBotsManagementPage() {
       const payload = {
         name: name.trim(),
         agent_email: agentEmail.trim(),
+        calendar_id: calendarId.trim(),
         description: description.trim(),
         system_instructions: systemInstructions.trim(),
         privacy_policy: privacyPolicy.trim(),
@@ -255,6 +289,56 @@ export default function AiBotsManagementPage() {
               sx={{ bgcolor: '#1e293b', textTransform: 'none', borderRadius: 2, px: 3, whiteSpace: 'nowrap' }}
             >
               {savingKey ? "Saving..." : "Save OpenAI Key"}
+            </Button>
+          </Box>
+        </Paper>
+
+        {/* Tenant Google Calendar Service Account Setup Card */}
+        <Paper sx={{ p: 3, mb: 4, borderRadius: 3, border: '1px solid #e2e8f0', bgcolor: '#ffffff', boxShadow: '0 4px 12px rgba(0,0,0,0.03)' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2 }}>
+            <i className="bx bx-calendar" style={{ fontSize: 24, color: '#059669' }} />
+            <Typography variant="h6" sx={{ fontWeight: 600, color: '#1e293b' }}>
+              📅 Google Calendar API Integration (Service Account)
+            </Typography>
+            <Chip
+              label={hasGoogleCalendarJson ? "Active: Service Account API" : "Fallback: Web URL Links"}
+              color={hasGoogleCalendarJson ? "success" : "default"}
+              size="small"
+              sx={{ fontWeight: 600, ml: 'auto' }}
+            />
+          </Box>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+            Google Cloud Console se <strong>Service Account JSON Key</strong> aur apna <strong>Default Google Calendar ID</strong> enter karein. Isse AI Agent appointments direct Google Calendar me create karega. <em>(Calendar ko Service Account Email ke sath 'Make changes to events' permission de kar share zaroor karein)</em>.
+          </Typography>
+
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 750 }}>
+            <TextField
+              size="small"
+              fullWidth
+              label="Default Google Calendar ID"
+              placeholder="e.g. primary or your-agent@company.com"
+              value={googleCalendarId}
+              onChange={(e) => setGoogleCalendarId(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#f8fafc', borderRadius: 2 } }}
+            />
+            <TextField
+              size="small"
+              fullWidth
+              multiline
+              rows={3}
+              label="Google Service Account Credentials JSON"
+              placeholder={hasGoogleCalendarJson ? "{ \"type\": \"service_account\", \"project_id\": \"...\", \"private_key\": \"...\" } (Leave empty to keep existing encrypted JSON)" : "Paste full contents of Service Account JSON file here..."}
+              value={googleCalendarJson}
+              onChange={(e) => setGoogleCalendarJson(e.target.value)}
+              sx={{ '& .MuiOutlinedInput-root': { bgcolor: '#f8fafc', borderRadius: 2, fontFamily: 'monospace', fontSize: '0.85rem' } }}
+            />
+            <Button
+              variant="contained"
+              disabled={savingGcal}
+              onClick={handleSaveGoogleCalendar}
+              sx={{ bgcolor: '#059669', textTransform: 'none', borderRadius: 2, px: 3, alignSelf: 'flex-start', '&:hover': { bgcolor: '#047857' } }}
+            >
+              {savingGcal ? "Saving..." : "Save Google Calendar Settings"}
             </Button>
           </Box>
         </Paper>
@@ -372,29 +456,36 @@ export default function AiBotsManagementPage() {
           </DialogTitle>
           <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 2.5, py: 3 }}>
             
-            <Box sx={{ display: 'flex', gap: 2 }}>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               <TextField
-                sx={{ flex: 1 }}
+                sx={{ flex: 1, minWidth: 200 }}
                 label="Bot Agent Name"
                 placeholder="e.g. Real Estate Sales Manager"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
               <TextField
-                sx={{ flex: 1 }}
+                sx={{ flex: 1, minWidth: 200 }}
                 label="📅 Agent Email (Calendar Invites)"
                 placeholder="e.g. agent@company.com"
                 value={agentEmail}
                 onChange={(e) => setAgentEmail(e.target.value)}
               />
               <TextField
+                sx={{ flex: 1, minWidth: 200 }}
+                label="📅 Bot Specific Calendar ID (Optional)"
+                placeholder="e.g. agent-calendar-id@group.calendar.google.com"
+                value={calendarId}
+                onChange={(e) => setCalendarId(e.target.value)}
+              />
+              <TextField
                 type="number"
-                label="Human Typing Delay (Seconds)"
+                label="Human Delay (s)"
                 value={humanDelay}
                 onChange={(e) => setHumanDelay(Math.max(0, Number(e.target.value)))}
                 inputProps={{ min: 0, max: 86400 }}
                 helperText="Delay in seconds"
-                sx={{ width: 200 }}
+                sx={{ width: 140 }}
               />
             </Box>
 
