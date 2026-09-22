@@ -448,26 +448,32 @@ class AiBotService
                                     $eventTitle .= " with " . $customerName;
                                 }
 
-                                $booking = GraphBooking::query()->create([
-                                    'tenant_id' => $tenantId,
-                                    'external_booking_id' => 'ai_book_' . \Illuminate\Support\Str::random(12),
-                                    'calendar_event_id' => 'evt_' . \Illuminate\Support\Str::random(12),
-                                    'attendee_email' => $attendeeEmail,
-                                    'subject' => $eventTitle,
-                                    'start_at' => $startCarbon->toDateTimeString(),
-                                    'end_at' => $endCarbon->toDateTimeString(),
-                                    'confirmation_sent' => true,
-                                    'status' => 'confirmed',
-                                    'provider_mode' => 'ai_bot',
-                                    'metadata' => [
-                                        'thread_id' => $thread->id,
-                                        'phone' => $attendeePhone,
-                                        'customer_name' => $customerName,
-                                        'agent_email' => $agentEmail,
-                                        'notes' => $notesStr,
-                                        'created_by' => 'ai_bot_service',
-                                    ],
-                                ]);
+                                $bookingId = 'ai_book_' . \Illuminate\Support\Str::random(12);
+                                try {
+                                    $booking = GraphBooking::query()->create([
+                                        'tenant_id' => $tenantId,
+                                        'external_booking_id' => $bookingId,
+                                        'calendar_event_id' => 'evt_' . \Illuminate\Support\Str::random(12),
+                                        'attendee_email' => substr($attendeeEmail, 0, 240),
+                                        'subject' => substr($eventTitle, 0, 140),
+                                        'start_at' => $startCarbon->toDateTimeString(),
+                                        'end_at' => $endCarbon->toDateTimeString(),
+                                        'confirmation_sent' => true,
+                                        'status' => 'confirmed',
+                                        'provider_mode' => 'ai_bot',
+                                        'metadata' => [
+                                            'thread_id' => $thread->id,
+                                            'phone' => $attendeePhone,
+                                            'customer_name' => $customerName,
+                                            'agent_email' => $agentEmail,
+                                            'notes' => $notesStr,
+                                            'created_by' => 'ai_bot_service',
+                                        ],
+                                    ]);
+                                    $bookingId = $booking->id;
+                                } catch (\Throwable $dbEx) {
+                                    Log::warning("AiBotService: GraphBooking creation notice: " . $dbEx->getMessage());
+                                }
 
                                 $gCalStart = $startCarbon->utc()->format('Ymd\THis\Z');
                                 $gCalEnd = $endCarbon->utc()->format('Ymd\THis\Z');
@@ -476,7 +482,7 @@ class AiBotService
                                 $addGuestParam = !empty($agentEmail) ? "&add=" . urlencode($agentEmail) : '';
                                 $invitationUrl = "https://calendar.google.com/calendar/render?action=TEMPLATE&text={$gCalTitle}&dates={$gCalStart}/{$gCalEnd}&details={$gCalDetails}{$addGuestParam}";
 
-                                Log::info("AiBotService: Scheduled calendar booking {$booking->id} for tenant {$tenantId}. Invite URL: {$invitationUrl}");
+                                Log::info("AiBotService: Scheduled calendar booking {$bookingId} for tenant {$tenantId}. Invite URL: {$invitationUrl}");
 
                                 // Append tool response & query OpenAI for final user text
                                 $openAiMessages[] = $choiceMsg;
@@ -485,7 +491,7 @@ class AiBotService
                                     'tool_call_id' => $toolCall['id'],
                                     'content' => json_encode([
                                         'status' => 'success',
-                                        'booking_id' => $booking->id,
+                                        'booking_id' => $bookingId,
                                         'formatted_date' => $startCarbon->format('l, d F Y'),
                                         'formatted_time' => $startCarbon->format('h:i A'),
                                         'invitation_link' => $invitationUrl,
@@ -493,20 +499,24 @@ class AiBotService
                                     ]),
                                 ];
 
-                                $secondResponse = Http::timeout(12)->withHeaders([
-                                    'Authorization' => 'Bearer ' . $openAiKey,
-                                    'Content-Type' => 'application/json',
-                                ])->post('https://api.openai.com/v1/chat/completions', [
-                                    'model' => $modelName,
-                                    'messages' => $openAiMessages,
-                                    'tools' => $tools,
-                                    'temperature' => 0.6,
-                                    'max_tokens' => 1000,
-                                ]);
+                                try {
+                                    $secondResponse = Http::timeout(10)->withHeaders([
+                                        'Authorization' => 'Bearer ' . $openAiKey,
+                                        'Content-Type' => 'application/json',
+                                    ])->post('https://api.openai.com/v1/chat/completions', [
+                                        'model' => $modelName,
+                                        'messages' => $openAiMessages,
+                                        'tools' => $tools,
+                                        'temperature' => 0.6,
+                                        'max_tokens' => 1000,
+                                    ]);
 
-                                if ($secondResponse->successful()) {
-                                    $secData = $secondResponse->json();
-                                    $aiText = trim($secData['choices'][0]['message']['content'] ?? '');
+                                    if ($secondResponse->successful()) {
+                                        $secData = $secondResponse->json();
+                                        $aiText = trim($secData['choices'][0]['message']['content'] ?? '');
+                                    }
+                                } catch (\Throwable $secEx) {
+                                    Log::warning("AiBotService: 2nd turn OpenAI call notice: " . $secEx->getMessage());
                                 }
 
                                 if ($aiText === '' || !str_contains($aiText, 'calendar.google.com')) {
