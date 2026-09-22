@@ -26,6 +26,7 @@ class AiBotService
         try {
             // Check if thread bot status is paused (human handoff)
             if ($thread->bot_status === 'paused' || $thread->bot_status === 'human_assigned') {
+                Log::info("AiBotService: Inbound message from {$thread->counterparty_number} (thread {$thread->id}) skipped — thread bot_status is '{$thread->bot_status}'.");
                 return;
             }
 
@@ -81,7 +82,7 @@ class AiBotService
                     ->where('leads.tenant_id', $tenantId)
                     ->where(function ($q) use ($thread, $cleanNumber) {
                         $q->where('leads.phone', $thread->counterparty_number)
-                          ->orWhereRaw("REGEXP_REPLACE(leads.phone, '[^0-9]', '') = ?", [$cleanNumber]);
+                            ->orWhereRaw("REGEXP_REPLACE(leads.phone, '[^0-9]', '') = ?", [$cleanNumber]);
                     })
                     ->whereNotNull('lead_timeline_items.metadata->campaign_id')
                     ->latest('lead_timeline_items.occurred_at')
@@ -143,7 +144,7 @@ class AiBotService
                 ->where('ai_bot_agent_id', $botAgent->id)
                 ->where(function ($q) use ($cleanUser) {
                     $q->whereRaw('LOWER(trigger_keyword) = ?', [$cleanUser])
-                      ->orWhereRaw('? LIKE CONCAT("%", LOWER(trigger_keyword), "%")', [$cleanUser]);
+                        ->orWhereRaw('? LIKE CONCAT("%", LOWER(trigger_keyword), "%")', [$cleanUser]);
                 })
                 ->first();
 
@@ -375,18 +376,22 @@ class AiBotService
         $lastFailureReason = null;
 
         foreach ($openAiModels as $modelName) {
+            // FIX: reset per-model so a tool call handled on a previous
+            // failed model attempt can't leak into this iteration.
+            $toolCallHandled = false;
+
             try {
-                $response = Http::timeout(12)->withHeaders([
+                $response = Http::timeout(20)->withHeaders([
                     'Authorization' => 'Bearer ' . $openAiKey,
                     'Content-Type' => 'application/json',
                 ])->post('https://api.openai.com/v1/chat/completions', [
-                    'model' => $modelName,
-                    'messages' => $openAiMessages,
-                    'tools' => $tools,
-                    'tool_choice' => 'auto',
-                    'temperature' => 0.6,
-                    'max_tokens' => 1000,
-                ]);
+                            'model' => $modelName,
+                            'messages' => $openAiMessages,
+                            'tools' => $tools,
+                            'tool_choice' => 'auto',
+                            'temperature' => 0.6,
+                            'max_tokens' => 1000,
+                        ]);
 
                 if ($response->successful()) {
                     $responseData = $response->json();
@@ -429,7 +434,7 @@ class AiBotService
                                         ->where('tenant_id', $tenantId)
                                         ->where(function ($q) use ($thread, $cleanNum) {
                                             $q->where('phone', $thread->counterparty_number)
-                                              ->orWhereRaw("REGEXP_REPLACE(phone, '[^0-9]', '') = ?", [$cleanNum]);
+                                                ->orWhereRaw("REGEXP_REPLACE(phone, '[^0-9]', '') = ?", [$cleanNum]);
                                         })
                                         ->value('name');
                                 }
@@ -500,20 +505,22 @@ class AiBotService
                                 ];
 
                                 try {
-                                    $secondResponse = Http::timeout(10)->withHeaders([
+                                    $secondResponse = Http::timeout(15)->withHeaders([
                                         'Authorization' => 'Bearer ' . $openAiKey,
                                         'Content-Type' => 'application/json',
                                     ])->post('https://api.openai.com/v1/chat/completions', [
-                                        'model' => $modelName,
-                                        'messages' => $openAiMessages,
-                                        'tools' => $tools,
-                                        'temperature' => 0.6,
-                                        'max_tokens' => 1000,
-                                    ]);
+                                                'model' => $modelName,
+                                                'messages' => $openAiMessages,
+                                                'tools' => $tools,
+                                                'temperature' => 0.6,
+                                                'max_tokens' => 1000,
+                                            ]);
 
                                     if ($secondResponse->successful()) {
                                         $secData = $secondResponse->json();
                                         $aiText = trim($secData['choices'][0]['message']['content'] ?? '');
+                                    } else {
+                                        Log::warning("AiBotService: 2nd turn OpenAI call failed (HTTP {$secondResponse->status()}): " . substr($secondResponse->body(), 0, 300));
                                     }
                                 } catch (\Throwable $secEx) {
                                     Log::warning("AiBotService: 2nd turn OpenAI call notice: " . $secEx->getMessage());
@@ -523,18 +530,36 @@ class AiBotService
                                     $fDate = $startCarbon->format('l, d F Y');
                                     $fTime = $startCarbon->format('h:i A');
                                     $aiText = "Aapka site visit {$fDate} ko {$fTime} par schedule kar diya gaya hai! 📅\n\n" .
-                                              "🔗 **Calendar Invitation Link:**\n{$invitationUrl}\n\n" .
-                                              "Aap upar diye gaye link par click karke ise apne Google Calendar me add kar sakte hain. Kya aapko kisi aur madad ki zarurat hai?";
+                                        "🔗 **Calendar Invitation Link:**\n{$invitationUrl}\n\n" .
+                                        "Aap upar diye gaye link par click karke ise apne Google Calendar me add kar sakte hain. Kya aapko kisi aur madad ki zarurat hai?";
                                 }
+
+                                // ------------------------------------------------------------
+                                // FIX (critical bug): break 2 only exits the two foreach loops
+                                // above (tool_calls foreach + openAiModels foreach). It does NOT
+                                // skip the "$aiText = trim($choiceMsg['content'] ?? '');" line
+                                // that sits right after this block, because that line is
+                                // OUTSIDE both loops. Since $choiceMsg['content'] is normally
+                                // empty/null when OpenAI returns a tool_call (it returned a
+                                // function call, not text), that line was silently WIPING the
+                                // calendar confirmation text we just built — resulting in an
+                                // empty $aiText and NO reply ever being sent to the customer,
+                                // even though the booking + calendar link were created fine.
+                                // $toolCallHandled flags that this path already resolved
+                                // $aiText, so the code after the loops must not overwrite it.
+                                // ------------------------------------------------------------
+                                $toolCallHandled = true;
                                 break 2;
                             }
                         }
                     }
 
-                    $aiText = trim($choiceMsg['content'] ?? '');
-                    if ($aiText !== '') {
-                        Log::info("AiBotService: Generated response via OpenAI ({$modelName}) for tenant {$tenantId}");
-                        break;
+                    if (!$toolCallHandled) {
+                        $aiText = trim($choiceMsg['content'] ?? '');
+                        if ($aiText !== '') {
+                            Log::info("AiBotService: Generated response via OpenAI ({$modelName}) for tenant {$tenantId}");
+                            break;
+                        }
                     }
                 } else {
                     $lastFailureReason = "HTTP {$response->status()}: " . substr($response->body(), 0, 300);
@@ -591,7 +616,7 @@ class AiBotService
                 ->first();
 
             $providerCredentials = (array) ($provider?->credentials_encrypted ?? []);
-            $statusCallbackUrl = rtrim((string) config('app.url'), '/').'/api/v1/webhooks/twilio/message-status';
+            $statusCallbackUrl = rtrim((string) config('app.url'), '/') . '/api/v1/webhooks/twilio/message-status';
 
             $result = $thread->channel === 'sms'
                 ? app(\App\Services\Messaging\SmsService::class)->send((string) $thread->counterparty_number, $body, $statusCallbackUrl, $providerCredentials)
