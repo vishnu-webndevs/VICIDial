@@ -510,8 +510,7 @@ class AiBotService
                                     );
 
                                     if ($gcalRes['success'] && !empty($gcalRes['html_link'])) {
-                                        $invitationUrl = $gcalRes['html_link'];
-                                        Log::info("AiBotService: Successfully created Google Calendar event via API: {$gcalRes['event_id']}. Link: {$invitationUrl}");
+                                        Log::info("AiBotService: Successfully created Google Calendar event via API on Agent calendar: {$gcalRes['event_id']}. Link: {$gcalRes['html_link']}");
                                         if (isset($booking)) {
                                             $booking->update([
                                                 'calendar_event_id' => $gcalRes['event_id'],
