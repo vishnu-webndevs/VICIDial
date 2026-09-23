@@ -1,7 +1,7 @@
 FROM composer:2 AS vendor
 WORKDIR /app
 COPY composer.json composer.lock ./
-RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --no-scripts
+RUN composer install --no-dev --prefer-dist --no-interaction --no-progress --no-scripts --ignore-platform-req=ext-gd
 
 FROM php:8.2-cli-alpine
 WORKDIR /var/www/html
@@ -16,7 +16,12 @@ RUN apk add --no-cache \
         oniguruma-dev \
         openssl \
         zip \
+        libpng-dev \
+        libjpeg-turbo-dev \
+        freetype-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install \
+        gd \
         intl \
         mbstring \
         pdo \
