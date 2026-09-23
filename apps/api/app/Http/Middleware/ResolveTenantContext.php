@@ -64,31 +64,53 @@ class ResolveTenantContext
                 $isBillingRoute = $request->is('*auth/me') || $request->is('*subscription') || $request->is('*subscription/change-plan');
                 
                 if (! $isBillingRoute) {
-                    $subscription = \App\Models\Subscription::query()
-                        ->where('tenant_id', $membership->tenant_id)
-                        ->latest()
-                        ->first();
+                    $tenant = $membership->tenant;
+                    $hasActiveTenantPlan = false;
 
-                    if ($subscription) {
-                        if ($subscription->status === 'trialing' && $subscription->trial_ends_at && $subscription->trial_ends_at->isPast()) {
-                        return response()->json([
-                            'error' => [
-                                'code' => 'TRIAL_EXPIRED',
-                                'message' => 'Your 14-day free trial has expired. Please purchase a paid plan to continue using the platform.',
-                            ],
-                        ], 403);
+                    if ($tenant) {
+                        $hasActiveTenantPlan = \App\Models\TenantPlan::query()
+                            ->where('tenant_id', $tenant->id)
+                            ->where('status', 'active')
+                            ->where(function ($q) {
+                                $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                            })
+                            ->exists();
                     }
-                    if (in_array($subscription->status, ['canceled', 'unpaid', 'past_due'], true)) {
-                        return response()->json([
-                            'error' => [
-                                'code' => 'SUBSCRIPTION_INACTIVE',
-                                'message' => 'Your subscription is inactive. Please purchase a paid plan to access the platform.',
-                            ],
-                        ], 403);
+
+                    if (! $hasActiveTenantPlan) {
+                        $subscription = \App\Models\Subscription::query()
+                            ->where('tenant_id', $membership->tenant_id)
+                            ->latest()
+                            ->first();
+
+                        if ($subscription) {
+                            if ($subscription->status === 'trialing' && $subscription->trial_ends_at && $subscription->trial_ends_at->isPast()) {
+                                return response()->json([
+                                    'error' => [
+                                        'code' => 'TRIAL_EXPIRED',
+                                        'message' => 'Your 14-day free trial has expired. Please purchase a paid plan to continue using the platform.',
+                                    ],
+                                ], 403);
+                            }
+                            if (in_array($subscription->status, ['canceled', 'unpaid', 'past_due'], true)) {
+                                return response()->json([
+                                    'error' => [
+                                        'code' => 'SUBSCRIPTION_INACTIVE',
+                                        'message' => 'Your subscription is inactive. Please purchase a paid plan to access the platform.',
+                                    ],
+                                ], 403);
+                            }
+                        } elseif ($tenant && app(\App\Services\PlanQuotaService::class)->isSubscriptionExpired($tenant)) {
+                            return response()->json([
+                                'error' => [
+                                    'code' => 'TRIAL_EXPIRED',
+                                    'message' => 'Your free trial has expired. Please purchase a paid plan to continue using the platform.',
+                                ],
+                            ], 403);
+                        }
                     }
                 }
             }
-        }
 
             $request->attributes->set('tenant', $membership->tenant);
             $request->attributes->set('membership', $membership);

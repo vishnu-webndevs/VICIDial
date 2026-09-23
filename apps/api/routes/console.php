@@ -414,9 +414,47 @@ Artisan::command('account:purge-expired {--execute}', function () {
     }
 })->purpose('Permanently purge expired soft-deleted accounts (and owned tenants) after the grace period');
 
+Artisan::command('subscriptions:sync', function () {
+    $tenantPlans = \App\Models\TenantPlan::query()
+        ->where('status', 'active')
+        ->get();
+
+    $updated = 0;
+    foreach ($tenantPlans as $tp) {
+        $sub = \App\Models\Subscription::query()
+            ->where('tenant_id', $tp->tenant_id)
+            ->latest('created_at')
+            ->first();
+
+        if ($sub) {
+            $sub->update([
+                'plan_id' => $tp->plan_id,
+                'status' => 'active',
+                'trial_ends_at' => null,
+                'ends_at' => $tp->expires_at,
+                'billing_cycle' => $tp->billing_cycle ?? 'monthly',
+            ]);
+            $updated++;
+        } else {
+            \App\Models\Subscription::query()->create([
+                'tenant_id' => $tp->tenant_id,
+                'plan_id' => $tp->plan_id,
+                'status' => 'active',
+                'trial_ends_at' => null,
+                'ends_at' => $tp->expires_at,
+                'billing_cycle' => $tp->billing_cycle ?? 'monthly',
+            ]);
+            $updated++;
+        }
+    }
+
+    $this->info("Synced {$updated} subscription(s) from active tenant plans.");
+})->purpose('Sync active tenant plans to subscription records');
+
 Schedule::command('dialer-incidents:prune')->daily();
 Schedule::command('retention:enforce --execute')->dailyAt('02:10');
 Schedule::command('inbox:sla-evaluate --execute')->everyFiveMinutes()->withoutOverlapping();
 Schedule::command('dsr:process --execute')->hourly()->withoutOverlapping();
 Schedule::command('account:purge-expired --execute')->dailyAt('03:00');
 Schedule::job(new RunCampaignDialerJob)->everyMinute()->withoutOverlapping();
+

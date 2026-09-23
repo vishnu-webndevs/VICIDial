@@ -238,7 +238,7 @@ class PlanManagementController extends Controller
             ? ($validated['expires_at'] ? \Carbon\Carbon::parse($validated['expires_at']) : null)
             : now()->addDays($defaultDays);
 
-        DB::transaction(function () use ($tenant, $validated, $expiresAt) {
+        DB::transaction(function () use ($tenant, $validated, $expiresAt, $cycle) {
             TenantPlan::query()
                 ->where('tenant_id', $tenant->id)
                 ->where('status', 'active')
@@ -250,11 +250,35 @@ class PlanManagementController extends Controller
             TenantPlan::query()->create([
                 'tenant_id' => $tenant->id,
                 'plan_id' => $validated['plan_id'],
-                'billing_cycle' => (string) ($validated['billing_cycle'] ?? 'monthly'),
+                'billing_cycle' => $cycle,
                 'started_at' => now(),
                 'expires_at' => $expiresAt,
                 'status' => 'active',
             ]);
+
+            $subscription = \App\Models\Subscription::query()
+                ->where('tenant_id', $tenant->id)
+                ->latest('created_at')
+                ->first();
+
+            if ($subscription) {
+                $subscription->update([
+                    'plan_id' => $validated['plan_id'],
+                    'status' => 'active',
+                    'trial_ends_at' => null,
+                    'ends_at' => $expiresAt,
+                    'billing_cycle' => $cycle,
+                ]);
+            } else {
+                \App\Models\Subscription::query()->create([
+                    'tenant_id' => $tenant->id,
+                    'plan_id' => $validated['plan_id'],
+                    'status' => 'active',
+                    'trial_ends_at' => null,
+                    'ends_at' => $expiresAt,
+                    'billing_cycle' => $cycle,
+                ]);
+            }
         });
 
         $plan = $this->planQuotaService->resolveActivePlan($tenant->fresh());
@@ -299,6 +323,19 @@ class PlanManagementController extends Controller
                     'status' => 'active',
                 ]);
             }
+        }
+
+        $subscription = \App\Models\Subscription::query()
+            ->where('tenant_id', $tenant->id)
+            ->latest('created_at')
+            ->first();
+
+        if ($subscription) {
+            $subscription->update([
+                'status' => ($expiresAt && $expiresAt->isPast()) ? 'canceled' : 'active',
+                'trial_ends_at' => null,
+                'ends_at' => $expiresAt,
+            ]);
         }
 
         return response()->json([
