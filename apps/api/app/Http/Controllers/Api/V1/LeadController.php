@@ -173,7 +173,7 @@ class LeadController extends Controller
     {
         $tenant = $request->attributes->get('tenant');
         $request->validate([
-            'file' => ['required', 'file', 'mimes:csv,txt', 'max:5120'],
+            'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls,ods', 'max:10240'],
             'field_mapping' => ['nullable', 'array'],
             'field_mapping.full_name' => ['nullable', 'integer', 'min:0'],
             'field_mapping.phone' => ['nullable', 'integer', 'min:0'],
@@ -199,7 +199,12 @@ class LeadController extends Controller
             'status' => 'queued',
         ]);
 
-        ProcessLeadImportJob::dispatch($job->id);
+        try {
+            ProcessLeadImportJob::dispatchSync($job->id);
+            $job->refresh();
+        } catch (\Throwable $e) {
+            ProcessLeadImportJob::dispatch($job->id);
+        }
 
         return response()->json([
             'data' => [
@@ -216,6 +221,15 @@ class LeadController extends Controller
             ->where('tenant_id', $tenant->id)
             ->where('id', $id)
             ->firstOrFail();
+
+        if (in_array($job->status, ['queued'], true)) {
+            try {
+                ProcessLeadImportJob::dispatchSync($job->id);
+                $job->refresh();
+            } catch (\Throwable $e) {
+                // Ignore
+            }
+        }
 
         $progress = $job->total_rows > 0
             ? (int) floor(($job->processed_rows / max($job->total_rows, 1)) * 100)

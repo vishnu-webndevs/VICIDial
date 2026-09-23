@@ -2,8 +2,10 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Alert,
   Box,
   MenuItem,
+  Modal,
   MuiButton,
   Paper,
   Stack,
@@ -17,7 +19,7 @@ import {
   Chip,
 } from "@/ui";
 import { AppShell, SectionCard, StatusBadge } from "@/components/app-shell";
-import { EmptyPanel, SkeletonLines, ToastMessage } from "@/components/ui-primitives";
+import { EmptyPanel, KpiCard, SkeletonLines, ToastMessage } from "@/components/ui-primitives";
 import { apiRequest } from "@/lib/api";
 import {
   deleteLead,
@@ -149,6 +151,8 @@ export default function LeadsPage() {
   const [form, setForm] = useState<LeadFormState>(createDefaultLeadForm(DEFAULT_COUNTRY));
   const [importState, setImportState] = useState<LeadImportStatus | null>(null);
   const [importing, setImporting] = useState(false);
+  const [importResultModalOpen, setImportResultModalOpen] = useState(false);
+  const [importReportJob, setImportReportJob] = useState<LeadImportStatus | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string>("");
 
   // Lead Lists state
@@ -380,8 +384,9 @@ export default function LeadsPage() {
       setMessageTone("error");
       return;
     }
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      setMessage("Only CSV files are supported.");
+    const lower = file.name.toLowerCase();
+    if (!lower.endsWith(".csv") && !lower.endsWith(".xlsx") && !lower.endsWith(".xls")) {
+      setMessage("Only CSV and Excel files (.csv, .xlsx, .xls) are supported.");
       setMessageTone("error");
       return;
     }
@@ -405,12 +410,16 @@ export default function LeadsPage() {
         setMessage(
           `Import completed: ${current.successful_rows} success, ${current.failed_rows} failed.`
         );
-        setMessageTone("success");
+        setMessageTone(current.failed_rows > 0 ? "neutral" : "success");
         formEl?.reset();
         await load();
+        setImportReportJob(current);
+        setImportResultModalOpen(true);
       } else if (current.status === "failed") {
         setMessage("Import failed. Review the error summary.");
         setMessageTone("error");
+        setImportReportJob(current);
+        setImportResultModalOpen(true);
       } else {
         setMessage("Import is still processing. Keep this page open for progress.");
         setMessageTone("neutral");
@@ -700,13 +709,13 @@ export default function LeadsPage() {
           </SectionCard>
         </Box>
 
-        <SectionCard title="Import Leads" subtitle="Upload CSV with columns: full_name,phone,email,company">
+        <SectionCard title="Import Leads" subtitle="Upload CSV or Excel file (.csv, .xlsx, .xls) with columns: full_name, phone, email, company">
           <Box component="form" sx={{ display: "grid", gap: 1.25 }} onSubmit={handleImport}>
             <Box
               component="input"
               name="csv_file"
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               sx={{
                 width: "100%",
                 border: 1,
@@ -734,6 +743,19 @@ export default function LeadsPage() {
               <Typography variant="caption" display="block">
                 Success/Failed: {importState.successful_rows}/{importState.failed_rows}
               </Typography>
+              {(importState.status === "completed" || importState.status === "failed") && (
+                <MuiButton
+                  size="small"
+                  variant="outlined"
+                  sx={{ mt: 1 }}
+                  onClick={() => {
+                    setImportReportJob(importState);
+                    setImportResultModalOpen(true);
+                  }}
+                >
+                  View Validation Report & Skipped Rows ({importState.failed_rows})
+                </MuiButton>
+              )}
             </Paper>
           ) : null}
           {message ? (
@@ -1326,6 +1348,97 @@ export default function LeadsPage() {
           </SectionCard>
         </Box>
       )}
+
+      {/* Lead Import Result & Validation Report Modal */}
+      <Modal
+        open={importResultModalOpen}
+        onClose={() => setImportResultModalOpen(false)}
+        title="Lead Import Result & Validation Summary"
+      >
+        {importReportJob ? (
+          <Box sx={{ display: "grid", gap: 1.5 }}>
+            <Box sx={{ display: "grid", gap: 1, gridTemplateColumns: { xs: "1fr", sm: "repeat(3, 1fr)" } }}>
+              <KpiCard label="Total Processed" value={importReportJob.total_rows} />
+              <KpiCard label="Successfully Saved" value={importReportJob.successful_rows} />
+              <KpiCard label="Filtered / Skipped" value={importReportJob.failed_rows} />
+            </Box>
+
+            {importReportJob.failed_rows > 0 ? (
+              <Alert severity="warning" sx={{ fontSize: "0.85rem" }}>
+                <strong>{importReportJob.failed_rows} Row(s) Skipped:</strong> Invalid phone numbers (non-10-digit), duplicate contacts, or missing required fields were automatically filtered out and NOT saved to your database.
+              </Alert>
+            ) : (
+              <Alert severity="success" sx={{ fontSize: "0.85rem" }}>
+                All {importReportJob.successful_rows} lead(s) passed validation and were successfully saved to your database!
+              </Alert>
+            )}
+
+            {importReportJob.errors && importReportJob.errors.length > 0 ? (
+              <Box sx={{ display: "grid", gap: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                  Skipped & Rejected Lead Details ({importReportJob.errors.length})
+                </Typography>
+                <Paper variant="outlined" sx={{ maxHeight: 250, overflowY: "auto" }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: "action.hover" }}>
+                        <TableCell sx={{ fontWeight: 600 }}>Row #</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Uploaded Phone</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>Rejection Reason</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {importReportJob.errors.map((err, idx) => (
+                        <TableRow key={idx} hover>
+                          <TableCell sx={{ fontWeight: 600 }}>{err.row ?? idx + 1}</TableCell>
+                          <TableCell>{err.name || "-"}</TableCell>
+                          <TableCell sx={{ fontFamily: "monospace", fontSize: "0.8rem", color: "error.main" }}>
+                            {err.phone || "-"}
+                          </TableCell>
+                          <TableCell sx={{ fontSize: "0.8rem" }}>{err.message}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Paper>
+
+                <Stack direction="row" spacing={1} justifyContent="flex-end" sx={{ mt: 1 }}>
+                  <MuiButton
+                    variant="outlined"
+                    color="secondary"
+                    onClick={() => {
+                      const csvHeader = "Row,Name,Phone,Reason\n";
+                      const csvRows = (importReportJob.errors || [])
+                        .map((e) => `${e.row ?? ""},"${(e.name || "").replace(/"/g, '""')}","${(e.phone || "").replace(/"/g, '""')}","${(e.message || "").replace(/"/g, '""')}"`)
+                        .join("\n");
+                      const blob = new Blob([csvHeader + csvRows], { type: "text/csv;charset=utf-8;" });
+                      const url = URL.createObjectURL(blob);
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.setAttribute("download", `rejected_leads_report_${Date.now()}.csv`);
+                      document.body.appendChild(link);
+                      link.click();
+                      document.body.removeChild(link);
+                    }}
+                  >
+                    📥 Download Rejected Rows CSV
+                  </MuiButton>
+                  <MuiButton variant="contained" onClick={() => setImportResultModalOpen(false)}>
+                    Close
+                  </MuiButton>
+                </Stack>
+              </Box>
+            ) : (
+              <Stack direction="row" justifyContent="flex-end">
+                <MuiButton variant="contained" onClick={() => setImportResultModalOpen(false)}>
+                  Close
+                </MuiButton>
+              </Stack>
+            )}
+          </Box>
+        ) : null}
+      </Modal>
     </AppShell>
   );
 }

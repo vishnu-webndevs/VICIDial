@@ -89,7 +89,7 @@ export type LeadImportStatus = {
   successful_rows: number;
   failed_rows: number;
   progress: number;
-  errors: Array<{ row: number | null; message: string }>;
+  errors: Array<{ row: number | null; name?: string; phone?: string; message: string }>;
   started_at?: string | null;
   finished_at?: string | null;
   created_at?: string | null;
