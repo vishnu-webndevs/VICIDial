@@ -344,13 +344,18 @@ class AgentController extends Controller
             ->firstOrFail();
 
         $validated = $request->validate([
-            'assignments' => ['required', 'array', 'min:1'],
+            'assignments' => ['present', 'array'],
             'assignments.*.agent_id' => ['required', 'uuid'],
             'assignments.*.provider_phone_number_id' => ['nullable', 'uuid'],
         ]);
 
-        foreach ($validated['assignments'] as $entry) {
+        $assignedAgentIds = [];
+        $assignments = $validated['assignments'] ?? [];
+
+        foreach ($assignments as $entry) {
             $agent = $this->resolveAgent($tenant->id, $entry['agent_id']);
+            $assignedAgentIds[] = $agent->id;
+
             $numberId = $entry['provider_phone_number_id'] ?? AgentPhoneAssignment::query()
                 ->where('tenant_id', $tenant->id)
                 ->where('agent_id', $agent->id)
@@ -379,13 +384,19 @@ class AgentController extends Controller
             );
         }
 
+        CampaignAgentAssignment::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('campaign_id', $campaign->id)
+            ->whereNotIn('agent_id', $assignedAgentIds)
+            ->delete();
+
         $this->auditLogger->log(
             action: 'campaign.agent_mapping_updated',
             resourceType: 'campaign',
             resourceId: $campaign->id,
             tenantId: $tenant->id,
             actorId: $request->user()?->id,
-            newValues: ['assignments_count' => count($validated['assignments'])],
+            newValues: ['assignments_count' => count($assignments)],
             request: $request
         );
 

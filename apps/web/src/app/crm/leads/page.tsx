@@ -625,13 +625,21 @@ export default function LeadsPage() {
                   ))}
                 </TextField>
                 <TextField
+                  select
                   size="medium"
-                  value={form.owner_agent}
+                  label="Assigned Agent"
+                  value={form.owner_agent || "Unassigned"}
                   onChange={(event) =>
                     setForm((prev) => ({ ...prev, owner_agent: event.target.value }))
                   }
-                  placeholder="Assigned Agent"
-                />
+                >
+                  <MenuItem value="Unassigned">Unassigned (Auto-Assign on Call)</MenuItem>
+                  {availableAgentNames.map((name) => (
+                    <MenuItem key={name} value={name}>
+                      👤 {name}
+                    </MenuItem>
+                  ))}
+                </TextField>
               </Stack>
             </Paper>
             <Paper variant="outlined" sx={{ p: 2 }}>

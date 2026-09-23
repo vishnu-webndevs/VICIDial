@@ -1256,6 +1256,19 @@ class CampaignController extends Controller
         if ($status === 'running' && (!$campaign->isWithinScheduleWindow() || !$campaign->isWithinGlobalTenantCallingWindow())) {
             $status = 'pending';
         }
+
+        $assignedAgents = CampaignAgentAssignment::query()
+            ->with(['agent', 'number'])
+            ->where('campaign_id', $campaign->id)
+            ->get()
+            ->map(fn (CampaignAgentAssignment $row) => [
+                'id' => $row->agent_id,
+                'company_number' => $row->agent?->company_number ?? '',
+                'phone_number' => $row->number?->phone_number ?? null,
+            ])
+            ->values()
+            ->all();
+
         return [
             'id' => $campaign->id,
             'name' => $campaign->name,
@@ -1269,6 +1282,9 @@ class CampaignController extends Controller
             'auto_pause_when_no_agents' => (bool) $campaign->auto_pause_when_no_agents,
             'priority' => $campaign->priority,
             'preferred_provider_account_id' => $campaign->preferred_provider_account_id,
+            'ai_bot_agent_id' => $campaign->ai_bot_agent_id,
+            'assigned_agents' => $assignedAgents,
+            'assigned_agent_ids' => collect($assignedAgents)->pluck('id')->filter()->values()->all(),
             'lead_list_ids' => collect((array) (($campaign->settings ?? [])['lead_list_ids'] ?? []))
                 ->filter()
                 ->values()

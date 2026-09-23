@@ -195,10 +195,6 @@ class CampaignRunnerService
 
         /** @var DialQueueItem $item */
         foreach ($queueItems as $item) {
-            $agent = $activeAgents->isNotEmpty() ? $activeAgents[$agentIndex % $activeAgents->count()] : null;
-            if ($activeAgents->isNotEmpty()) {
-                $agentIndex++;
-            }
             $lead = Lead::query()->where('tenant_id', $campaign->tenant_id)->find($item->lead_id);
             if (! $lead) {
                 $item->status = 'failed';
@@ -213,6 +209,40 @@ class CampaignRunnerService
                 $item->save();
                 continue;
             }
+
+            // Route call according to lead's assigned agent, or auto-assign if unassigned
+            $leadAgent = null;
+            if (! empty($lead->owner_agent_id)) {
+                $leadAgent = $activeAgents->first(fn ($a) => (string) $a->agent_id === (string) $lead->owner_agent_id);
+            }
+
+            if (! $leadAgent && ! empty($lead->owner_agent) && strtolower(trim((string) $lead->owner_agent)) !== 'unassigned') {
+                $leadAgent = $activeAgents->first(function ($a) use ($lead) {
+                    if ((string) $a->agent_id === (string) $lead->owner_agent) {
+                        return true;
+                    }
+                    $agentModel = \App\Models\Agent::query()->find($a->agent_id);
+                    return $agentModel && strtolower(trim((string) $agentModel->company_number)) === strtolower(trim((string) $lead->owner_agent));
+                });
+            }
+
+            if (! $leadAgent) {
+                $leadAgent = $activeAgents->isNotEmpty() ? $activeAgents[$agentIndex % $activeAgents->count()] : null;
+                if ($activeAgents->isNotEmpty()) {
+                    $agentIndex++;
+                }
+
+                if ($leadAgent && (empty($lead->owner_agent) || strtolower(trim((string) $lead->owner_agent)) === 'unassigned')) {
+                    $agentModel = \App\Models\Agent::query()->find($leadAgent->agent_id);
+                    if ($agentModel) {
+                        $lead->owner_agent = $agentModel->company_number;
+                        $lead->owner_agent_id = $agentModel->id;
+                        $lead->save();
+                    }
+                }
+            }
+
+            $agent = $leadAgent;
 
             DB::transaction(function () use ($campaign, $run, $item, $lead, $agent): void {
                 $item->attempt_count = $item->attempt_count + 1;

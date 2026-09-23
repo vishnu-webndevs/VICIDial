@@ -114,7 +114,7 @@ export default function CampaignsPage() {
   const [editingCampaignId, setEditingCampaignId] = useState<string | null>(null);
   const [campaignForm, setCampaignForm] = useState<NewCampaignForm>(defaultCampaignForm);
   const [selectedLists, setSelectedLists] = useState<string[]>([]);
-  const [selectedFromAgentId, setSelectedFromAgentId] = useState("");
+  const [selectedFromAgentIds, setSelectedFromAgentIds] = useState<string[]>([]);
   const [commandCampaign, setCommandCampaign] = useState<Campaign | null>(null);
   const [commandStats, setCommandStats] = useState<CampaignStats | null>(null);
   const [commandAgents, setCommandAgents] = useState<CampaignStatusPayload["agents"]>([]);
@@ -250,7 +250,7 @@ export default function CampaignsPage() {
     setCommandCampaign(null);
     setCampaignForm(defaultCampaignForm);
     setSelectedLists([]);
-    setSelectedFromAgentId("");
+    setSelectedFromAgentIds([]);
   }
 
   function openEditCampaignPopup(campaign: Campaign) {
@@ -275,7 +275,7 @@ export default function CampaignsPage() {
       ai_bot_agent_id: String((campaign as any).ai_bot_agent_id ?? ""),
     });
     setSelectedLists(campaign.lead_list_ids ?? []);
-    setSelectedFromAgentId("");
+    setSelectedFromAgentIds(campaign.assigned_agent_ids ?? []);
     void prefillFromAgentIdentity(campaign.id);
   }
 
@@ -286,11 +286,11 @@ export default function CampaignsPage() {
         token,
         tenantId,
       });
-      const firstAgentId = (response.data ?? [])
+      const ids = (response.data ?? [])
         .map((row) => row.agent?.id ?? "")
-        .find((id) => id !== "");
-      if (firstAgentId) {
-        setSelectedFromAgentId(firstAgentId);
+        .filter((id) => id !== "");
+      if (ids.length > 0) {
+        setSelectedFromAgentIds(ids);
       }
     } catch {
       return;
@@ -347,6 +347,10 @@ export default function CampaignsPage() {
       
       selectedLists.forEach((id) => formData.append("lead_list_ids[]", id));
       
+      if (campaignForm.ai_bot_agent_id) {
+        formData.append("ai_bot_agent_id", campaignForm.ai_bot_agent_id);
+      }
+
       if (!isOutboundCallCampaign) {
         if (campaignForm.preferred_provider_account_id) {
           formData.append("preferred_provider_account_id", campaignForm.preferred_provider_account_id);
@@ -371,9 +375,6 @@ export default function CampaignsPage() {
           formData.append("message_media_file", campaignForm.message_media_file);
         }
         formData.append("message_media_url", campaignForm.message_media_url.trim());
-        if (campaignForm.ai_bot_agent_id) {
-          formData.append("ai_bot_agent_id", campaignForm.ai_bot_agent_id);
-        }
       }
 
       const createOrUpdateResponse = await apiRequest<{ data: Campaign }>(editingCampaignId ? `/campaigns/${editingCampaignId}` : "/campaigns", {
@@ -383,23 +384,22 @@ export default function CampaignsPage() {
         body: formData,
       });
 
-      if (selectedFromAgentId) {
-        const selectedAgent = agents.find((agent) => agent.id === selectedFromAgentId);
+      const assignments = selectedFromAgentIds.map((agentId) => {
+        const selectedAgent = agents.find((agent) => agent.id === agentId);
         const selectedNumberId = selectedAgent?.default_number?.id;
-        await apiRequest(`/campaigns/${createOrUpdateResponse.data.id}/agent-assignments`, {
-          method: "PUT",
-          token,
-          tenantId,
-          body: {
-            assignments: [
-              {
-                agent_id: selectedFromAgentId,
-                ...(selectedNumberId ? { provider_phone_number_id: selectedNumberId } : {}),
-              },
-            ],
-          },
-        });
-      }
+        return {
+          agent_id: agentId,
+          ...(selectedNumberId ? { provider_phone_number_id: selectedNumberId } : {}),
+        };
+      });
+
+      await apiRequest(`/campaigns/${createOrUpdateResponse.data.id}/agent-assignments`, {
+        method: "PUT",
+        token,
+        tenantId,
+        body: { assignments },
+      });
+
       setMessage(editingCampaignId ? "Campaign updated." : "Campaign created.");
       setMessageTone("success");
       setPopup(null);
@@ -634,6 +634,7 @@ export default function CampaignsPage() {
                   <TableCell>Status</TableCell>
                   <TableCell>Type</TableCell>
                   <TableCell>Lead List</TableCell>
+                  <TableCell>Assigned Agents</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -655,6 +656,31 @@ export default function CampaignsPage() {
                       <TableCell><StatusBadge label={campaign.status} /></TableCell>
                       <TableCell>{campaignTypeLabel(campaign.type)}</TableCell>
                       <TableCell>{campaign.lead_list_name || "-"}</TableCell>
+                      <TableCell>
+                        {(() => {
+                          const assignedNames = (campaign.assigned_agents ?? []).map((a) => a.company_number).filter(Boolean);
+                          const botName = campaign.ai_bot_agent_id ? aiBots.find((b) => b.id === campaign.ai_bot_agent_id)?.name : null;
+
+                          if (assignedNames.length === 0 && !botName) {
+                            return <Typography variant="caption" color="text.secondary">Auto-select</Typography>;
+                          }
+
+                          return (
+                            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, alignItems: "center" }}>
+                              {assignedNames.map((name, i) => (
+                                <Box key={i} sx={{ bgcolor: "#eef2ff", color: "#4f46e5", border: "1px solid #c7d2fe", px: 0.75, py: 0.2, borderRadius: 1, fontSize: "0.75rem", fontWeight: 600 }}>
+                                  👤 {name}
+                                </Box>
+                              ))}
+                              {botName && (
+                                <Box sx={{ bgcolor: "#ecfdf5", color: "#047857", border: "1px solid #a7f3d0", px: 0.75, py: 0.2, borderRadius: 1, fontSize: "0.75rem", fontWeight: 600 }}>
+                                  🤖 {botName}
+                                </Box>
+                              )}
+                            </Box>
+                          );
+                        })()}
+                      </TableCell>
                       <TableCell align="right">
                         <Stack
                           direction={{ xs: "column", sm: "row" }}
@@ -857,27 +883,60 @@ export default function CampaignsPage() {
                 )}
               </Box>
               {isOutboundCallCampaign && (
-                <Box sx={{ borderTop: 1, borderColor: "divider", pt: 1.25, mt: 0.25 }}>
-                  <Typography variant="caption" color="text.secondary">From Agent (Identity)</Typography>
+                <Box sx={{ borderTop: 1, borderColor: "divider", pt: 1.25, mt: 0.25, display: "grid", gap: 1.5 }}>
+                  <Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, display: "block", mb: 0.5 }}>
+                      Assign Call Representatives / Agents (Select one or more)
+                    </Typography>
+                    <Box sx={{ maxHeight: 180, overflowY: "auto", border: 1, borderColor: "divider", borderRadius: 1, p: 1, bgcolor: "#f8fafc" }}>
+                      {agents.length === 0 ? (
+                        <Typography variant="body2" color="text.secondary">No active call representatives found.</Typography>
+                      ) : (
+                        agents.map((agent) => (
+                          <FormControlLabel
+                            key={agent.id}
+                            control={
+                              <Checkbox
+                                checked={selectedFromAgentIds.includes(agent.id)}
+                                onChange={() =>
+                                  setSelectedFromAgentIds((prev) =>
+                                    prev.includes(agent.id)
+                                      ? prev.filter((id) => id !== agent.id)
+                                      : [...prev, agent.id]
+                                  )
+                                }
+                              />
+                            }
+                            label={
+                              <Typography variant="body2">
+                                <strong>{agent.company_number}</strong>
+                                {agent.default_number?.phone_number ? ` (${agent.default_number.phone_number})` : " (no outbound number)"}
+                              </Typography>
+                            }
+                          />
+                        ))
+                      )}
+                    </Box>
+                    <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
+                      Selected agents will be assigned to handle calls for this campaign.
+                    </Typography>
+                  </Box>
+
                   <TextField
                     select
                     size="medium"
-                    value={selectedFromAgentId}
-                    onChange={(event) => setSelectedFromAgentId(event.target.value)}
-                    fullWidth
-                    sx={{ mt: 0.5 }}
+                    label="🤖 AI Auto-Pilot Bot Agent (Optional for Automated Calling)"
+                    value={campaignForm.ai_bot_agent_id || ""}
+                    onChange={(e) => setCampaignForm((p) => ({ ...p, ai_bot_agent_id: e.target.value }))}
+                    helperText="Select an AI Agent if you want AI to make/receive calls automatically"
                   >
-                    <MenuItem value="">Auto-select from available agents</MenuItem>
-                    {agents.map((agent) => (
-                      <MenuItem key={agent.id} value={agent.id}>
-                        {agent.company_number}
-                        {agent.default_number?.phone_number ? ` (${agent.default_number.phone_number})` : " (no number assigned)"}
+                    <MenuItem value="">No AI Auto-Pilot (Human Agents Only)</MenuItem>
+                    {aiBots.map((bot) => (
+                      <MenuItem key={bot.id} value={bot.id}>
+                        🤖 {bot.name} ({Array.isArray(bot.knowledge_base) ? bot.knowledge_base.length : 0} Q&A Rules)
                       </MenuItem>
                     ))}
                   </TextField>
-                  <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: "block" }}>
-                    Agent is stored as identity; outbound caller ID is taken from that agent&apos;s assigned validated number.
-                  </Typography>
                 </Box>
               )}
 
@@ -1165,12 +1224,23 @@ export default function CampaignsPage() {
                   .join(", ") || "-"}
               </Typography>
               {isOutboundCallCampaign ? (
-                <Typography variant="body2">
-                  <strong>From Agent:</strong>{" "}
-                  {selectedFromAgentId
-                    ? (agents.find((agent) => agent.id === selectedFromAgentId)?.company_number ?? "-")
-                    : "Auto-select"}
-                </Typography>
+                <>
+                  <Typography variant="body2">
+                    <strong>Assigned Call Representatives:</strong>{" "}
+                    {selectedFromAgentIds.length > 0
+                      ? agents
+                          .filter((a) => selectedFromAgentIds.includes(a.id))
+                          .map((a) => a.company_number)
+                          .join(", ")
+                      : "Auto-select"}
+                  </Typography>
+                  {campaignForm.ai_bot_agent_id ? (
+                    <Typography variant="body2">
+                      <strong>AI Bot Agent:</strong>{" "}
+                      {aiBots.find((b) => b.id === campaignForm.ai_bot_agent_id)?.name || campaignForm.ai_bot_agent_id}
+                    </Typography>
+                  ) : null}
+                </>
               ) : (
                 <>
                   <Typography variant="body2">

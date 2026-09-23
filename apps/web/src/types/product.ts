@@ -110,6 +110,9 @@ export type Campaign = {
   calls_per_minute?: number;
   priority?: number;
   preferred_provider_account_id?: string | null;
+  ai_bot_agent_id?: string | null;
+  assigned_agents?: Array<{ id: string; company_number: string; phone_number?: string | null }>;
+  assigned_agent_ids?: string[];
   channel?: "sms" | "whatsapp" | null;
   provider_account_id?: string | null;
   message_content?: string | null;
