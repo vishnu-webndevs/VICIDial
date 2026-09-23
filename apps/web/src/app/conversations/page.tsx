@@ -76,16 +76,19 @@ function ConversationsContent() {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isInitialLoad = useRef(true);
+  const isNearBottomRef = useRef(true);
+  const isLoadingOlderRef = useRef(false);
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState(false);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
-
-  useEffect(() => {
-    if (!loadingMessages) {
-      scrollToBottom();
+  const scrollToBottom = (force = false, smooth = true) => {
+    if (force || isNearBottomRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
+      if (force) {
+        isNearBottomRef.current = true;
+        setShowScrollBottomBtn(false);
+      }
     }
-  }, [messages, loadingMessages]);
+  };
 
   const loadThreads = useCallback(async () => {
     setLoading(true);
@@ -154,12 +157,14 @@ function ConversationsContent() {
     void (async () => {
       setLoadingMessages(true);
       setMessagesPage(1);
+      isNearBottomRef.current = true;
+      setShowScrollBottomBtn(false);
       try {
         const res = await listInboxThreadMessages(selectedThreadId, { per_page: 10, page: 1 });
         if (mounted) {
           setMessages(res.data);
           setHasMoreMessages(res.data.length === 10);
-          scrollToBottom();
+          setTimeout(() => scrollToBottom(true, false), 50);
           try {
             await markThreadNotificationsAsRead(selectedThreadId);
           } catch (e) {
@@ -274,7 +279,9 @@ function ConversationsContent() {
               }
               // Mark notifications for this thread as read immediately since it is open
               void markThreadNotificationsAsRead(selectedThreadId);
-              setTimeout(scrollToBottom, 100);
+              if (isNearBottomRef.current) {
+                setTimeout(() => scrollToBottom(true, true), 100);
+              }
             }
             // We need to merge them carefully. For now, since we prepend older messages, 
             // if prev > res.data, we might be on page 2+. Just append new messages to the end.
@@ -346,13 +353,14 @@ function ConversationsContent() {
     setOutboundBody("");
     setSelectedAttachment(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+    setTimeout(() => scrollToBottom(true, true), 50);
 
     try {
       await sendInboxThreadMessage(selectedThreadId, bodyToSend, attachmentToSend);
       // Reload messages to get actual DB record
       const res = await listInboxThreadMessages(selectedThreadId, { per_page: 50 });
       setMessages(res.data);
-      scrollToBottom();
+      scrollToBottom(true, true);
 
       // Also reload threads to update "last message" snippet
       void loadThreads();
@@ -408,10 +416,12 @@ function ConversationsContent() {
 
   const loadOlderMessages = async () => {
     if (loadingOlder || !hasMoreMessages || !selectedThreadId) return;
+    isLoadingOlderRef.current = true;
     setLoadingOlder(true);
     
     const container = scrollContainerRef.current;
     const oldScrollHeight = container ? container.scrollHeight : 0;
+    const oldScrollTop = container ? container.scrollTop : 0;
 
     try {
       const nextPage = messagesPage + 1;
@@ -424,21 +434,30 @@ function ConversationsContent() {
       setHasMoreMessages(res.data.length === 10);
       
       // Preserve scroll position
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight - oldScrollHeight;
+          const newScrollHeight = scrollContainerRef.current.scrollHeight;
+          scrollContainerRef.current.scrollTop = newScrollHeight - oldScrollHeight + oldScrollTop;
         }
-      }, 0);
+      });
     } catch (e) {
       setMessageToast("Failed to load older messages.");
       setMessageTone("error");
     } finally {
       setLoadingOlder(false);
+      isLoadingOlderRef.current = false;
     }
   };
 
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
-    if (e.currentTarget.scrollTop === 0) {
+    const el = e.currentTarget;
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    // Consider near bottom if within 120px of bottom
+    const isBottom = distanceToBottom <= 120;
+    isNearBottomRef.current = isBottom;
+    setShowScrollBottomBtn(!isBottom && messages.length > 0);
+
+    if (el.scrollTop <= 15 && !loadingOlder && hasMoreMessages) {
       void loadOlderMessages();
     }
   };  return (
@@ -899,6 +918,30 @@ function ConversationsContent() {
                 )}
                 <div ref={messagesEndRef} />
               </Box>
+
+              {/* Floating Scroll to Bottom Button */}
+              {showScrollBottomBtn && (
+                <IconButton
+                  onClick={() => scrollToBottom(true, true)}
+                  sx={{
+                    position: 'absolute',
+                    bottom: selectedAttachment ? 140 : 85,
+                    right: 24,
+                    bgcolor: '#ffffff',
+                    color: '#6366f1',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.15)',
+                    border: '1px solid #cbd5e1',
+                    zIndex: 10,
+                    '&:hover': { bgcolor: '#f8fafc', transform: 'scale(1.08)' },
+                    transition: 'all 0.2s ease',
+                    width: 40,
+                    height: 40
+                  }}
+                  title="Scroll to bottom"
+                >
+                  <i className="bx bx-chevron-down" style={{ fontSize: 26 }} />
+                </IconButton>
+              )}
 
               {/* Selected Attachment Preview Chip */}
               {selectedAttachment && (
