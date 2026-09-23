@@ -212,7 +212,7 @@ class CampaignController extends Controller
     public function update(Request $request, string $id): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');
-        \Illuminate\Support\Facades\Log::info('CampaignController::update hit', [
+        Log::info('CampaignController::update hit', [
             'id' => $id,
             'method' => $request->method(),
             'all' => $request->all(),
@@ -394,7 +394,7 @@ class CampaignController extends Controller
                 ->where('id', $id)
                 ->firstOrFail();
 
-            \Illuminate\Support\Facades\Log::info('CampaignController::start hit', [
+            Log::info('CampaignController::start hit', [
                 'campaign_id' => $id,
                 'tenant_id' => $tenant->id,
                 'status_before' => $campaign->status,
@@ -431,7 +431,7 @@ class CampaignController extends Controller
                 ->first();
 
             if (! $run || $run->status === 'completed' || $run->status === 'stopped') {
-                \Illuminate\Support\Facades\Log::info('CampaignController::start - creating new campaign run', [
+                Log::info('CampaignController::start - creating new campaign run', [
                     'campaign_id' => $campaign->id,
                 ]);
                 $run = CampaignRun::query()->create([
@@ -447,13 +447,13 @@ class CampaignController extends Controller
                 if ($isMessageCampaign) {
                     $this->dispatchMessageCampaign($campaign, $run, $channel);
                 } else {
-                    \Illuminate\Support\Facades\Log::info('CampaignController::start - seeding queue for new run', [
+                    Log::info('CampaignController::start - seeding queue for new run', [
                         'run_id' => $run->id,
                     ]);
                     $this->seedQueue($campaign, $run);
                 }
             } else {
-                \Illuminate\Support\Facades\Log::info('CampaignController::start - resuming existing campaign run', [
+                Log::info('CampaignController::start - resuming existing campaign run', [
                     'run_id' => $run->id,
                     'run_status_before' => $run->status,
                 ]);
@@ -476,7 +476,7 @@ class CampaignController extends Controller
                 ->unique()
                 ->values();
 
-            \Illuminate\Support\Facades\Log::info('CampaignController::start - assigned agents', [
+            Log::info('CampaignController::start - assigned agents', [
                 'count' => $assignedAgentIds->count(),
                 'agent_ids' => $assignedAgentIds->all(),
             ]);
@@ -512,7 +512,7 @@ class CampaignController extends Controller
                     request: $request
                 );
 
-                \Illuminate\Support\Facades\Log::info('CampaignController::start - dispatching RunCampaignTickJob', [
+                Log::info('CampaignController::start - dispatching RunCampaignTickJob', [
                     'run_id' => $run->id,
                 ]);
                 RunCampaignTickJob::dispatch($run->id);
@@ -869,7 +869,7 @@ class CampaignController extends Controller
                 continue;
             }
 
-            $provider = \App\Models\ProviderAccount::query()
+            $provider = ProviderAccount::query()
                 ->where('tenant_id', $tenantId)
                 ->where('id', $providerAccountId)
                 ->where('status', 'active')
@@ -1527,7 +1527,7 @@ class CampaignController extends Controller
             return ['ok' => false, 'code' => 'PROVIDER_REQUIRED', 'message' => 'Select a provider/connection for this campaign.'];
         }
 
-        $provider = \App\Models\ProviderAccount::query()
+        $provider = ProviderAccount::query()
             ->where('tenant_id', $tenantId)
             ->where('id', $providerAccountId)
             ->first();
