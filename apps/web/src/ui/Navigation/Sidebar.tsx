@@ -101,6 +101,7 @@ const teamNavGroups: NavGroup[] = [
     group: "",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: "bx-home-circle" },
+      { href: "/crm/leads", label: "Leads", icon: "bx-user" },
       { href: "/calls", label: "Calls", icon: "bx-phone" },
       { href: "/conversations", label: "Conversations", icon: "bx-message-rounded-dots" },
       { href: "/message-reports", label: "Message Reports", icon: "bx-message-square-detail" },
