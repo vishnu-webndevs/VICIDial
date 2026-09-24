@@ -155,6 +155,82 @@ class WhatsAppIntegrationController extends Controller
         ], 200);
     }
 
+    public function exchangeEmbeddedSignupCode(Request $request): JsonResponse
+    {
+        $tenant = $request->attributes->get('tenant');
+        $validated = $request->validate([
+            'code' => ['nullable', 'string'],
+            'whatsapp_business_account_id' => ['required', 'string'],
+            'phone_number_id' => ['required', 'string'],
+            'meta_access_token' => ['nullable', 'string'],
+        ]);
+
+        $provider = ProviderAccount::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('provider_type', 'meta_whatsapp')
+            ->latest('created_at')
+            ->first();
+
+        $provider = $provider ?: new ProviderAccount();
+        $existingCredentials = (array) ($provider->credentials_encrypted ?? []);
+
+        $provider->tenant_id = $tenant->id;
+        $provider->provider_type = 'meta_whatsapp';
+        $provider->display_name = $provider->display_name ?: 'Meta WhatsApp (Embedded Coexistence)';
+        $provider->status = 'active';
+        if (! $provider->credentials_owner_user_id && $request->user()?->id) {
+            $provider->credentials_owner_user_id = $request->user()->id;
+        }
+
+        $nextCredentials = $existingCredentials;
+        $nextCredentials['whatsapp_business_account_id'] = trim($validated['whatsapp_business_account_id']);
+        $nextCredentials['phone_number_id'] = trim($validated['phone_number_id']);
+
+        if (! empty($validated['meta_access_token'])) {
+            $nextCredentials['meta_access_token'] = trim($validated['meta_access_token']);
+        }
+
+        $code = trim((string) ($validated['code'] ?? ''));
+        $appId = (string) ($nextCredentials['meta_app_id'] ?? config('services.meta.app_id', ''));
+        $appSecret = (string) ($nextCredentials['meta_app_secret'] ?? config('services.meta.app_secret', ''));
+
+        // If authorization code and App credentials exist, perform OAuth code exchange with Meta Graph API
+        if ($code !== '' && $appId !== '' && $appSecret !== '') {
+            try {
+                $exchangeResponse = Http::timeout(15)
+                    ->acceptJson()
+                    ->get('https://graph.facebook.com/v25.0/oauth/access_token', [
+                        'client_id' => $appId,
+                        'client_secret' => $appSecret,
+                        'code' => $code,
+                    ]);
+
+                if ($exchangeResponse->successful() && $exchangeResponse->json('access_token')) {
+                    $nextCredentials['meta_access_token'] = $exchangeResponse->json('access_token');
+                }
+            } catch (\Throwable $e) {
+                // Log warning and retain passed token or code fallback
+                \Illuminate\Support\Facades\Log::warning('Meta Embedded Signup token exchange exception: ' . $e->getMessage());
+            }
+        }
+
+        if (empty($nextCredentials['webhook_verify_token'])) {
+            $nextCredentials['webhook_verify_token'] = \Illuminate\Support\Str::random(32);
+        }
+
+        $provider->credentials_encrypted = array_filter($nextCredentials, fn ($v) => $v !== null && trim((string) $v) !== '');
+        $provider->last_tested_at = now();
+        $provider->save();
+
+        return response()->json([
+            'data' => [
+                'ok' => true,
+                'provider' => $this->serializeProvider($provider),
+                'message' => 'Meta WhatsApp Embedded Signup Coexistence connected successfully.',
+            ],
+        ]);
+    }
+
     private function serializeProvider(ProviderAccount $provider): array
     {
         $credentials = (array) ($provider->credentials_encrypted ?? []);

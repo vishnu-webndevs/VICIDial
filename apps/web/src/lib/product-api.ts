@@ -1482,6 +1482,25 @@ export async function testWhatsAppIntegration(): Promise<{ ok: boolean; provider
   return response.data;
 }
 
+export async function exchangeMetaEmbeddedSignupCode(payload: {
+  code?: string;
+  whatsapp_business_account_id: string;
+  phone_number_id: string;
+  meta_access_token?: string;
+}): Promise<{ ok: boolean; provider: WhatsAppIntegrationProvider; message?: string }> {
+  const { token, tenantId } = getTenantContext();
+  const response = await apiRequest<{ data: { ok: boolean; provider: WhatsAppIntegrationProvider; message?: string } }>(
+    "/whatsapp-integration/embedded-signup-exchange",
+    {
+      method: "POST",
+      token,
+      tenantId,
+      body: payload,
+    }
+  );
+  return response.data;
+}
+
 export async function getLeadImportJob(jobId: string): Promise<LeadImportStatus> {
   const { token, tenantId } = getTenantContext();
   const response = await apiRequest<ApiDataResponse<LeadImportStatus>>(`/leads/import-jobs/${jobId}`, {

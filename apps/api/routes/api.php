@@ -274,6 +274,8 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:tenant.update');
         Route::post('/whatsapp-integration/test', [WhatsAppIntegrationController::class, 'test'])
             ->middleware('permission:tenant.update');
+        Route::post('/whatsapp-integration/embedded-signup-exchange', [WhatsAppIntegrationController::class, 'exchangeEmbeddedSignupCode'])
+            ->middleware('permission:tenant.update');
         Route::get('/whatsapp-integration/message-templates', [MetaTemplateController::class, 'index'])
             ->middleware('permission:tenant.view');
         Route::post('/whatsapp-integration/message-templates/sync', [MetaTemplateController::class, 'sync'])

@@ -5,7 +5,7 @@ import { Accordion, AccordionDetails, AccordionSummary, IconButton, InputAdornme
 import { Box, Checkbox, FormControlLabel, MuiButton, Paper, Stack, TextField, Typography } from "@/ui";
 import { AppShell, EmptyState, LoadingState, SectionCard, StatusBadge } from "@/components/app-shell";
 import { ToastMessage } from "@/components/ui-primitives";
-import { getWhatsAppIntegration, saveWhatsAppIntegration, testWhatsAppIntegration, syncMetaTemplates, listMetaTemplates, sendWhatsAppDebugTest, fetchWhatsAppDebugInspector } from "@/lib/product-api";
+import { getWhatsAppIntegration, saveWhatsAppIntegration, testWhatsAppIntegration, syncMetaTemplates, listMetaTemplates, sendWhatsAppDebugTest, fetchWhatsAppDebugInspector, exchangeMetaEmbeddedSignupCode } from "@/lib/product-api";
 import { MetaWhatsappTemplate } from "@/types/product";
 
 type FormState = {
@@ -34,6 +34,7 @@ export default function WhatsAppIntegrationSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [launchingSignup, setLaunchingSignup] = useState(false);
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [reveal, setReveal] = useState({ token: false, phoneNumberId: false, verifyToken: false });
@@ -50,111 +51,6 @@ export default function WhatsAppIntegrationSettingsPage() {
 
   const [providerStatus, setProviderStatus] = useState<{ status: string; last_tested_at?: string | null; last_error_message?: string | null } | null>(null);
   const [form, setForm] = useState<FormState>(defaultForm);
-
-  // WhatsApp Debugger & Delivery Inspector States
-  const [templates, setTemplates] = useState<MetaWhatsappTemplate[]>([]);
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [variables, setVariables] = useState<Record<string, string>>({});
-  const [debugPhone, setDebugPhone] = useState<string>("");
-  const [sendingDebug, setSendingDebug] = useState(false);
-  const [syncingTemplates, setSyncingTemplates] = useState(false);
-  const [inspectorData, setInspectorData] = useState<{ messages: any[]; comparison: any[] }>({ messages: [], comparison: [] });
-  const [loadingInspector, setLoadingInspector] = useState(false);
-
-  const selectedTemplate = useMemo(() => {
-    return templates.find((t) => t.id === selectedTemplateId) || null;
-  }, [templates, selectedTemplateId]);
-
-  const loadDebugData = useCallback(async () => {
-    try {
-      const list = await listMetaTemplates();
-      setTemplates(list);
-      if (list.length > 0 && !selectedTemplateId) {
-        setSelectedTemplateId(list[0].id);
-      }
-    } catch (err) {
-      console.error("Failed to load templates", err);
-    }
-
-    setLoadingInspector(true);
-    try {
-      const data = await fetchWhatsAppDebugInspector();
-      setInspectorData(data || { messages: [], comparison: [] });
-    } catch (err) {
-      console.error("Failed to fetch debug inspector logs", err);
-    } finally {
-      setLoadingInspector(false);
-    }
-  }, [selectedTemplateId]);
-
-  async function onSyncTemplates() {
-    setSyncingTemplates(true);
-    try {
-      const result = await syncMetaTemplates();
-      setToast({ tone: "success", message: `WhatsApp templates synced: ${result.count} templates.` });
-      const list = await listMetaTemplates();
-      setTemplates(list);
-      if (list.length > 0) {
-        setSelectedTemplateId(list[0].id);
-      }
-    } catch (err: any) {
-      setToast({ tone: "error", message: err.message || "Failed to sync templates." });
-    } finally {
-      setSyncingTemplates(false);
-    }
-  }
-
-  async function onSendDebug() {
-    if (!debugPhone.trim()) {
-      setToast({ tone: "error", message: "Please specify a recipient phone number." });
-      return;
-    }
-    if (!selectedTemplateId) {
-      setToast({ tone: "error", message: "Please select a template." });
-      return;
-    }
-    setSendingDebug(true);
-    try {
-      const res = await sendWhatsAppDebugTest({
-        phone_number: debugPhone,
-        template_id: selectedTemplateId,
-        variables,
-      });
-      if (res.success) {
-        setToast({ tone: "success", message: "Debug test message sent successfully!" });
-        // Reload inspector data
-        const data = await fetchWhatsAppDebugInspector();
-        setInspectorData(data || { messages: [], comparison: [] });
-      } else {
-        setToast({ tone: "error", message: res.debug_result?.error || "Failed to send debug message." });
-      }
-    } catch (err: any) {
-      setToast({ tone: "error", message: err.message || "An error occurred while sending debug message." });
-    } finally {
-      setSendingDebug(false);
-    }
-  }
-
-  const webhookUrl = useMemo(() => {
-    if (typeof window === "undefined") return "";
-    return `${window.location.origin}/api/v1/webhooks/meta/whatsapp`;
-  }, []);
-
-  const missingRequired = useMemo(() => {
-    const missing: string[] = [];
-    if (!form.meta_access_token.trim() && !storedSecrets.meta_access_token) missing.push("Meta Access Token");
-    if (!form.phone_number_id.trim()) missing.push("Phone Number ID");
-    if (!form.webhook_verify_token.trim() && !storedSecrets.webhook_verify_token) missing.push("Webhook Verify Token");
-    return missing;
-  }, [form.meta_access_token, form.phone_number_id, form.webhook_verify_token, storedSecrets.meta_access_token, storedSecrets.webhook_verify_token]);
-
-  const canTest = useMemo(() => form.enabled && missingRequired.length === 0, [form.enabled, missingRequired.length]);
-
-  const statusBadgeLabel = useMemo(() => {
-    if (!form.enabled) return "disabled";
-    if (missingRequired.length > 0) return "incomplete";
-    return providerStatus?.status ?? "configured";
-  }, [form.enabled, missingRequired.length, providerStatus?.status]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -207,11 +103,152 @@ export default function WhatsAppIntegrationSettingsPage() {
     void load();
   }, [load]);
 
+  // Official Meta Embedded Signup Coexistence handler
+  const launchMetaEmbeddedSignup = useCallback(() => {
+    setLaunchingSignup(true);
+    const configId = process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || form.meta_app_id || "";
+
+    const doLaunch = () => {
+      if (typeof window !== "undefined" && (window as any).FB) {
+        (window as any).FB.login(
+          (response: any) => {
+            if (response.authResponse && response.authResponse.code) {
+              setToast({ tone: "success", message: "Meta authorization complete. Completing account setup..." });
+            } else {
+              setLaunchingSignup(false);
+            }
+          },
+          {
+            config_id: configId,
+            response_type: "code",
+            override_default_response_type: true,
+            extras: {
+              setup: {
+                featureType: "whatsapp_business_app_onboarding",
+              },
+            },
+          }
+        );
+      } else {
+        setToast({ tone: "error", message: "Facebook SDK is initializing. Please verify Meta App ID under Advanced Settings." });
+        setLaunchingSignup(false);
+      }
+    };
+
+    if (typeof window !== "undefined" && !(window as any).FB) {
+      const script = document.createElement("script");
+      script.src = "https://connect.facebook.net/en_US/sdk.js";
+      script.async = true;
+      script.defer = true;
+      script.onload = () => {
+        if (form.meta_app_id && (window as any).FB) {
+          (window as any).FB.init({
+            appId: form.meta_app_id,
+            cookie: true,
+            xfbml: true,
+            version: "v25.0",
+          });
+        }
+        doLaunch();
+      };
+      document.body.appendChild(script);
+    } else {
+      doLaunch();
+    }
+  }, [form.meta_app_id]);
+
+  useEffect(() => {
+    const handleMetaMessage = async (event: MessageEvent) => {
+      if (event.origin !== "https://www.facebook.com" && event.origin !== "https://web.facebook.com") {
+        return;
+      }
+
+      try {
+        const data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+        if (data && data.type === "WA_EMBEDDED_SIGNUP" && data.event === "FINISH") {
+          const { phone_number_id, waba_id } = data.data || {};
+          if (phone_number_id && waba_id) {
+            setToast({ tone: "success", message: `Connected WABA: ${waba_id} (Phone ID: ${phone_number_id})` });
+            await exchangeMetaEmbeddedSignupCode({
+              whatsapp_business_account_id: waba_id,
+              phone_number_id: phone_number_id,
+            });
+            await load();
+          }
+        }
+      } catch {
+        // Ignore non-JSON postMessage payloads
+      } finally {
+        setLaunchingSignup(false);
+      }
+    };
+
+    window.addEventListener("message", handleMetaMessage);
+    return () => window.removeEventListener("message", handleMetaMessage);
+  }, [load]);
+
+  // WhatsApp Debugger & Delivery Inspector States
+  const [templates, setTemplates] = useState<MetaWhatsappTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [variables, setVariables] = useState<Record<string, string>>({});
+  const [debugPhone, setDebugPhone] = useState<string>("");
+  const [sendingDebug, setSendingDebug] = useState(false);
+  const [syncingTemplates, setSyncingTemplates] = useState(false);
+  const [inspectorData, setInspectorData] = useState<{ messages: any[]; comparison: any[] }>({ messages: [], comparison: [] });
+  const [loadingInspector, setLoadingInspector] = useState(false);
+
+  const selectedTemplate = useMemo(() => {
+    return templates.find((t) => t.id === selectedTemplateId) || null;
+  }, [templates, selectedTemplateId]);
+
+  const loadDebugData = useCallback(async () => {
+    try {
+      const list = await listMetaTemplates();
+      setTemplates(list);
+      if (list.length > 0 && !selectedTemplateId) {
+        setSelectedTemplateId(list[0].id);
+      }
+    } catch (err) {
+      console.error("Failed to load templates", err);
+    }
+
+    setLoadingInspector(true);
+    try {
+      const data = await fetchWhatsAppDebugInspector();
+      setInspectorData(data || { messages: [], comparison: [] });
+    } catch (err) {
+      console.error("Failed to fetch debug inspector logs", err);
+    } finally {
+      setLoadingInspector(false);
+    }
+  }, [selectedTemplateId]);
+
   useEffect(() => {
     if (form.enabled) {
       void loadDebugData();
     }
   }, [form.enabled, loadDebugData]);
+
+  const webhookUrl = useMemo(() => {
+    if (typeof window === "undefined") return "";
+    return `${window.location.origin}/api/v1/webhooks/meta/whatsapp`;
+  }, []);
+
+  const missingRequired = useMemo(() => {
+    const missing: string[] = [];
+    if (!form.meta_access_token.trim() && !storedSecrets.meta_access_token) missing.push("Meta Access Token");
+    if (!form.phone_number_id.trim()) missing.push("Phone Number ID");
+    if (!form.webhook_verify_token.trim() && !storedSecrets.webhook_verify_token) missing.push("Webhook Verify Token");
+    return missing;
+  }, [form.meta_access_token, form.phone_number_id, form.webhook_verify_token, storedSecrets.meta_access_token, storedSecrets.webhook_verify_token]);
+
+  const canTest = useMemo(() => form.enabled && missingRequired.length === 0, [form.enabled, missingRequired.length]);
+
+  const statusBadgeLabel = useMemo(() => {
+    if (!form.enabled) return "disabled";
+    if (missingRequired.length > 0) return "incomplete";
+    return providerStatus?.status ?? "configured";
+  }, [form.enabled, missingRequired.length, providerStatus?.status]);
 
   async function onSave() {
     setSaving(true);
@@ -263,6 +300,53 @@ export default function WhatsAppIntegrationSettingsPage() {
       setToast({ tone: "error", message: error instanceof Error ? error.message : "Failed to test WhatsApp integration." });
     } finally {
       setTesting(false);
+    }
+  }
+
+  async function onSyncTemplates() {
+    setSyncingTemplates(true);
+    try {
+      const result = await syncMetaTemplates();
+      setToast({ tone: "success", message: `WhatsApp templates synced: ${result.count} templates.` });
+      const list = await listMetaTemplates();
+      setTemplates(list);
+      if (list.length > 0) {
+        setSelectedTemplateId(list[0].id);
+      }
+    } catch (err: any) {
+      setToast({ tone: "error", message: err.message || "Failed to sync templates." });
+    } finally {
+      setSyncingTemplates(false);
+    }
+  }
+
+  async function onSendDebug() {
+    if (!debugPhone.trim()) {
+      setToast({ tone: "error", message: "Please specify a recipient phone number." });
+      return;
+    }
+    if (!selectedTemplateId) {
+      setToast({ tone: "error", message: "Please select a template." });
+      return;
+    }
+    setSendingDebug(true);
+    try {
+      const res = await sendWhatsAppDebugTest({
+        phone_number: debugPhone,
+        template_id: selectedTemplateId,
+        variables,
+      });
+      if (res.success) {
+        setToast({ tone: "success", message: "Debug test message sent successfully!" });
+        const data = await fetchWhatsAppDebugInspector();
+        setInspectorData(data || { messages: [], comparison: [] });
+      } else {
+        setToast({ tone: "error", message: res.debug_result?.error || "Failed to send debug message." });
+      }
+    } catch (err: any) {
+      setToast({ tone: "error", message: err.message || "An error occurred while sending debug message." });
+    } finally {
+      setSendingDebug(false);
     }
   }
 
@@ -327,6 +411,28 @@ export default function WhatsAppIntegrationSettingsPage() {
                     {saving ? "Saving..." : "Save"}
                   </MuiButton>
                 </Stack>
+              </Stack>
+            </Paper>
+
+            {/* Official Meta Coexistence Card */}
+            <Paper variant="outlined" sx={{ p: 2.5, bgcolor: "#f8faff", borderColor: "#c7d2fe" }}>
+              <Stack direction={{ xs: "column", sm: "row" }} spacing={2} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }}>
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: "#1e1b4b" }}>
+                    Official Meta Embedded Signup (Coexistence Mode)
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                    Connect your existing WhatsApp Business App number via Meta&apos;s official Embedded QR Scan without deleting WhatsApp from your phone.
+                  </Typography>
+                </Box>
+                <MuiButton
+                  variant="contained"
+                  onClick={launchMetaEmbeddedSignup}
+                  disabled={launchingSignup || saving}
+                  sx={{ textTransform: "none", whiteSpace: "nowrap", bgcolor: "#25D366", color: "#fff", "&:hover": { bgcolor: "#1ebe57" } }}
+                >
+                  {launchingSignup ? "Launching Meta..." : "Connect with Meta Coexistence"}
+                </MuiButton>
               </Stack>
             </Paper>
 
