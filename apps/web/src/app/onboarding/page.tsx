@@ -8,6 +8,7 @@ import { setOnboardingComplete } from "@/lib/onboarding";
 import {
   attachLeadsToList,
   createAgent,
+  fetchSessionProfile,
   getLeadImportJob,
   importLeadsFromFile,
   listAgents,
@@ -188,6 +189,16 @@ export default function OnboardingPage() {
     agents: [],
     campaigns: [],
   });
+
+  useEffect(() => {
+    fetchSessionProfile()
+      .then((profile) => {
+        if (profile.role?.slug && profile.role.slug !== "company_owner" && !profile.is_platform_admin) {
+          router.replace("/dashboard");
+        }
+      })
+      .catch(() => {});
+  }, [router]);
   const [draft, setDraft] = useState<OnboardingDraft>(defaultDraft);
   const [stepIndex, setStepIndex] = useState(0);
   const [newListName, setNewListName] = useState("");

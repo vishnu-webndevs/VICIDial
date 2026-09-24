@@ -55,9 +55,6 @@ export function getRoleAwareRoute(
   onboardingDone: boolean
 ): string {
   const role = profile.role?.slug ?? "";
-  if (!onboardingDone && profile.current_tenant?.id) {
-    return "/onboarding";
-  }
 
   if (
     profile.is_platform_admin ||
@@ -65,6 +62,15 @@ export function getRoleAwareRoute(
     role === "super_admin"
   ) {
     return "/super-admin";
+  }
+
+  // Non-owner employees do not undergo onboarding workflow
+  if (role !== "company_owner") {
+    return "/dashboard";
+  }
+
+  if (!onboardingDone && profile.current_tenant?.id) {
+    return "/onboarding";
   }
 
   return "/dashboard";

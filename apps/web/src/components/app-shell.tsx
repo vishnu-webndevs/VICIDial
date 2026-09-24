@@ -160,9 +160,9 @@ export function AppShell({
       return;
     }
 
-    // Enforce onboarding check for standard tenant users
-    if (!isPlatformSuperAdmin && tenantId) {
-      const onboardingDone = isOnboardingComplete(tenantId);
+    // Enforce onboarding check ONLY for company owners of a tenant
+    if (!isPlatformSuperAdmin && tenantId && role === "company_owner") {
+      const onboardingDone = isOnboardingComplete(tenantId, role);
       if (!onboardingDone && pathname !== "/onboarding") {
         router.replace("/onboarding");
         return;

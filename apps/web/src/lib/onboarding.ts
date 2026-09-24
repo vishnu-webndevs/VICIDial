@@ -11,21 +11,30 @@ function getScopedKey(tenantId: string | null): string {
   return getTenantScopedStorageKey(ONBOARDING_STATE_KEY, tenantId);
 }
 
-export function isOnboardingComplete(tenantId: string | null): boolean {
+export function isOnboardingComplete(tenantId: string | null, roleSlug?: string | null): boolean {
   if (typeof window === "undefined") {
-    return false;
+    return true;
+  }
+
+  // Non-owner team members/employees do not undergo tenant setup onboarding
+  if (roleSlug && roleSlug !== "company_owner") {
+    return true;
+  }
+
+  if (!tenantId) {
+    return true;
   }
 
   const raw = localStorage.getItem(getScopedKey(tenantId));
   if (!raw) {
-    return false;
+    return roleSlug ? roleSlug !== "company_owner" : false;
   }
 
   try {
     const state = JSON.parse(raw) as OnboardingState;
     return Boolean(state.completed);
   } catch {
-    return false;
+    return true;
   }
 }
 

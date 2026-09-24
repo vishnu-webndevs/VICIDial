@@ -145,7 +145,7 @@ export default function LoginClient() {
       saveSession(response.data.token, tenantId);
       const profile = await fetchSessionProfile();
       syncTenantFromProfile(profile);
-      const onboardingDone = isOnboardingComplete(profile.current_tenant?.id ?? null);
+      const onboardingDone = isOnboardingComplete(profile.current_tenant?.id ?? null, profile.role?.slug);
       router.push(getRoleAwareRoute(profile, onboardingDone));
     } catch (error) {
       clearSession();
