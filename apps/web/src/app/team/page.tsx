@@ -43,7 +43,11 @@ type TeamListResponse = {
 
 export default function TeamPage() {
   const [members, setMembers] = useState<TeamListResponse["data"]>([]);
+  const [addMode, setAddMode] = useState<"invite" | "direct">("direct");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState("support_analyst");
   const [statusByMember, setStatusByMember] = useState<Record<string, "active" | "disabled">>({});
   const [currentPage, setCurrentPage] = useState(1);
@@ -83,17 +87,26 @@ export default function TeamPage() {
     try {
       const token = localStorage.getItem("wnd_token");
       const tenantId = localStorage.getItem("wnd_tenant_id");
+      const body: Record<string, string> = { email, role };
+      if (addMode === "direct") {
+        body.first_name = firstName;
+        body.last_name = lastName;
+        body.password = password;
+      }
       await apiRequest("/team/invitations", {
         method: "POST",
         token,
         tenantId,
-        body: { email, role },
+        body,
       });
       setEmail("");
-      setMessage("Invitation sent successfully.");
+      setFirstName("");
+      setLastName("");
+      setPassword("");
+      setMessage(addMode === "direct" ? "Team member created! User can now log in directly." : "Invitation sent successfully.");
       await loadTeam(currentPage);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to send invitation.");
+      setMessage(error instanceof Error ? error.message : "Failed to save team member.");
     }
   }
 
@@ -137,20 +150,81 @@ export default function TeamPage() {
   return (
     <AppShell requiredPermissions={["team.view"]}>
       <Box sx={{ display: "grid", gap: 2 }}>
-        <SectionCard title="Invite Team Member" subtitle="Send invitation with role and onboarding token.">
+        <SectionCard
+          title={addMode === "direct" ? "Add Team Member (Instant Login)" : "Invite Team Member"}
+          subtitle={
+            addMode === "direct"
+              ? "Create employee profile with email & password so they can log in directly."
+              : "Send invitation with role and onboarding token link."
+          }
+        >
+          <Stack direction="row" spacing={1} sx={{ mb: 2 }}>
+            <MuiButton
+              variant={addMode === "direct" ? "contained" : "outlined"}
+              size="small"
+              onClick={() => setAddMode("direct")}
+            >
+              🔑 Add Credentials Directly
+            </MuiButton>
+            <MuiButton
+              variant={addMode === "invite" ? "contained" : "outlined"}
+              size="small"
+              onClick={() => setAddMode("invite")}
+            >
+              📩 Invite via Email Token
+            </MuiButton>
+          </Stack>
+
           <Box
             component="form"
-            sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: "repeat(3, 1fr)" } }}
+            sx={{ display: "grid", gap: 1.25, gridTemplateColumns: { xs: "1fr", md: addMode === "direct" ? "repeat(2, 1fr)" : "repeat(3, 1fr)" } }}
             onSubmit={inviteMember}
           >
-            <TextField
-              size="medium"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              type="email"
-              placeholder="teammate@company.com"
-              required
-            />
+            {addMode === "direct" ? (
+              <>
+                <TextField
+                  size="medium"
+                  value={firstName}
+                  onChange={(event) => setFirstName(event.target.value)}
+                  placeholder="First Name (e.g. Rahul)"
+                  required
+                />
+                <TextField
+                  size="medium"
+                  value={lastName}
+                  onChange={(event) => setLastName(event.target.value)}
+                  placeholder="Last Name (e.g. Sharma)"
+                  required
+                />
+                <TextField
+                  size="medium"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  type="email"
+                  placeholder="agent@company.com"
+                  required
+                />
+                <TextField
+                  size="medium"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  type="password"
+                  placeholder="Set Password for Agent"
+                  required
+                  helperText="Min 6 characters. Agent will log in using Email & Password."
+                />
+              </>
+            ) : (
+              <TextField
+                size="medium"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                type="email"
+                placeholder="teammate@company.com"
+                required
+              />
+            )}
+
             <TextField
               select
               size="medium"
@@ -161,10 +235,15 @@ export default function TeamPage() {
               <MenuItem value="billing_manager">Billing Manager</MenuItem>
               <MenuItem value="developer_manager">Developer Manager</MenuItem>
               <MenuItem value="operations_manager">Operations Manager</MenuItem>
-              <MenuItem value="support_analyst">Support Analyst</MenuItem>
+              <MenuItem value="support_analyst">Support Analyst / Agent</MenuItem>
             </TextField>
-            <MuiButton type="submit" variant="contained">
-              Send Invite
+
+            <MuiButton
+              type="submit"
+              variant="contained"
+              sx={addMode === "direct" ? { gridColumn: { md: "span 2" } } : {}}
+            >
+              {addMode === "direct" ? "Create Member Credentials" : "Send Invite"}
             </MuiButton>
           </Box>
         </SectionCard>

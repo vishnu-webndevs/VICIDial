@@ -329,6 +329,7 @@ export type LeadList = {
   description?: string | null;
   is_active: boolean;
   leads_count?: number;
+  total_leads?: number;
   created_at?: string;
   updated_at?: string;
 };

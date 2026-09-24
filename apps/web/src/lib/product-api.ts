@@ -1057,11 +1057,14 @@ export async function importLeads(rows: Array<{ full_name: string; phone: string
 
 export async function importLeadsFromFile(
   file: File,
-  options: { list_ids?: string[]; skip_duplicates?: boolean; skip_dnc?: boolean } = {}
+  options: { list_ids?: string[]; new_list_name?: string; skip_duplicates?: boolean; skip_dnc?: boolean } = {}
 ): Promise<{ job_id: string; status: string }> {
   const { token, tenantId } = getTenantContext();
   const formData = new FormData();
   formData.append("file", file);
+  if (options.new_list_name) {
+    formData.append("new_list_name", options.new_list_name);
+  }
   if (options.list_ids && options.list_ids.length > 0) {
     options.list_ids.forEach((id) => formData.append("list_ids[]", id));
   }

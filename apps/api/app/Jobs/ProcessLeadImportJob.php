@@ -182,6 +182,8 @@ class ProcessLeadImportJob implements ShouldQueue
                     'tags' => [],
                     'notes' => ['Imported from CSV upload'],
                 ]);
+                app(\App\Services\LeadDistributionService::class)->assignNextAgentIfRoundRobin($lead);
+
                 if ($listIds !== []) {
                     $pivot = [];
                     foreach ($listIds as $listId) {

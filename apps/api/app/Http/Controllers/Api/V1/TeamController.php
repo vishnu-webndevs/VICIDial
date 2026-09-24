@@ -51,6 +51,9 @@ class TeamController extends Controller
         $validated = $request->validate([
             'email' => ['required', 'email', 'max:255'],
             'role' => ['required', 'string', 'exists:roles,slug'],
+            'first_name' => ['nullable', 'string', 'max:100'],
+            'last_name' => ['nullable', 'string', 'max:100'],
+            'password' => ['nullable', 'string', 'min:6', 'max:128'],
             'agency_unit_id' => ['nullable', 'uuid'],
             'team_unit_id' => ['nullable', 'uuid'],
         ]);
@@ -69,7 +72,8 @@ class TeamController extends Controller
             teamUnitId: $validated['team_unit_id'] ?? null
         );
 
-        $existingUser = User::query()->where('email', Str::lower($validated['email']))->first();
+        $email = Str::lower($validated['email']);
+        $existingUser = User::query()->where('email', $email)->first();
         if ($existingUser) {
             $existingMembership = Membership::query()
                 ->where('tenant_id', $tenant->id)
@@ -86,31 +90,56 @@ class TeamController extends Controller
             }
         }
 
+        $user = $existingUser;
+        $isDirect = ! empty($validated['password']);
+
+        if ($isDirect) {
+            if (! $user) {
+                $user = User::query()->create([
+                    'email' => $email,
+                    'first_name' => $validated['first_name'] ?? 'Team',
+                    'last_name' => $validated['last_name'] ?? 'Member',
+                    'password' => Hash::make($validated['password']),
+                ]);
+            } else {
+                $user->password = Hash::make($validated['password']);
+                if (! empty($validated['first_name'])) {
+                    $user->first_name = $validated['first_name'];
+                }
+                if (! empty($validated['last_name'])) {
+                    $user->last_name = $validated['last_name'];
+                }
+                $user->save();
+            }
+        }
+
         $membership = Membership::query()->create([
             'tenant_id' => $tenant->id,
-            'user_id' => $existingUser?->id,
+            'user_id' => $user?->id,
             'role_id' => $targetRole->id,
             'agency_unit_id' => $agencyUnit?->id,
             'team_unit_id' => $teamUnit?->id,
-            'status' => 'invited',
+            'status' => $isDirect ? 'active' : 'invited',
+            'joined_at' => $isDirect ? now() : null,
             'invited_by' => $request->user()->id,
-            'invitation_token' => Str::random(64),
-            'invitation_expires_at' => now()->addDays(7),
+            'invitation_token' => $isDirect ? null : Str::random(64),
+            'invitation_expires_at' => $isDirect ? null : now()->addDays(7),
         ]);
+
         $this->auditLogger->log(
-            action: 'membership.invited',
+            action: $isDirect ? 'membership.created_direct' : 'membership.invited',
             resourceType: 'membership',
             resourceId: $membership->id,
             tenantId: $tenant->id,
             actorId: $request->user()->id,
-            newValues: ['role' => $targetRole->slug, 'email' => Str::lower($validated['email'])],
+            newValues: ['role' => $targetRole->slug, 'email' => $email, 'direct' => $isDirect],
             request: $request
         );
 
         return response()->json([
             'data' => [
                 'id' => $membership->id,
-                'email' => Str::lower($validated['email']),
+                'email' => $email,
                 'role' => [
                     'slug' => $targetRole->slug,
                     'name' => $targetRole->name,

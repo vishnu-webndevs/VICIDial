@@ -528,6 +528,12 @@ class CorePhaseOneController extends Controller
             ], 422);
         }
 
+        $user = $request->user();
+        $isAdmin = $user && (
+            $user->is_platform_admin || 
+            in_array(optional($user->currentMembership)->role?->slug, ['company_owner', 'company_admin', 'super_admin', 'platform_super_admin', 'admin', 'agency'], true)
+        );
+
         $threads = MessageThread::query()
             ->with(['contact', 'lead', 'latestMessage'])
             ->withCount(['messages as unread_count' => function ($query) {
@@ -535,6 +541,15 @@ class CorePhaseOneController extends Controller
             }])
             ->where('tenant_id', $tenant->id)
             ->where('channel', $channel)
+            ->when(! $isAdmin && $user, function ($query) use ($user) {
+                $query->where(function ($q) use ($user) {
+                    $q->where('assigned_user_id', $user->id)
+                      ->orWhereHas('lead', function ($lq) use ($user) {
+                          $lq->where('owner_agent_id', $user->id)
+                            ->orWhere('owner_agent', $user->id);
+                      });
+                });
+            })
             ->when($request->filled('status'), fn ($q) => $q->where('status', (string) $request->input('status')))
             ->when($request->filled('priority'), fn ($q) => $q->where('priority', (string) $request->input('priority')))
             ->latest('last_message_at')

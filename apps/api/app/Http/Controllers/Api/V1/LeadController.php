@@ -14,11 +14,24 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
+use App\Services\LeadDistributionService;
+use App\Models\MessageThread;
+
 class LeadController extends Controller
 {
+    public function __construct(
+        private readonly LeadDistributionService $distributionService
+    ) {
+    }
+
     public function index(Request $request): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');
+        $user = $request->user();
+        $membership = $request->attributes->get('membership');
+        $roleSlug = (string) ($membership?->role?->slug ?? '');
+        $isAdmin = $user?->is_platform_admin || in_array($roleSlug, ['company_owner', 'company_admin', 'super_admin', 'platform_super_admin', 'admin', 'agency'], true);
+
         $validated = $request->validate([
             'q' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'string', 'max:30'],
@@ -32,6 +45,20 @@ class LeadController extends Controller
 
         $perPage = (int) ($validated['per_page'] ?? 50);
         $query = Lead::query()->where('tenant_id', $tenant->id);
+
+        // Role-based scoping: non-admin agents only see leads assigned to them
+        if (! $isAdmin && $user) {
+            $userName = trim(($user->first_name ?? '') . ' ' . ($user->last_name ?? ''));
+            $query->where(function ($builder) use ($user, $userName): void {
+                $builder
+                    ->where('owner_agent_id', $user->id)
+                    ->orWhere('owner_agent', $user->email);
+                if ($userName !== '') {
+                    $builder->orWhere('owner_agent', $userName);
+                }
+            });
+        }
+
         if (! empty($validated['q'])) {
             $search = (string) $validated['q'];
             $query->where(function ($builder) use ($search): void {
@@ -111,6 +138,8 @@ class LeadController extends Controller
             'tags' => $validated['tags'] ?? [],
             'notes' => $validated['notes'] ?? [],
         ]);
+
+        $this->distributionService->assignNextAgentIfRoundRobin($lead);
         $this->syncListsForLead($tenant->id, $lead, (array) ($validated['list_ids'] ?? []));
 
         return response()->json(['data' => $lead], 201);
@@ -149,6 +178,14 @@ class LeadController extends Controller
         }
         $lead->fill($validated);
         $lead->save();
+
+        if (array_key_exists('owner_agent_id', $validated) && $validated['owner_agent_id']) {
+            MessageThread::query()
+                ->where('tenant_id', $tenant->id)
+                ->where('counterparty_number', $lead->phone)
+                ->update(['assigned_user_id' => $validated['owner_agent_id']]);
+        }
+
         if (array_key_exists('list_ids', $validated)) {
             $this->syncListsForLead($tenant->id, $lead, (array) $validated['list_ids']);
         }
@@ -172,7 +209,7 @@ class LeadController extends Controller
     public function import(Request $request): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');
-        $request->validate([
+        $validated = $request->validate([
             'file' => ['required', 'file', 'mimes:csv,txt,xlsx,xls,ods', 'max:10240'],
             'field_mapping' => ['nullable', 'array'],
             'field_mapping.full_name' => ['nullable', 'integer', 'min:0'],
@@ -181,9 +218,27 @@ class LeadController extends Controller
             'field_mapping.company' => ['nullable', 'integer', 'min:0'],
             'list_ids' => ['nullable', 'array'],
             'list_ids.*' => ['uuid'],
+            'new_list_name' => ['nullable', 'string', 'max:255'],
             'skip_duplicates' => ['nullable', 'boolean'],
             'skip_dnc' => ['nullable', 'boolean'],
         ]);
+
+        $targetListIds = (array) ($validated['list_ids'] ?? []);
+
+        // Support on-the-fly Lead List creation during CSV/XLSX import
+        if (! empty($validated['new_list_name'])) {
+            $newListName = trim((string) $validated['new_list_name']);
+            $newList = LeadList::query()->firstOrCreate(
+                ['tenant_id' => $tenant->id, 'name' => $newListName],
+                [
+                    'description' => 'Auto-created during lead import',
+                    'is_active' => true,
+                ]
+            );
+            if (! in_array($newList->id, $targetListIds, true)) {
+                $targetListIds[] = $newList->id;
+            }
+        }
 
         /** @var UploadedFile $file */
         $file = $request->file('file');
@@ -193,7 +248,7 @@ class LeadController extends Controller
             'file_name' => $file->getClientOriginalName(),
             'source_path' => $this->storeUpload($tenant->id, $file),
             'field_mapping' => $request->input('field_mapping'),
-            'target_list_ids' => $request->input('list_ids', []),
+            'target_list_ids' => array_values(array_unique($targetListIds)),
             'skip_duplicates' => (bool) $request->boolean('skip_duplicates', true),
             'skip_dnc' => (bool) $request->boolean('skip_dnc', true),
             'status' => 'queued',

@@ -227,7 +227,8 @@ export default function LeadsPage() {
   useEffect(() => {
     void load();
     void loadLeadDefaults();
-  }, []);
+    void loadLists();
+  }, [loadLists]);
 
   // Load lists when switching to lists tab
   useEffect(() => {
@@ -379,6 +380,9 @@ export default function LeadsPage() {
     const formEl = event.currentTarget;
     const formData = new FormData(formEl);
     const file = formData.get("csv_file");
+    const targetListId = (formData.get("target_list_id") as string || "").trim();
+    const newListName = (formData.get("new_list_name") as string || "").trim();
+
     if (!(file instanceof File)) {
       setMessage("Select a CSV file first.");
       setMessageTone("error");
@@ -394,7 +398,10 @@ export default function LeadsPage() {
     try {
       setImporting(true);
       setMessage("");
-      const createdJob = await importLeadsFromFile(file);
+      const createdJob = await importLeadsFromFile(file, {
+        list_ids: targetListId ? [targetListId] : undefined,
+        new_list_name: newListName || undefined,
+      });
       let pollCount = 0;
       let current = await getLeadImportJob(createdJob.job_id);
       setImportState(current);
@@ -413,6 +420,7 @@ export default function LeadsPage() {
         setMessageTone(current.failed_rows > 0 ? "neutral" : "success");
         formEl?.reset();
         await load();
+        await loadLists();
         setImportReportJob(current);
         setImportResultModalOpen(true);
       } else if (current.status === "failed") {
@@ -725,6 +733,27 @@ export default function LeadsPage() {
                 py: 1,
                 fontSize: 14,
               }}
+            />
+            <TextField
+              select
+              size="small"
+              name="target_list_id"
+              label="Assign to Existing Lead List (Optional)"
+              defaultValue=""
+            >
+              <MenuItem value="">-- None (Do not assign to list) --</MenuItem>
+              {lists.map((l) => (
+                <MenuItem key={l.id} value={l.id}>
+                  📋 {l.name} ({l.leads_count ?? l.total_leads ?? 0} leads)
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              size="small"
+              name="new_list_name"
+              label="OR Create & Assign to New Lead List (Optional)"
+              placeholder="e.g. October Marketing Campaign"
+              helperText="Enter a list name to automatically create a new list for these leads."
             />
             <MuiButton type="submit" disabled={importing} variant="contained" fullWidth>
               {importing ? "Importing..." : "Upload and Import"}

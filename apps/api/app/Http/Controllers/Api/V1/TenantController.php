@@ -63,6 +63,7 @@ class TenantController extends Controller
             'settings.default_caller_id' => ['nullable', 'regex:/^\+[1-9]\d{7,14}$/'],
             'settings.voice_locale' => ['sometimes', 'string', 'max:20'],
             'settings.metadata' => ['sometimes', 'array'],
+            'settings.metadata.lead_distribution_mode' => ['sometimes', 'string', 'in:unassigned,round_robin,manual'],
             'settings.metadata.default_lead_country' => ['sometimes', 'string', 'regex:/^[A-Z]{2}$/'],
             'settings.metadata.integration_mode' => ['sometimes', 'in:sandbox,production'],
             'settings.metadata.calling_window' => ['sometimes', 'array'],

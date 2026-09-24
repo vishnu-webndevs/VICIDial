@@ -51,6 +51,7 @@ type TenantResponse = {
       voice_locale?: string | null;
       metadata?: {
         default_lead_country?: string | null;
+        lead_distribution_mode?: string | null;
         calling_window?: CallingWindowResponse | null;
       } | null;
     } | null;
@@ -78,6 +79,7 @@ export default function SettingsPage() {
   const [defaultCallerId, setDefaultCallerId] = useState("");
   const [voiceLocale, setVoiceLocale] = useState("en-US");
   const [defaultLeadCountry, setDefaultLeadCountry] = useState("US");
+  const [leadDistributionMode, setLeadDistributionMode] = useState("unassigned");
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ tone: "success" | "error"; message: string } | null>(null);
 
@@ -132,6 +134,7 @@ export default function SettingsPage() {
       setDefaultCallerId(tenantResponse.data.settings?.default_caller_id ?? "");
       setVoiceLocale(tenantResponse.data.settings?.voice_locale ?? "en-US");
       setDefaultLeadCountry(tenantResponse.data.settings?.metadata?.default_lead_country ?? "US");
+      setLeadDistributionMode(tenantResponse.data.settings?.metadata?.lead_distribution_mode ?? "unassigned");
 
       const callingWindow = tenantResponse.data.settings?.metadata?.calling_window;
       if (callingWindow) {
@@ -163,6 +166,7 @@ export default function SettingsPage() {
       const updatedMetadata = {
         ...existingMetadata,
         default_lead_country: defaultLeadCountry,
+        lead_distribution_mode: leadDistributionMode,
       };
       await apiRequest("/tenant", {
         method: "PATCH",
@@ -289,6 +293,18 @@ export default function SettingsPage() {
               ))}
             </TextField>
             <TextField size="medium" value={voiceLocale} onChange={(event) => setVoiceLocale(event.target.value)} placeholder="Voice locale (e.g. en-US)" />
+            <TextField
+              select
+              size="medium"
+              label="Lead Distribution Mode"
+              value={leadDistributionMode}
+              onChange={(event) => setLeadDistributionMode(event.target.value)}
+              helperText="Controls how new incoming leads are assigned to team members/agents."
+            >
+              <MenuItem value="unassigned">Unassigned (Default)</MenuItem>
+              <MenuItem value="round_robin">Round-Robin (Auto-assign to agents)</MenuItem>
+              <MenuItem value="manual">Manual Assignment</MenuItem>
+            </TextField>
             <MuiButton type="submit" variant="contained" sx={{ gridColumn: { md: "span 2" } }}>
               Save Tenant Settings
             </MuiButton>
