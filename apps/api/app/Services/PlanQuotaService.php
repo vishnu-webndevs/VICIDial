@@ -52,21 +52,34 @@ class PlanQuotaService
                 $tenantPlan = \App\Models\TenantPlan::query()
                     ->where('tenant_id', $tenant->id)
                     ->where('status', 'active')
+                    ->where(function ($q) {
+                        $q->whereNull('expires_at')->orWhere('expires_at', '>', now());
+                    })
                     ->latest('started_at')
                     ->first();
 
                 if ($tenantPlan) {
-                    if ($tenantPlan->expires_at !== null) {
-                        return $tenantPlan->expires_at->isPast();
-                    }
-
-                    if ($tenantPlan->started_at) {
-                        $days = ($tenantPlan->billing_cycle === 'yearly') ? 365 : 28;
-                        return $tenantPlan->started_at->copy()->addDays($days)->isPast();
-                    }
+                    return false;
                 }
             } catch (\Throwable) {
                 // Ignore exception and fallback
+            }
+        }
+
+        $subscription = \App\Models\Subscription::query()
+            ->where('tenant_id', $tenant->id)
+            ->latest('created_at')
+            ->first();
+
+        if ($subscription) {
+            if ($subscription->status === 'active') {
+                return $subscription->ends_at ? $subscription->ends_at->isPast() : false;
+            }
+            if ($subscription->status === 'trialing') {
+                return $subscription->trial_ends_at ? $subscription->trial_ends_at->isPast() : false;
+            }
+            if (in_array($subscription->status, ['canceled', 'unpaid', 'past_due'], true)) {
+                return true;
             }
         }
 

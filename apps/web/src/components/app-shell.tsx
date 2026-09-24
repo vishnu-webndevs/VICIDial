@@ -87,7 +87,7 @@ export function AppShell({
             const isAuthError =
               (error instanceof ApiError ||
                 (error && typeof error === "object" && "status" in error)) &&
-              [401, 403].includes((error as { status: number }).status);
+              (error as { status: number }).status === 401;
 
             if (isAuthError) {
               clearSession();

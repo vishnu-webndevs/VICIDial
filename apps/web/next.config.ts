@@ -7,11 +7,15 @@ const boxiconsCdn = "https://unpkg.com";
 const stripeJsOrigin = "https://js.stripe.com";
 const stripeApiOrigin = "https://api.stripe.com";
 const stripeHooksOrigin = "https://hooks.stripe.com";
+const facebookSdkOrigin = "https://connect.facebook.net";
+const facebookOrigin = "https://www.facebook.com";
+const facebookWebOrigin = "https://web.facebook.com";
+
 let apiOrigin = "http://localhost:8000";
 const isDevelopment = process.env.NODE_ENV !== "production";
 const scriptSrcDirectives = isDevelopment
-  ? `'self' 'unsafe-inline' 'unsafe-eval' ${stripeJsOrigin}`
-  : `'self' 'unsafe-inline' ${stripeJsOrigin}`;
+  ? `'self' 'unsafe-inline' 'unsafe-eval' ${stripeJsOrigin} ${facebookSdkOrigin} ${facebookOrigin}`
+  : `'self' 'unsafe-inline' ${stripeJsOrigin} ${facebookSdkOrigin} ${facebookOrigin}`;
 
 try {
   apiOrigin = new URL(apiBaseUrl).origin;
@@ -62,7 +66,7 @@ const nextConfig: NextConfig = {
           {
             key: "Content-Security-Policy",
             value:
-              `default-src 'self'; img-src 'self' data: https:; font-src 'self' data: ${boxiconsCdn} https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' ${boxiconsCdn} https://fonts.googleapis.com; script-src ${scriptSrcDirectives}; connect-src ${Array.from(connectSrcOrigins).join(" ")}; frame-src 'self' ${stripeJsOrigin} ${stripeHooksOrigin};`,
+              `default-src 'self'; img-src 'self' data: https:; font-src 'self' data: ${boxiconsCdn} https://fonts.gstatic.com; style-src 'self' 'unsafe-inline' ${boxiconsCdn} https://fonts.googleapis.com; script-src ${scriptSrcDirectives}; connect-src ${Array.from(connectSrcOrigins).join(" ")}; frame-src 'self' ${stripeJsOrigin} ${stripeHooksOrigin} ${facebookOrigin} ${facebookWebOrigin} ${facebookSdkOrigin};`,
           },
         ],
       },
