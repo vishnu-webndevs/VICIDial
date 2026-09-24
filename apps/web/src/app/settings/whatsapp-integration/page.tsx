@@ -109,28 +109,37 @@ export default function WhatsAppIntegrationSettingsPage() {
     const configId = process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || form.meta_app_id || "";
 
     const doLaunch = () => {
-      if (typeof window !== "undefined" && (window as any).FB) {
-        (window as any).FB.login(
-          (response: any) => {
-            if (response.authResponse && response.authResponse.code) {
-              setToast({ tone: "success", message: "Meta authorization complete. Completing account setup..." });
-            } else {
-              setLaunchingSignup(false);
-            }
-          },
-          {
-            config_id: configId,
-            response_type: "code",
-            override_default_response_type: true,
-            extras: {
-              setup: {
-                featureType: "whatsapp_business_app_onboarding",
-              },
+      try {
+        if (typeof window !== "undefined" && (window as any).FB) {
+          (window as any).FB.login(
+            (response: any) => {
+              if (response?.authResponse?.code) {
+                setToast({ tone: "success", message: "Meta authorization complete. Completing account setup..." });
+              } else {
+                setLaunchingSignup(false);
+              }
             },
-          }
-        );
-      } else {
-        setToast({ tone: "error", message: "Facebook SDK is initializing. Please verify Meta App ID under Advanced Settings." });
+            {
+              config_id: configId,
+              response_type: "code",
+              override_default_response_type: true,
+              extras: {
+                setup: {
+                  featureType: "whatsapp_business_app_onboarding",
+                },
+              },
+            }
+          );
+          // Safety timeout to reset button if popup is closed or ignored
+          setTimeout(() => {
+            setLaunchingSignup(false);
+          }, 30000);
+        } else {
+          setToast({ tone: "error", message: "Facebook SDK is initializing. Please verify Meta App ID under Advanced Settings." });
+          setLaunchingSignup(false);
+        }
+      } catch (err: any) {
+        setToast({ tone: "error", message: err?.message || "Failed to launch Meta Embedded Signup." });
         setLaunchingSignup(false);
       }
     };
@@ -141,15 +150,23 @@ export default function WhatsAppIntegrationSettingsPage() {
       script.async = true;
       script.defer = true;
       script.onload = () => {
-        if (form.meta_app_id && (window as any).FB) {
-          (window as any).FB.init({
-            appId: form.meta_app_id,
-            cookie: true,
-            xfbml: true,
-            version: "v25.0",
-          });
+        try {
+          if (form.meta_app_id && (window as any).FB) {
+            (window as any).FB.init({
+              appId: form.meta_app_id,
+              cookie: true,
+              xfbml: true,
+              version: "v25.0",
+            });
+          }
+          doLaunch();
+        } catch {
+          setLaunchingSignup(false);
         }
-        doLaunch();
+      };
+      script.onerror = () => {
+        setToast({ tone: "error", message: "Failed to load Facebook SDK. Please refresh the page and try again." });
+        setLaunchingSignup(false);
       };
       document.body.appendChild(script);
     } else {
