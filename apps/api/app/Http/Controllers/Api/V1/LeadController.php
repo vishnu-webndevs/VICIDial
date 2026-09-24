@@ -40,10 +40,10 @@ class LeadController extends Controller
             'score_min' => ['nullable', 'integer', 'min:0'],
             'score_max' => ['nullable', 'integer', 'min:0'],
             'page' => ['nullable', 'integer', 'min:1'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:200'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:10000'],
         ]);
 
-        $perPage = (int) ($validated['per_page'] ?? 50);
+        $perPage = (int) ($validated['per_page'] ?? 5000);
         $query = Lead::query()->where('tenant_id', $tenant->id);
 
         // Role-based scoping: non-admin agents only see leads assigned to them

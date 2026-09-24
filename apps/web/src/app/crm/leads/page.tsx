@@ -383,8 +383,8 @@ export default function LeadsPage() {
     const targetListId = (formData.get("target_list_id") as string || "").trim();
     const newListName = (formData.get("new_list_name") as string || "").trim();
 
-    if (!(file instanceof File)) {
-      setMessage("Select a CSV file first.");
+    if (!(file instanceof File) || !file.name) {
+      setMessage("Select a CSV or Excel file first.");
       setMessageTone("error");
       return;
     }
@@ -494,7 +494,7 @@ export default function LeadsPage() {
   }
 
   const selectedList = lists.find((item) => item.id === selectedListId) ?? null;
-  const visibleListLeads = useMemo(() => leads.slice(0, 150), [leads]);
+  const visibleListLeads = leads;
 
   return (
     <AppShell requiredPermissions={["call.initiate"]}>

@@ -126,9 +126,9 @@ export default function ListsPage() {
   async function handleImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const file = formData.get("csv_file");
-    if (!(file instanceof File)) {
-      setMessage("Select a CSV file first.");
+    const file = formData.get("lead_file") || formData.get("csv_file");
+    if (!(file instanceof File) || !file.name) {
+      setMessage("Select a CSV or Excel file first.");
       setMessageTone("error");
       return;
     }
@@ -156,7 +156,7 @@ export default function ListsPage() {
         setMessageTone("neutral");
       }
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "CSV import failed.");
+      setMessage(err instanceof Error ? err.message : "File import failed.");
       setMessageTone("error");
     } finally {
       setImporting(false);
@@ -164,7 +164,7 @@ export default function ListsPage() {
   }
 
   const selectedList = lists.find((item) => item.id === selectedListId) ?? null;
-  const visibleLeads = useMemo(() => leads.slice(0, 150), [leads]);
+  const visibleLeads = leads;
 
   return (
     <AppShell requiredPermissions={["call.view"]}>
@@ -211,8 +211,8 @@ export default function ListsPage() {
           ) : null}
 
           <Box component="form" onSubmit={handleImport} sx={{ mt: 1.5, display: "grid", gap: 1 }}>
-            <Typography variant="subtitle2">Bulk Import CSV</Typography>
-            <Box component="input" name="csv_file" type="file" accept=".csv,text/csv" />
+            <Typography variant="subtitle2">Bulk Import (CSV / Excel)</Typography>
+            <Box component="input" name="lead_file" type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" />
             <MuiButton type="submit" variant="outlined" disabled={importing}>
               {importing ? "Importing..." : "Import Leads"}
             </MuiButton>

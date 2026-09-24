@@ -952,7 +952,7 @@ type LeadInput = Omit<Lead, "id" | "updated_at">;
 export async function listLeads(options: { listId?: string; perPage?: number } = {}): Promise<Lead[]> {
   const { token, tenantId } = getTenantContext();
   const search = new URLSearchParams();
-  search.set("per_page", String(options.perPage ?? 200));
+  search.set("per_page", String(options.perPage ?? 5000));
   if (options.listId) {
     search.set("list_id", options.listId);
   }

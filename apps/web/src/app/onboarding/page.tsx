@@ -33,7 +33,7 @@ type StepId = "add_provider" | "create_agent" | "add_lead" | "add_campaign";
 const STEPS: Array<{ id: StepId; label: string; subtitle: string }> = [
   { id: "add_provider", label: "1. Connect Calling Provider", subtitle: "Connect your Twilio or Vonage account to generate calls." },
   { id: "create_agent", label: "2. Create Agent & Assign Caller ID", subtitle: "Create an agent profile and map it to a validated caller ID." },
-  { id: "add_lead", label: "3. Create List & Add Leads", subtitle: "Create lead lists and upload contacts manually or via CSV." },
+  { id: "add_lead", label: "3. Create List & Add Leads", subtitle: "Create lead lists and upload contacts manually or via CSV / Excel." },
   { id: "add_campaign", label: "4. Create & Launch Campaign", subtitle: "Set dialing speed, schedule windows, and launch your campaign." },
 ];
 
@@ -1410,7 +1410,7 @@ export default function OnboardingPage() {
                         sx={{ mt: 1 }}
                       />
                       <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 0.5 }}>
-                        Format: The CSV must include a header row with &apos;full_name,phone,email&apos;.
+                        Format: The file (CSV or Excel) must include a header row with &apos;full_name,phone,email&apos;.
                       </Typography>
                     </Box>
 
