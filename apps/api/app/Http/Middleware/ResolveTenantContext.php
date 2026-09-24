@@ -31,13 +31,15 @@ class ResolveTenantContext
         $membership = null;
         if ($tenantId !== '') {
             $membership = $memberships->firstWhere('tenant_id', $tenantId);
-        } elseif ($memberships->count() === 1) {
+        }
+
+        if (! $membership && $memberships->isNotEmpty()) {
             $membership = $memberships->first();
         }
 
-        // Platform admins can access any tenant by explicit header.
-        if (! $membership && $tenantId !== '' && $user->is_platform_admin) {
-            $tenant = Tenant::query()->find($tenantId);
+        // Platform admins can access any tenant by explicit header or default to first tenant
+        if (! $membership && $user->is_platform_admin) {
+            $tenant = $tenantId !== '' ? Tenant::query()->find($tenantId) : Tenant::query()->first();
             if ($tenant) {
                 $request->attributes->set('tenant', $tenant);
                 $request->attributes->set('membership', null);

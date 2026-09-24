@@ -257,6 +257,12 @@ class AuthController extends Controller
             request: $request
         );
 
+        $firstMembership = Membership::query()
+            ->with('tenant')
+            ->where('user_id', $user->id)
+            ->where('status', 'active')
+            ->first();
+
         return response()->json([
             'data' => [
                 'token' => $token,
@@ -267,6 +273,12 @@ class AuthController extends Controller
                     'last_name' => $user->last_name,
                     'last_login_at' => optional($user->last_login_at)->toISOString(),
                 ],
+                'tenant' => $firstMembership?->tenant ? [
+                    'id' => $firstMembership->tenant->id,
+                    'name' => $firstMembership->tenant->name,
+                    'slug' => $firstMembership->tenant->slug,
+                    'status' => $firstMembership->tenant->status,
+                ] : null,
             ],
         ]);
     }

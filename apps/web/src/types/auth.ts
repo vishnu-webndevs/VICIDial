@@ -31,5 +31,6 @@ export type LoginResponse = {
     user: AuthUser & {
       last_login_at: string | null;
     };
+    tenant?: AuthTenant | null;
   };
 };

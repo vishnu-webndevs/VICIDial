@@ -141,7 +141,8 @@ export default function LoginClient() {
         return;
       }
 
-      saveSession(response.data.token);
+      const tenantId = ("data" in response && response.data.tenant?.id) ? response.data.tenant.id : null;
+      saveSession(response.data.token, tenantId);
       const profile = await fetchSessionProfile();
       syncTenantFromProfile(profile);
       const onboardingDone = isOnboardingComplete(profile.current_tenant?.id ?? null);
