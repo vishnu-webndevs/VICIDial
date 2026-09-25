@@ -234,8 +234,8 @@ export default function ListsPage() {
             <EmptyPanel title="Select a list first" description="Choose a lead list to add or remove leads." />
           ) : (
             <>
-              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
-                <Stack direction="row" spacing={1}>
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap sx={{ mb: 1.5, gap: 1 }}>
+                <Stack direction="row" spacing={1} alignItems="center">
                   <MuiButton
                     variant={mode === "add" ? "contained" : "outlined"}
                     onClick={() => {
@@ -256,24 +256,48 @@ export default function ListsPage() {
                   </MuiButton>
                 </Stack>
 
-                {visibleLeads.length > 0 ? (
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
                   <MuiButton
-                    size="small"
-                    variant="outlined"
-                    onClick={() => {
-                      const allSel = visibleLeads.every((l) => selectedLeadIds.includes(l.id));
-                      if (allSel) {
-                        setSelectedLeadIds([]);
-                      } else {
-                        setSelectedLeadIds(visibleLeads.map((l) => l.id));
-                      }
-                    }}
+                    variant="contained"
+                    color={toDetach.length > 0 && toAttach.length === 0 ? "error" : "primary"}
+                    onClick={() => void onSaveListLeads()}
+                    disabled={!selectedListId || !hasChanges}
                   >
-                    {visibleLeads.every((l) => selectedLeadIds.includes(l.id))
-                      ? "Deselect All"
-                      : `Select All (${visibleLeads.length})`}
+                    {toAttach.length > 0 && toDetach.length > 0
+                      ? `Save Changes (${toAttach.length} attach, ${toDetach.length} remove)`
+                      : toAttach.length > 0
+                      ? `Attach ${toAttach.length} Lead${toAttach.length > 1 ? "s" : ""}`
+                      : toDetach.length > 0
+                      ? `Remove ${toDetach.length} Lead${toDetach.length > 1 ? "s" : ""}`
+                      : "Save Changes"}
                   </MuiButton>
-                ) : null}
+                  <MuiButton
+                    variant="outlined"
+                    onClick={() => setSelectedLeadIds(initialAttachedIds)}
+                    disabled={!hasChanges}
+                  >
+                    Clear
+                  </MuiButton>
+
+                  {visibleLeads.length > 0 ? (
+                    <MuiButton
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        const allSel = visibleLeads.every((l) => selectedLeadIds.includes(l.id));
+                        if (allSel) {
+                          setSelectedLeadIds([]);
+                        } else {
+                          setSelectedLeadIds(visibleLeads.map((l) => l.id));
+                        }
+                      }}
+                    >
+                      {visibleLeads.every((l) => selectedLeadIds.includes(l.id))
+                        ? "Deselect All"
+                        : `Select All (${visibleLeads.length})`}
+                    </MuiButton>
+                  ) : null}
+                </Stack>
               </Stack>
 
               {visibleLeads.length === 0 ? (
@@ -283,9 +307,9 @@ export default function ListsPage() {
                 />
               ) : (
                 <>
-                  <Paper variant="outlined" sx={{ overflowX: "auto" }}>
+                  <Paper variant="outlined" sx={{ overflowX: "auto", maxHeight: 560, overflowY: "auto" }}>
                     <Table size="medium" sx={{ minWidth: 920 }}>
-                      <TableHead>
+                      <TableHead sx={{ position: "sticky", top: 0, zIndex: 2, bgcolor: "background.paper" }}>
                         <TableRow sx={{ bgcolor: "action.hover" }}>
                           <TableCell sx={{ width: 40, py: 1 }}>
                             <Box
