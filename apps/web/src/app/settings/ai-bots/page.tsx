@@ -44,14 +44,13 @@ export default function AiBotsManagementPage() {
 
   // Knowledge Base Q&A Array
   const [qaList, setQaList] = useState<{ question: string; answer: string }[]>([
-    { question: "2BHK Price & Details", answer: "2BHK flats prime location me ₹45 Lakh se start hain jisme Gym, Parking aur Club House included hai." },
-    { question: "3BHK Price & Details", answer: "3BHK luxury flats ₹65 Lakh se start hain 1800 sq ft spacious area ke sath." },
-    { question: "Contact Details / Phone Number", answer: "Aap hamare sales team se +91-9876543210 ya office address: Sector 62, Noida par contact kar sakte hain." }
+    { question: "Pricing & Plans", answer: "Our standard plan starts from ₹999/month. Contact our team for customized enterprise plans and features." },
+    { question: "Business Hours & Contact Details", answer: "We are available Monday to Saturday from 9 AM to 6 PM. You can reach our support team at +91-9876543210 or email support@example.com." }
   ]);
 
   // Interactive Flow Array
   const [flows, setFlows] = useState<{ trigger_keyword: string; question_text: string; options: string }[]>([
-    { trigger_keyword: "Interested", question_text: "Aap kitne BHK flat dekhna chahte hain?", options: "2BHK, 3BHK, 4BHK" }
+    { trigger_keyword: "Pricing", question_text: "Which plan or service would you like to know more about?", options: "Basic Plan, Pro Plan, Custom Enterprise" }
   ]);
 
   const loadData = async () => {
@@ -162,12 +161,11 @@ export default function AiBotsManagementPage() {
       setHumanDelay(3);
       setStrictMode(true);
       setQaList([
-        { question: "2BHK Price & Details", answer: "2BHK flats prime location me ₹45 Lakh se start hain jisme Gym, Parking aur Club House included hai." },
-        { question: "3BHK Price & Details", answer: "3BHK luxury flats ₹65 Lakh se start hain 1800 sq ft spacious area ke sath." },
-        { question: "Contact Details / Phone Number", answer: "Aap hamare sales team se +91-9876543210 ya office address: Sector 62, Noida par contact kar sakte hain." }
+        { question: "Pricing & Plans", answer: "Our standard plan starts from ₹999/month. Contact our team for customized enterprise plans and features." },
+        { question: "Business Hours & Contact Details", answer: "We are available Monday to Saturday from 9 AM to 6 PM. You can reach our support team at +91-9876543210 or email support@example.com." }
       ]);
       setFlows([
-        { trigger_keyword: "Interested", question_text: "Aap kitne BHK flat dekhna chahte hain?", options: "2BHK, 3BHK, 4BHK" }
+        { trigger_keyword: "Pricing", question_text: "Which plan or service would you like to know more about?", options: "Basic Plan, Pro Plan, Custom Enterprise" }
       ]);
     }
     setDialogOpen(true);
@@ -492,7 +490,7 @@ export default function AiBotsManagementPage() {
             <TextField
               fullWidth
               label="Short Description / Scope"
-              placeholder="e.g. Handles 2BHK/3BHK inquiries and site visit scheduling"
+              placeholder="e.g. Customer support and sales bot for pricing, product details, and service inquiries"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
@@ -560,7 +558,7 @@ export default function AiBotsManagementPage() {
                 <Box key={index} sx={{ display: 'flex', gap: 1.5, mb: 1.5, alignItems: 'flex-start' }}>
                   <TextField
                     size="small"
-                    placeholder="Topic / Question (e.g. 2BHK Price)"
+                    placeholder="Topic / Question (e.g. Pricing & Plans)"
                     value={qa.question}
                     onChange={(e) => {
                       const updated = [...qaList];
@@ -572,7 +570,7 @@ export default function AiBotsManagementPage() {
                   <TextField
                     size="small"
                     fullWidth
-                    placeholder="Answer / Details (e.g. 2BHK starts from ₹45 Lakhs with Amenities)"
+                    placeholder="Answer / Details (e.g. Basic plan starts from ₹999/month with 24/7 support)"
                     value={qa.answer}
                     onChange={(e) => {
                       const updated = [...qaList];
@@ -604,7 +602,7 @@ export default function AiBotsManagementPage() {
                     <TextField
                       size="small"
                       label="Trigger Keyword"
-                      placeholder="e.g. Interested"
+                      placeholder="e.g. Pricing"
                       value={flow.trigger_keyword}
                       onChange={(e) => {
                         const updated = [...flows];
@@ -617,7 +615,7 @@ export default function AiBotsManagementPage() {
                       size="small"
                       fullWidth
                       label="Question Text"
-                      placeholder="Aap kitne BHK flat dekhna chahte hain?"
+                      placeholder="Which plan or service would you like to know more about?"
                       value={flow.question_text}
                       onChange={(e) => {
                         const updated = [...flows];
@@ -634,7 +632,7 @@ export default function AiBotsManagementPage() {
                     size="small"
                     fullWidth
                     label="Button Options (Comma Separated)"
-                    placeholder="2BHK, 3BHK, 4BHK"
+                    placeholder="Basic Plan, Pro Plan, Custom Enterprise"
                     value={flow.options}
                     onChange={(e) => {
                       const updated = [...flows];
