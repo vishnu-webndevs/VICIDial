@@ -1272,25 +1272,46 @@ export default function LeadsPage() {
               <EmptyPanel title="Select a list first" description="Choose a lead list to add or remove leads." />
             ) : (
               <>
-                <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
-                  <MuiButton
-                    variant={listMode === "add" ? "contained" : "outlined"}
-                    onClick={() => {
-                      setSelectedLeadIdsForList([]);
-                      setListMode("add");
-                    }}
-                  >
-                    Add Leads
-                  </MuiButton>
-                  <MuiButton
-                    variant={listMode === "remove" ? "contained" : "outlined"}
-                    onClick={() => {
-                      setSelectedLeadIdsForList([]);
-                      setListMode("remove");
-                    }}
-                  >
-                    Remove Leads
-                  </MuiButton>
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 1.5 }}>
+                  <Stack direction="row" spacing={1}>
+                    <MuiButton
+                      variant={listMode === "add" ? "contained" : "outlined"}
+                      onClick={() => {
+                        setSelectedLeadIdsForList([]);
+                        setListMode("add");
+                      }}
+                    >
+                      Add Leads
+                    </MuiButton>
+                    <MuiButton
+                      variant={listMode === "remove" ? "contained" : "outlined"}
+                      onClick={() => {
+                        setSelectedLeadIdsForList([]);
+                        setListMode("remove");
+                      }}
+                    >
+                      Remove Leads
+                    </MuiButton>
+                  </Stack>
+
+                  {visibleListLeads.length > 0 ? (
+                    <MuiButton
+                      size="small"
+                      variant="outlined"
+                      onClick={() => {
+                        const allSel = visibleListLeads.every((l) => selectedLeadIdsForList.includes(l.id));
+                        if (allSel) {
+                          setSelectedLeadIdsForList([]);
+                        } else {
+                          setSelectedLeadIdsForList(visibleListLeads.map((l) => l.id));
+                        }
+                      }}
+                    >
+                      {visibleListLeads.every((l) => selectedLeadIdsForList.includes(l.id))
+                        ? "Deselect All"
+                        : `Select All (${visibleListLeads.length})`}
+                    </MuiButton>
+                  ) : null}
                 </Stack>
 
                 {visibleListLeads.length === 0 ? (
@@ -1304,7 +1325,52 @@ export default function LeadsPage() {
                       <Table size="medium" sx={{ minWidth: 620 }}>
                         <TableHead>
                           <TableRow sx={{ bgcolor: "action.hover" }}>
-                            <TableCell sx={{ width: 40 }} />
+                            <TableCell sx={{ width: 40, py: 1 }}>
+                              <Box
+                                onClick={() => {
+                                  const allSel = visibleListLeads.length > 0 && visibleListLeads.every((l) => selectedLeadIdsForList.includes(l.id));
+                                  if (allSel) {
+                                    setSelectedLeadIdsForList([]);
+                                  } else {
+                                    setSelectedLeadIdsForList(visibleListLeads.map((l) => l.id));
+                                  }
+                                }}
+                                title={
+                                  visibleListLeads.length > 0 && visibleListLeads.every((l) => selectedLeadIdsForList.includes(l.id))
+                                    ? "Deselect All Leads"
+                                    : "Select All Leads"
+                                }
+                                sx={{
+                                  width: 18,
+                                  height: 18,
+                                  borderRadius: 0.5,
+                                  border: 2,
+                                  borderColor:
+                                    visibleListLeads.length > 0 && visibleListLeads.every((l) => selectedLeadIdsForList.includes(l.id))
+                                      ? "primary.main"
+                                      : selectedLeadIdsForList.length > 0
+                                      ? "primary.main"
+                                      : "divider",
+                                  bgcolor:
+                                    visibleListLeads.length > 0 && visibleListLeads.every((l) => selectedLeadIdsForList.includes(l.id))
+                                      ? "primary.main"
+                                      : "transparent",
+                                  display: "grid",
+                                  placeItems: "center",
+                                  color: "#fff",
+                                  fontSize: "0.7rem",
+                                  fontWeight: 700,
+                                  cursor: "pointer",
+                                  userSelect: "none",
+                                }}
+                              >
+                                {visibleListLeads.length > 0 && visibleListLeads.every((l) => selectedLeadIdsForList.includes(l.id))
+                                  ? "✓"
+                                  : selectedLeadIdsForList.length > 0
+                                  ? "−"
+                                  : ""}
+                              </Box>
+                            </TableCell>
                             <TableCell>Name</TableCell>
                             <TableCell>Phone</TableCell>
                             <TableCell>Status</TableCell>
