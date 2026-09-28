@@ -129,7 +129,7 @@ class TeamController extends Controller
         ]);
 
         try {
-            $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:3000'), '/');
+            $frontendUrl = rtrim((string) (env('FRONTEND_URL') ?: env('APP_URL') ?: 'http://localhost:3000'), '/');
             $companyName = (string) ($tenant->name ?? 'WND Dialer');
             $roleName = (string) ($targetRole->name ?? 'Team Member');
 

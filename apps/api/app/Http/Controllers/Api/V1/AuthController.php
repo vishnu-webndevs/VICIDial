@@ -178,7 +178,7 @@ class AuthController extends Controller
         );
 
         try {
-            $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:3000'), '/');
+            $frontendUrl = rtrim((string) (env('FRONTEND_URL') ?: env('APP_URL') ?: 'http://localhost:3000'), '/');
             $userEmail = (string) $result['user']->email;
             $userName = (string) $result['user']->first_name;
             $companyName = (string) $result['tenant']->name;
