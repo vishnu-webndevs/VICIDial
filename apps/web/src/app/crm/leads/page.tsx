@@ -766,6 +766,7 @@ export default function LeadsPage() {
               name="target_list_id"
               label="Assign to Existing Lead List (Optional)"
               defaultValue=""
+              InputLabelProps={{ shrink: true }}
               SelectProps={{ displayEmpty: true }}
             >
               <MenuItem value="">-- None (Do not assign to list) --</MenuItem>
