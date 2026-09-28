@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import {
   Box,
+  CircularProgress,
   MenuItem,
   MuiButton,
   Paper,
@@ -53,6 +54,7 @@ export default function TeamPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
 
   async function loadTeam(page = 1) {
@@ -84,6 +86,8 @@ export default function TeamPage() {
 
   async function inviteMember(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setSubmitting(true);
+    setMessage("");
     try {
       const token = localStorage.getItem("wnd_token");
       const tenantId = localStorage.getItem("wnd_tenant_id");
@@ -107,6 +111,8 @@ export default function TeamPage() {
       await loadTeam(currentPage);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to save team member.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -241,9 +247,13 @@ export default function TeamPage() {
             <MuiButton
               type="submit"
               variant="contained"
+              disabled={submitting}
+              startIcon={submitting ? <CircularProgress size={16} color="inherit" /> : null}
               sx={addMode === "direct" ? { gridColumn: { md: "span 2" } } : {}}
             >
-              {addMode === "direct" ? "Create Member Credentials" : "Send Invite"}
+              {submitting
+                ? (addMode === "direct" ? "Creating Member..." : "Sending Invite...")
+                : (addMode === "direct" ? "Create Member Credentials" : "Send Invite")}
             </MuiButton>
           </Box>
         </SectionCard>
