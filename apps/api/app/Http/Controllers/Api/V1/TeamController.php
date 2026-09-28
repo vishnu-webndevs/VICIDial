@@ -12,6 +12,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -125,6 +127,34 @@ class TeamController extends Controller
             'invitation_token' => $isDirect ? null : Str::random(64),
             'invitation_expires_at' => $isDirect ? null : now()->addDays(7),
         ]);
+
+        try {
+            $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:3000'), '/');
+            $companyName = (string) ($tenant->name ?? 'WND Dialer');
+            $roleName = (string) ($targetRole->name ?? 'Team Member');
+
+            if ($isDirect) {
+                $loginUrl = $frontendUrl . '/login';
+                Mail::raw(
+                    "Hello,\n\nYou have been added as a {$roleName} to {$companyName}.\n\nYou can log in directly using your email ({$email}) and password at:\n{$loginUrl}\n\nBest regards,\n{$companyName} Team",
+                    function ($message) use ($email, $companyName) {
+                        $message->to($email)
+                            ->subject("Welcome to {$companyName}");
+                    }
+                );
+            } else {
+                $inviteUrl = $frontendUrl . '/register?invitation_token=' . $membership->invitation_token;
+                Mail::raw(
+                    "Hello,\n\nYou have been invited to join {$companyName} as a {$roleName}.\n\nPlease click the link below to accept your invitation and complete your setup:\n{$inviteUrl}\n\nThis invitation link will expire in 7 days.\n\nBest regards,\n{$companyName} Team",
+                    function ($message) use ($email, $companyName) {
+                        $message->to($email)
+                            ->subject("Invitation to join {$companyName}");
+                    }
+                );
+            }
+        } catch (\Throwable $e) {
+            Log::warning("Failed to send team invitation email to {$email}: " . $e->getMessage());
+        }
 
         $this->auditLogger->log(
             action: $isDirect ? 'membership.created_direct' : 'membership.invited',

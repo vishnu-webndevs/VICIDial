@@ -47,6 +47,11 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->make(IntegrationMode::class)->assertRuntimeSafety();
 
+        \Illuminate\Auth\Notifications\ResetPassword::createUrlUsing(function (\App\Models\User $user, string $token) {
+            $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:3000'), '/');
+            return $frontendUrl . '/reset-password?token=' . $token . '&email=' . urlencode($user->email);
+        });
+
         if (!app()->environment('local')) {
             \Illuminate\Support\Facades\URL::forceScheme('https');
         } elseif (str_starts_with(config('app.url'), 'https://')) {

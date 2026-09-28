@@ -23,7 +23,6 @@ import { EmptyPanel, KpiCard, SkeletonLines, ToastMessage } from "@/components/u
 import { apiRequest } from "@/lib/api";
 import {
   deleteLead,
-  deleteBulkLeads,
   getLeadImportJob,
   importLeadsFromFile,
   listLeads,
@@ -155,31 +154,6 @@ export default function LeadsPage() {
   const [importResultModalOpen, setImportResultModalOpen] = useState(false);
   const [importReportJob, setImportReportJob] = useState<LeadImportStatus | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string>("");
-  const [selectedMainLeadIds, setSelectedMainLeadIds] = useState<string[]>([]);
-
-  async function onBulkDeleteLeads() {
-    if (selectedMainLeadIds.length === 0) return;
-    const count = selectedMainLeadIds.length;
-    if (!window.confirm(`Are you sure you want to permanently delete ${count} selected lead(s)?`)) {
-      return;
-    }
-    try {
-      setLoading(true);
-      await deleteBulkLeads(selectedMainLeadIds);
-      setMessage(`${count} lead(s) deleted successfully.`);
-      setMessageTone("success");
-      setSelectedMainLeadIds([]);
-      if (selectedMainLeadIds.includes(selectedLeadId)) {
-        setSelectedLeadId("");
-      }
-      await load();
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Failed to delete selected leads.");
-      setMessageTone("error");
-    } finally {
-      setLoading(false);
-    }
-  }
 
   // Lead Lists state
   const [lists, setLists] = useState<LeadList[]>([]);
@@ -346,14 +320,14 @@ export default function LeadsPage() {
     setMessage("");
     setMessageTone("neutral");
     const localDigits = form.phone_local.replace(/\D+/g, "");
-    
+
     // Country-specific length validation
     const expectedLength = countryPhoneLength[form.phone_country];
     if (expectedLength) {
-      const isValidLength = Array.isArray(expectedLength) 
-        ? expectedLength.includes(localDigits.length) 
+      const isValidLength = Array.isArray(expectedLength)
+        ? expectedLength.includes(localDigits.length)
         : localDigits.length === expectedLength;
-        
+
       if (!isValidLength) {
         const expectedText = Array.isArray(expectedLength) ? expectedLength.join(" or ") : expectedLength;
         setMessage(`Phone number for ${getCountryOption(form.phone_country).label} must be exactly ${expectedText} digits.`);
@@ -577,790 +551,667 @@ export default function LeadsPage() {
       </Paper>
 
       {activeTab === "leads" ? (
-      <>
-      <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", xl: "repeat(3, 1fr)" } }}>
-        <Box ref={leadFormRef}>
-          <SectionCard
-            title={isEditing ? "Edit Lead" : "Create Lead"}
-            subtitle={
-              isEditing
-                ? "You are editing an existing lead. Update fields and click Update Lead."
-                : "Create a new lead profile using the form below."
-            }
-          >
-          <Box component="form" sx={{ display: "grid", gap: 1.5 }} onSubmit={onSubmit}>
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography
-                variant="caption"
-                sx={{ mb: 1, display: "block", textTransform: "uppercase", fontWeight: 700, color: "text.secondary" }}
+        <>
+          <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", xl: "repeat(3, 1fr)" } }}>
+            <Box ref={leadFormRef}>
+              <SectionCard
+                title={isEditing ? "Edit Lead" : "Create Lead"}
+                subtitle={
+                  isEditing
+                    ? "You are editing an existing lead. Update fields and click Update Lead."
+                    : "Create a new lead profile using the form below."
+                }
               >
-                Identity
-              </Typography>
-              <Stack spacing={1.25}>
-                <TextField
-                  required
-                  size="medium"
-                  value={form.full_name}
-                  onChange={(event) => setForm((prev) => ({ ...prev, full_name: event.target.value }))}
-                  placeholder="Lead Name"
+                <Box component="form" sx={{ display: "grid", gap: 1.5 }} onSubmit={onSubmit}>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ mb: 1, display: "block", textTransform: "uppercase", fontWeight: 700, color: "text.secondary" }}
+                    >
+                      Identity
+                    </Typography>
+                    <Stack spacing={1.25}>
+                      <TextField
+                        required
+                        size="medium"
+                        value={form.full_name}
+                        onChange={(event) => setForm((prev) => ({ ...prev, full_name: event.target.value }))}
+                        placeholder="Lead Name"
+                      />
+                      <TextField
+                        required
+                        select
+                        size="medium"
+                        value={form.phone_country}
+                        onChange={(event) => setForm((prev) => ({ ...prev, phone_country: event.target.value }))}
+                      >
+                        {countryDialOptions.map((option) => (
+                          <MenuItem key={`${option.countryCode}-${option.dialCode}`} value={option.countryCode}>
+                            {option.label} ({option.dialCode})
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        required
+                        size="medium"
+                        value={form.phone_local}
+                        onChange={(event) => {
+                          const numericValue = event.target.value.replace(/\D/g, "");
+                          const allowedLength = countryPhoneLength[form.phone_country];
+                          const maxLength = allowedLength ? (Array.isArray(allowedLength) ? Math.max(...allowedLength) : allowedLength) : 15;
+                          if (numericValue.length > maxLength) return;
+                          setForm((prev) => ({ ...prev, phone_local: numericValue }));
+                        }}
+                        placeholder="Phone number"
+                        helperText="Country code is selected separately. Only numbers are allowed."
+                      />
+                      <TextField
+                        size="medium"
+                        value={form.email}
+                        onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+                        placeholder="Email"
+                      />
+                      <TextField
+                        size="medium"
+                        value={form.company}
+                        onChange={(event) => setForm((prev) => ({ ...prev, company: event.target.value }))}
+                        placeholder="Company"
+                      />
+                    </Stack>
+                  </Paper>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ mb: 1, display: "block", textTransform: "uppercase", fontWeight: 700, color: "text.secondary" }}
+                    >
+                      Ownership
+                    </Typography>
+                    <Stack spacing={1.25}>
+                      <TextField
+                        select
+                        size="medium"
+                        value={form.status}
+                        onChange={(event) =>
+                          setForm((prev) => ({ ...prev, status: event.target.value as LeadStatus }))
+                        }
+                      >
+                        {leadStatuses.map((status) => (
+                          <MenuItem key={status} value={status}>
+                            {status}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                      <TextField
+                        select
+                        size="medium"
+                        label="Assigned Agent"
+                        value={form.owner_agent || "Unassigned"}
+                        onChange={(event) =>
+                          setForm((prev) => ({ ...prev, owner_agent: event.target.value }))
+                        }
+                      >
+                        <MenuItem value="Unassigned">Unassigned (Auto-Assign on Call)</MenuItem>
+                        {availableAgentNames.map((name) => (
+                          <MenuItem key={name} value={name}>
+                            👤 {name}
+                          </MenuItem>
+                        ))}
+                      </TextField>
+                    </Stack>
+                  </Paper>
+                  <Paper variant="outlined" sx={{ p: 2 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ mb: 1, display: "block", textTransform: "uppercase", fontWeight: 700, color: "text.secondary" }}
+                    >
+                      Follow-up
+                    </Typography>
+                    <Stack spacing={1.25}>
+                      <TextField
+                        type="datetime-local"
+                        size="medium"
+                        value={form.next_follow_up_at}
+                        onChange={(event) =>
+                          setForm((prev) => ({ ...prev, next_follow_up_at: event.target.value }))
+                        }
+                      />
+                      <TextField
+                        size="medium"
+                        value={form.tags}
+                        onChange={(event) => setForm((prev) => ({ ...prev, tags: event.target.value }))}
+                        placeholder="Tags (comma separated)"
+                      />
+                      <TextField
+                        multiline
+                        minRows={3}
+                        size="medium"
+                        value={form.notes}
+                        onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
+                        placeholder="Notes (one per line)"
+                      />
+                    </Stack>
+                  </Paper>
+                  <Stack direction="row" spacing={1}>
+                    <MuiButton type="submit" variant="contained" fullWidth>
+                      {form.id ? "Update Lead" : "Create Lead"}
+                    </MuiButton>
+                    <MuiButton
+                      type="button"
+                      variant="outlined"
+                      fullWidth
+                      onClick={() => setForm(createDefaultLeadForm(defaultLeadCountry))}
+                    >
+                      {form.id ? "Cancel Edit" : "Reset"}
+                    </MuiButton>
+                  </Stack>
+                </Box>
+                {message ? (
+                  <Box sx={{ mt: 1.5 }}>
+                    <ToastMessage
+                      tone={messageTone}
+                      title={messageTone === "error" ? "Lead Action Failed" : "Lead Update"}
+                      message={message}
+                    />
+                  </Box>
+                ) : null}
+              </SectionCard>
+            </Box>
+
+            <SectionCard title="Import Leads" subtitle="Upload CSV or Excel file (.csv, .xlsx, .xls) with columns: full_name, phone, email, company">
+              <Box component="form" sx={{ display: "grid", gap: 1.25 }} onSubmit={handleImport}>
+                <Box
+                  component="input"
+                  name="csv_file"
+                  type="file"
+                  accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                  sx={{
+                    width: "100%",
+                    border: 1,
+                    borderColor: "divider",
+                    borderRadius: 1,
+                    px: 1.5,
+                    py: 1,
+                    fontSize: 14,
+                  }}
                 />
                 <TextField
-                  required
                   select
-                  size="medium"
-                  value={form.phone_country}
-                  onChange={(event) => setForm((prev) => ({ ...prev, phone_country: event.target.value }))}
+                  size="small"
+                  name="target_list_id"
+                  label="Assign to Existing Lead List (Optional)"
+                  defaultValue=""
                 >
-                  {countryDialOptions.map((option) => (
-                    <MenuItem key={`${option.countryCode}-${option.dialCode}`} value={option.countryCode}>
-                      {option.label} ({option.dialCode})
+                  <MenuItem value="">-- None (Do not assign to list) --</MenuItem>
+                  {lists.map((l) => (
+                    <MenuItem key={l.id} value={l.id}>
+                      📋 {l.name} ({l.leads_count ?? l.total_leads ?? 0} leads)
                     </MenuItem>
                   ))}
                 </TextField>
                 <TextField
-                  required
-                  size="medium"
-                  value={form.phone_local}
-                  onChange={(event) => {
-                    const numericValue = event.target.value.replace(/\D/g, "");
-                    const allowedLength = countryPhoneLength[form.phone_country];
-                    const maxLength = allowedLength ? (Array.isArray(allowedLength) ? Math.max(...allowedLength) : allowedLength) : 15;
-                    if (numericValue.length > maxLength) return;
-                    setForm((prev) => ({ ...prev, phone_local: numericValue }));
-                  }}
-                  placeholder="Phone number"
-                  helperText="Country code is selected separately. Only numbers are allowed."
+                  size="small"
+                  name="new_list_name"
+                  label="OR Create & Assign to New Lead List (Optional)"
+                  placeholder="e.g. October Marketing Campaign"
+                  helperText="Enter a list name to automatically create a new list for these leads."
                 />
-                <TextField
-                  size="medium"
-                  value={form.email}
-                  onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
-                  placeholder="Email"
-                />
-                <TextField
-                  size="medium"
-                  value={form.company}
-                  onChange={(event) => setForm((prev) => ({ ...prev, company: event.target.value }))}
-                  placeholder="Company"
-                />
-              </Stack>
-            </Paper>
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography
-                variant="caption"
-                sx={{ mb: 1, display: "block", textTransform: "uppercase", fontWeight: 700, color: "text.secondary" }}
-              >
-                Ownership
-              </Typography>
+                <MuiButton type="submit" disabled={importing} variant="contained" fullWidth>
+                  {importing ? "Importing..." : "Upload and Import"}
+                </MuiButton>
+              </Box>
+              {importState ? (
+                <Paper
+                  variant="outlined"
+                  sx={{ mt: 1.5, p: 1.5, bgcolor: "action.hover", color: "text.secondary" }}
+                >
+                  <Typography variant="caption" display="block">Status: {importState.status}</Typography>
+                  <Typography variant="caption" display="block">Progress: {importState.progress}%</Typography>
+                  <Typography variant="caption" display="block">
+                    Processed: {importState.processed_rows}/{importState.total_rows} rows
+                  </Typography>
+                  <Typography variant="caption" display="block">
+                    Success/Failed: {importState.successful_rows}/{importState.failed_rows}
+                  </Typography>
+                  {(importState.status === "completed" || importState.status === "failed") && (
+                    <MuiButton
+                      size="small"
+                      variant="outlined"
+                      sx={{ mt: 1 }}
+                      onClick={() => {
+                        setImportReportJob(importState);
+                        setImportResultModalOpen(true);
+                      }}
+                    >
+                      View Validation Report & Skipped Rows ({importState.failed_rows})
+                    </MuiButton>
+                  )}
+                </Paper>
+              ) : null}
+              {message ? (
+                <Box sx={{ mt: 1.5 }}>
+                  <ToastMessage tone={messageTone} message={message} />
+                </Box>
+              ) : null}
+            </SectionCard>
+
+            <SectionCard title="Lead Filters" subtitle="Search and lifecycle status tracking">
               <Stack spacing={1.25}>
+                <TextField
+                  size="medium"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search by name/phone/email/company"
+                />
                 <TextField
                   select
                   size="medium"
-                  value={form.status}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, status: event.target.value as LeadStatus }))
-                  }
+                  value={statusFilter}
+                  onChange={(event) => setStatusFilter(event.target.value)}
                 >
+                  <MenuItem value="">All statuses</MenuItem>
                   {leadStatuses.map((status) => (
                     <MenuItem key={status} value={status}>
                       {status}
                     </MenuItem>
                   ))}
                 </TextField>
-                <TextField
-                  select
-                  size="medium"
-                  label="Assigned Agent"
-                  value={form.owner_agent || "Unassigned"}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, owner_agent: event.target.value }))
-                  }
-                >
-                  <MenuItem value="Unassigned">Unassigned (Auto-Assign on Call)</MenuItem>
-                  {availableAgentNames.map((name) => (
-                    <MenuItem key={name} value={name}>
-                      👤 {name}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                <Typography variant="body2" color="text.secondary">Visible leads: {filtered.length}</Typography>
               </Stack>
-            </Paper>
-            <Paper variant="outlined" sx={{ p: 2 }}>
-              <Typography
-                variant="caption"
-                sx={{ mb: 1, display: "block", textTransform: "uppercase", fontWeight: 700, color: "text.secondary" }}
-              >
-                Follow-up
-              </Typography>
-              <Stack spacing={1.25}>
-                <TextField
-                  type="datetime-local"
-                  size="medium"
-                  value={form.next_follow_up_at}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, next_follow_up_at: event.target.value }))
-                  }
-                />
-                <TextField
-                  size="medium"
-                  value={form.tags}
-                  onChange={(event) => setForm((prev) => ({ ...prev, tags: event.target.value }))}
-                  placeholder="Tags (comma separated)"
-                />
-                <TextField
-                  multiline
-                  minRows={3}
-                  size="medium"
-                  value={form.notes}
-                  onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))}
-                  placeholder="Notes (one per line)"
-                />
-              </Stack>
-            </Paper>
-            <Stack direction="row" spacing={1}>
-              <MuiButton type="submit" variant="contained" fullWidth>
-                {form.id ? "Update Lead" : "Create Lead"}
-              </MuiButton>
-              <MuiButton
-                type="button"
-                variant="outlined"
-                fullWidth
-                onClick={() => setForm(createDefaultLeadForm(defaultLeadCountry))}
-              >
-                {form.id ? "Cancel Edit" : "Reset"}
-              </MuiButton>
-            </Stack>
+            </SectionCard>
           </Box>
-          {message ? (
-            <Box sx={{ mt: 1.5 }}>
-              <ToastMessage
-                tone={messageTone}
-                title={messageTone === "error" ? "Lead Action Failed" : "Lead Update"}
-                message={message}
-              />
-            </Box>
-          ) : null}
-          </SectionCard>
-        </Box>
 
-        <SectionCard title="Import Leads" subtitle="Upload CSV or Excel file (.csv, .xlsx, .xls) with columns: full_name, phone, email, company">
-          <Box component="form" sx={{ display: "grid", gap: 1.25 }} onSubmit={handleImport}>
-            <Box
-              component="input"
-              name="csv_file"
-              type="file"
-              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-              sx={{
-                width: "100%",
-                border: 1,
-                borderColor: "divider",
-                borderRadius: 1,
-                px: 1.5,
-                py: 1,
-                fontSize: 14,
-              }}
-            />
-            <TextField
-              select
-              size="small"
-              name="target_list_id"
-              label="Assign to Existing Lead List (Optional)"
-              defaultValue=""
-              InputLabelProps={{ shrink: true }}
-              SelectProps={{ displayEmpty: true }}
-            >
-              <MenuItem value="">-- None (Do not assign to list) --</MenuItem>
-              {lists.map((l) => (
-                <MenuItem key={l.id} value={l.id}>
-                  📋 {l.name} ({l.leads_count ?? l.total_leads ?? 0} leads)
-                </MenuItem>
-              ))}
-            </TextField>
-            <TextField
-              size="small"
-              name="new_list_name"
-              label="OR Create & Assign to New Lead List (Optional)"
-              placeholder="e.g. October Marketing Campaign"
-              helperText="Enter a list name to automatically create a new list for these leads."
-            />
-            <MuiButton type="submit" disabled={importing} variant="contained" fullWidth>
-              {importing ? "Importing..." : "Upload and Import"}
-            </MuiButton>
-          </Box>
-          {importState ? (
-            <Paper
-              variant="outlined"
-              sx={{ mt: 1.5, p: 1.5, bgcolor: "action.hover", color: "text.secondary" }}
-            >
-              <Typography variant="caption" display="block">Status: {importState.status}</Typography>
-              <Typography variant="caption" display="block">Progress: {importState.progress}%</Typography>
-              <Typography variant="caption" display="block">
-                Processed: {importState.processed_rows}/{importState.total_rows} rows
-              </Typography>
-              <Typography variant="caption" display="block">
-                Success/Failed: {importState.successful_rows}/{importState.failed_rows}
-              </Typography>
-              {(importState.status === "completed" || importState.status === "failed") && (
-                <MuiButton
-                  size="small"
-                  variant="outlined"
-                  sx={{ mt: 1 }}
-                  onClick={() => {
-                    setImportReportJob(importState);
-                    setImportResultModalOpen(true);
-                  }}
-                >
-                  View Validation Report & Skipped Rows ({importState.failed_rows})
-                </MuiButton>
-              )}
-            </Paper>
-          ) : null}
-          {message ? (
-            <Box sx={{ mt: 1.5 }}>
-              <ToastMessage tone={messageTone} message={message} />
-            </Box>
-          ) : null}
-        </SectionCard>
-
-        <SectionCard title="Lead Filters" subtitle="Search and lifecycle status tracking">
-          <Stack spacing={1.25}>
-            <TextField
-              size="medium"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search by name/phone/email/company"
-            />
-            <TextField
-              select
-              size="medium"
-              value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              SelectProps={{ displayEmpty: true }}
-              fullWidth
-            >
-              <MenuItem value="">All Statuses</MenuItem>
-              {leadStatuses.map((status) => (
-                <MenuItem key={status} value={status}>
-                  {status.replace("_", " ").toUpperCase()}
-                </MenuItem>
-              ))}
-            </TextField>
-            <Typography variant="body2" color="text.secondary">Visible leads: {filtered.length}</Typography>
-          </Stack>
-        </SectionCard>
-      </Box>
-
-      <Box
-        sx={{
-          mt: 2,
-          display: "grid",
-          gap: 2,
-          alignItems: "start",
-          gridTemplateColumns: { xs: "1fr", xl: "1.65fr 1fr" },
-        }}
-      >
-      <SectionCard title="Lead Table" subtitle="Assignment and follow-up visibility with inline status and owner updates.">
-        {loading ? (
-          <SkeletonLines rows={8} />
-        ) : (
-          <>
-            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap sx={{ mb: 1.5, gap: 1 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                {selectedMainLeadIds.length > 0
-                  ? `Selected: ${selectedMainLeadIds.length} of ${filtered.length} lead(s)`
-                  : `Visible leads: ${filtered.length}`}
-              </Typography>
-
-              <Stack direction="row" spacing={1} alignItems="center">
-                {filtered.length > 0 ? (
-                  <MuiButton
-                    size="small"
-                    variant="outlined"
-                    onClick={() => {
-                      const allSel = filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id));
-                      if (allSel) {
-                        setSelectedMainLeadIds([]);
-                      } else {
-                        setSelectedMainLeadIds(filtered.map((l) => l.id));
-                      }
-                    }}
-                  >
-                    {filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id))
-                      ? "Deselect All"
-                      : `Select All (${filtered.length})`}
-                  </MuiButton>
-                ) : null}
-
-                {selectedMainLeadIds.length > 0 ? (
-                  <MuiButton
-                    size="small"
-                    variant="contained"
-                    color="error"
-                    onClick={() => void onBulkDeleteLeads()}
-                  >
-                    🗑️ Delete Selected ({selectedMainLeadIds.length})
-                  </MuiButton>
-                ) : null}
-              </Stack>
-            </Stack>
-
-            <Paper variant="outlined" sx={{ overflowX: "auto" }}>
-              <Table size="small" sx={{ width: "100%", minWidth: 1020, tableLayout: "fixed" }}>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: "action.hover" }}>
-                    <TableCell sx={{ width: 40, py: 1.5 }}>
-                      <Box
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const allSel = filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id));
-                          if (allSel) {
-                            setSelectedMainLeadIds([]);
-                          } else {
-                            setSelectedMainLeadIds(filtered.map((l) => l.id));
-                          }
-                        }}
-                        title={
-                          filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id))
-                            ? "Deselect All Leads"
-                            : "Select All Leads"
-                        }
-                        sx={{
-                          width: 18,
-                          height: 18,
-                          borderRadius: 0.5,
-                          border: 2,
-                          borderColor:
-                            filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id))
-                              ? "primary.main"
-                              : selectedMainLeadIds.length > 0
-                              ? "primary.main"
-                              : "divider",
-                          bgcolor:
-                            filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id))
-                              ? "primary.main"
-                              : "transparent",
-                          display: "grid",
-                          placeItems: "center",
-                          color: "#fff",
-                          fontSize: "0.7rem",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          userSelect: "none",
-                        }}
-                      >
-                        {filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id))
-                          ? "✓"
-                          : selectedMainLeadIds.length > 0
-                          ? "−"
-                          : ""}
-                      </Box>
-                    </TableCell>
-                    <TableCell sx={{ width: "16%", py: 1.5 }}>Name</TableCell>
-                    <TableCell sx={{ width: "12%", py: 1.5 }}>Phone</TableCell>
-                    <TableCell sx={{ width: "15%", py: 1.5 }}>Status</TableCell>
-                    <TableCell sx={{ width: "15%", py: 1.5 }}>Agent</TableCell>
-                    <TableCell sx={{ width: "8%", py: 1.5 }}>Tags</TableCell>
-                    <TableCell sx={{ width: "10%", py: 1.5 }}>Follow-Up</TableCell>
-                    <TableCell sx={{ width: "12%", py: 1.5 }}>Notes</TableCell>
-                    <TableCell sx={{ width: "10%", py: 1.5 }}>Action</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {filtered.map((lead) => {
-                    const isChecked = selectedMainLeadIds.includes(lead.id);
-                    return (
-                      <TableRow
-                        key={lead.id}
-                        hover
-                        onClick={() => setSelectedLeadId(lead.id)}
-                        sx={{
-                          cursor: "pointer",
-                          bgcolor: isChecked ? "action.selected" : selectedLeadId === lead.id ? "action.hover" : "inherit",
-                          "&:hover": {
-                            bgcolor: "action.hover",
-                          },
-                        }}
-                      >
-                        <TableCell
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedMainLeadIds((prev) =>
-                              prev.includes(lead.id) ? prev.filter((id) => id !== lead.id) : [...prev, lead.id]
-                            );
-                          }}
-                        >
-                          <Box
-                            sx={{
-                              width: 18,
-                              height: 18,
-                              borderRadius: 0.5,
-                              border: 2,
-                              borderColor: isChecked ? "primary.main" : "divider",
-                              bgcolor: isChecked ? "primary.main" : "transparent",
-                              display: "grid",
-                              placeItems: "center",
-                              color: "#fff",
-                              fontSize: "0.7rem",
-                              fontWeight: 700,
-                              cursor: "pointer",
-                            }}
-                          >
-                            {isChecked ? "✓" : ""}
-                          </Box>
-                        </TableCell>
-                        <TableCell sx={{ verticalAlign: "middle", overflow: "hidden", py: 1 }}>
-                      <Stack direction="row" spacing={1.25} alignItems="center">
-                        <Box
+          <Box
+            sx={{
+              mt: 2,
+              display: "grid",
+              gap: 2,
+              alignItems: "start",
+              gridTemplateColumns: { xs: "1fr", xl: "1.65fr 1fr" },
+            }}
+          >
+            <SectionCard title="Lead Table" subtitle="Assignment and follow-up visibility with inline status and owner updates.">
+              {loading ? (
+                <SkeletonLines rows={8} />
+              ) : (
+                <Paper variant="outlined" sx={{ overflowX: "auto" }}>
+                  <Table size="small" sx={{ width: "100%", minWidth: 980, tableLayout: "fixed" }}>
+                    <TableHead>
+                      <TableRow sx={{ bgcolor: "action.hover" }}>
+                        <TableCell sx={{ width: "16%", py: 1.5 }}>Name</TableCell>
+                        <TableCell sx={{ width: "12%", py: 1.5 }}>Phone</TableCell>
+                        <TableCell sx={{ width: "16%", py: 1.5 }}>Status</TableCell>
+                        <TableCell sx={{ width: "16%", py: 1.5 }}>Agent</TableCell>
+                        <TableCell sx={{ width: "8%", py: 1.5 }}>Tags</TableCell>
+                        <TableCell sx={{ width: "10%", py: 1.5 }}>Follow-Up</TableCell>
+                        <TableCell sx={{ width: "12%", py: 1.5 }}>Notes</TableCell>
+                        <TableCell sx={{ width: "10%", py: 1.5 }}>Action</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {filtered.map((lead) => (
+                        <TableRow
+                          key={lead.id}
+                          hover
+                          onClick={() => setSelectedLeadId(lead.id)}
                           sx={{
-                            width: 32,
-                            height: 32,
-                            borderRadius: "50%",
-                            bgcolor: "primary.light",
-                            color: "primary.contrastText",
-                            display: "grid",
-                            placeItems: "center",
-                            fontWeight: 700,
-                            fontSize: "0.8125rem",
-                            flexShrink: 0,
+                            cursor: "pointer",
+                            bgcolor: selectedLeadId === lead.id ? "action.selected" : "inherit",
+                            "&:hover": {
+                              bgcolor: "action.hover",
+                            },
                           }}
                         >
-                          {lead.full_name ? lead.full_name.trim().charAt(0).toUpperCase() : "?"}
-                        </Box>
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography
-                            variant="body2"
+                          <TableCell sx={{ verticalAlign: "middle", overflow: "hidden", py: 1 }}>
+                            <Stack direction="row" spacing={1.25} alignItems="center">
+                              <Box
+                                sx={{
+                                  width: 32,
+                                  height: 32,
+                                  borderRadius: "50%",
+                                  bgcolor: "primary.light",
+                                  color: "primary.contrastText",
+                                  display: "grid",
+                                  placeItems: "center",
+                                  fontWeight: 700,
+                                  fontSize: "0.8125rem",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {lead.full_name ? lead.full_name.trim().charAt(0).toUpperCase() : "?"}
+                              </Box>
+                              <Box sx={{ minWidth: 0 }}>
+                                <Typography
+                                  variant="body2"
+                                  sx={{
+                                    fontWeight: 600,
+                                    color: "text.primary",
+                                    whiteSpace: "nowrap",
+                                    overflow: "hidden",
+                                    textOverflow: "ellipsis",
+                                  }}
+                                >
+                                  {lead.full_name}
+                                </Typography>
+                                {lead.company ? (
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                    sx={{
+                                      display: "block",
+                                      whiteSpace: "nowrap",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                    }}
+                                  >
+                                    {lead.company}
+                                  </Typography>
+                                ) : null}
+                              </Box>
+                            </Stack>
+                          </TableCell>
+                          <TableCell
                             sx={{
-                              fontWeight: 600,
-                              color: "text.primary",
+                              verticalAlign: "middle",
                               whiteSpace: "nowrap",
                               overflow: "hidden",
                               textOverflow: "ellipsis",
+                              fontFamily: "monospace",
+                              fontSize: "0.875rem",
+                              letterSpacing: "0.2px",
                             }}
                           >
-                            {lead.full_name}
-                          </Typography>
-                          {lead.company ? (
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
+                            {lead.phone}
+                          </TableCell>
+                          <TableCell sx={{ verticalAlign: "middle" }}>
+                            <TextField
+                              select
+                              size="small"
+                              value={lead.status}
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={(event) =>
+                                void updateLeadStatusInline(lead, event.target.value as LeadStatus)
+                              }
+                              fullWidth
+                              SelectProps={{
+                                renderValue: (value) => (
+                                  <StatusBadge label={value as string} />
+                                ),
+                                sx: {
+                                  minHeight: "auto",
+                                  "& .MuiSelect-select": {
+                                    py: "2px",
+                                    pl: "4px",
+                                    pr: "24px !important",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "flex-start",
+                                  },
+                                  "& .MuiOutlinedInput-notchedOutline": { border: "none" },
+                                  "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
+                                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "none" },
+                                }
+                              }}
                               sx={{
-                                display: "block",
-                                whiteSpace: "nowrap",
-                                overflow: "hidden",
-                                textOverflow: "ellipsis",
+                                width: "fit-content",
+                                bgcolor: "transparent",
                               }}
                             >
-                              {lead.company}
-                            </Typography>
-                          ) : null}
-                        </Box>
-                      </Stack>
-                    </TableCell>
-                    <TableCell
-                      sx={{
-                        verticalAlign: "middle",
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        fontFamily: "monospace",
-                        fontSize: "0.875rem",
-                        letterSpacing: "0.2px",
-                      }}
-                    >
-                      {lead.phone}
-                    </TableCell>
-                    <TableCell sx={{ verticalAlign: "middle" }}>
-                      <TextField
-                        select
-                        size="small"
-                        value={lead.status}
-                        onClick={(event) => event.stopPropagation()}
-                        onChange={(event) =>
-                          void updateLeadStatusInline(lead, event.target.value as LeadStatus)
-                        }
-                        fullWidth
-                        SelectProps={{
-                          renderValue: (value) => (
-                            <StatusBadge label={value as string} />
-                          ),
-                          sx: {
-                            minHeight: "auto",
-                            "& .MuiSelect-select": {
-                              py: "2px",
-                              pl: "4px",
-                              pr: "24px !important",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "flex-start",
-                            },
-                            "& .MuiOutlinedInput-notchedOutline": { border: "none" },
-                            "&:hover .MuiOutlinedInput-notchedOutline": { border: "none" },
-                            "&.Mui-focused .MuiOutlinedInput-notchedOutline": { border: "none" },
-                          }
-                        }}
-                        sx={{
-                          width: "fit-content",
-                          bgcolor: "transparent",
-                        }}
-                      >
-                        {leadStatuses.map((status) => (
-                          <MenuItem key={status} value={status} sx={{ py: 0.75 }}>
-                            <StatusBadge label={status} />
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    </TableCell>
-                    <TableCell sx={{ verticalAlign: "middle" }}>
-                      <TextField
-                        select
-                        size="small"
-                        value={lead.owner_agent || "Unassigned"}
-                        onClick={(event) => event.stopPropagation()}
-                        onChange={async (event) => {
-                          const newOwner = event.target.value;
-                          try {
-                            await saveLead(
-                              {
-                                full_name: lead.full_name,
-                                phone: lead.phone,
-                                email: lead.email,
-                                company: lead.company,
-                                status: lead.status,
-                                owner_agent: newOwner,
-                                next_follow_up_at: lead.next_follow_up_at ?? null,
-                                tags: lead.tags,
-                                notes: lead.notes,
-                              },
-                              lead.id
-                            );
-                            setMessage(`Agent assigned: ${newOwner}`);
-                            setMessageTone("success");
-                            await load();
-                          } catch (err) {
-                            setMessage(err instanceof Error ? err.message : "Failed to update agent assignment.");
-                            setMessageTone("error");
-                          }
-                        }}
-                        fullWidth
-                        SelectProps={{
-                          sx: {
-                            fontSize: "0.8125rem",
-                            py: "2px",
-                            px: "4px",
-                            bgcolor: "action.hover",
-                            borderRadius: "4px",
-                            "& .MuiOutlinedInput-notchedOutline": { borderColor: "transparent" },
-                            "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0, 0, 0, 0.08)" },
-                            "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "primary.main" },
-                          }
-                        }}
-                      >
-                        <MenuItem value="Unassigned">
-                          <Typography variant="body2" sx={{ color: "text.secondary", fontStyle: "italic" }}>
-                            Unassigned
-                          </Typography>
-                        </MenuItem>
-                        {availableAgentNames.map((name) => (
-                          <MenuItem key={name} value={name}>
-                            <Typography variant="body2">{name}</Typography>
-                          </MenuItem>
-                        ))}
-                      </TextField>
-                    </TableCell>
-                    <TableCell sx={{ verticalAlign: "middle" }}>
-                      {lead.tags.length > 0 ? (
-                        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                          {lead.tags.map((tag) => (
-                            <Chip
-                              key={tag}
-                              label={tag}
+                              {leadStatuses.map((status) => (
+                                <MenuItem key={status} value={status} sx={{ py: 0.75 }}>
+                                  <StatusBadge label={status} />
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </TableCell>
+                          <TableCell sx={{ verticalAlign: "middle" }}>
+                            <TextField
+                              select
                               size="small"
-                              sx={{
-                                fontSize: "0.7rem",
-                                height: 18,
-                                bgcolor: "action.selected",
-                                color: "text.secondary",
-                                fontWeight: 500,
-                              }}
-                            />
-                          ))}
-                        </Stack>
-                      ) : (
-                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic" }}>
-                          None
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell sx={{ verticalAlign: "middle" }}>
-                      {lead.next_follow_up_at ? (
-                        <Typography variant="body2" sx={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
-                          {new Date(lead.next_follow_up_at).toLocaleString([], {
-                            month: "short",
-                            day: "2-digit",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </Typography>
-                      ) : (
-                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic" }}>
-                          None
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell sx={{ verticalAlign: "middle" }}>
-                      {lead.notes.length > 0 ? (
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{
-                            display: "-webkit-box",
-                            WebkitLineClamp: 2,
-                            WebkitBoxOrient: "vertical",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "normal",
-                            lineHeight: 1.3,
-                          }}
-                          title={lead.notes.join("\n")}
-                        >
-                          {lead.notes[lead.notes.length - 1]}
-                        </Typography>
-                      ) : (
-                        <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic" }}>
-                          No notes
-                        </Typography>
-                      )}
-                    </TableCell>
-                    <TableCell sx={{ verticalAlign: "middle" }}>
-                      <Stack direction="row" spacing={0.75} justifyContent="flex-start">
-                        <MuiButton
-                          type="button"
-                          size="small"
-                          variant="outlined"
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            const parsedPhone = parsePhoneForForm(lead.phone, defaultLeadCountry);
-                            setForm({
-                              id: lead.id,
-                              full_name: lead.full_name,
-                              phone_country: parsedPhone.phone_country,
-                              phone_local: parsedPhone.phone_local,
-                              email: lead.email ?? "",
-                              company: lead.company ?? "",
-                              status: lead.status,
-                              owner_agent: lead.owner_agent,
-                              next_follow_up_at: lead.next_follow_up_at
-                                ? new Date(lead.next_follow_up_at).toISOString().slice(0, 16)
-                                : "",
-                              tags: lead.tags.join(", "),
-                              notes: lead.notes.join("\n"),
-                            });
-
-                            window.requestAnimationFrame(() => {
-                              leadFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-                            });
-                          }}
-                          sx={{ minWidth: 42, px: 1, py: 0.25, fontSize: "0.725rem" }}
-                        >
-                          Edit
-                        </MuiButton>
-                        <MuiButton
-                          type="button"
-                          size="small"
-                          variant="outlined"
-                          color="error"
-                          onClick={async (event) => {
-                            event.stopPropagation();
-                            if (window.confirm(`Are you sure you want to delete lead "${lead.full_name}"?`)) {
-                              try {
-                                await deleteLead(lead.id);
-                                setMessage("Lead deleted successfully.");
-                                setMessageTone("success");
-                                if (selectedLeadId === lead.id) {
-                                  setSelectedLeadId("");
+                              value={lead.owner_agent || "Unassigned"}
+                              onClick={(event) => event.stopPropagation()}
+                              onChange={async (event) => {
+                                const newOwner = event.target.value;
+                                try {
+                                  await saveLead(
+                                    {
+                                      full_name: lead.full_name,
+                                      phone: lead.phone,
+                                      email: lead.email,
+                                      company: lead.company,
+                                      status: lead.status,
+                                      owner_agent: newOwner,
+                                      next_follow_up_at: lead.next_follow_up_at ?? null,
+                                      tags: lead.tags,
+                                      notes: lead.notes,
+                                    },
+                                    lead.id
+                                  );
+                                  setMessage(`Agent assigned: ${newOwner}`);
+                                  setMessageTone("success");
+                                  await load();
+                                } catch (err) {
+                                  setMessage(err instanceof Error ? err.message : "Failed to update agent assignment.");
+                                  setMessageTone("error");
                                 }
-                                await load();
-                              } catch (err) {
-                                setMessage(err instanceof Error ? err.message : "Failed to delete lead.");
-                                setMessageTone("error");
-                              }
-                            }
-                          }}
-                          sx={{ minWidth: 42, px: 1, py: 0.25, fontSize: "0.725rem" }}
-                        >
-                          Delete
-                        </MuiButton>
-                      </Stack>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-                {filtered.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={9}>
-                      <Typography variant="body2" color="text.secondary">
-                        No leads found for current filters. Clear filters or create a new lead to continue.
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </Paper>
-          </>
-        )}
-      </SectionCard>
-      <Paper variant="outlined" sx={{ p: 2, position: { xl: "sticky" }, top: { xl: 80 } }}>
-        <Typography variant="subtitle2">Lead Detail Drawer</Typography>
-        {selectedLead ? (
-          <Stack spacing={1} sx={{ mt: 1.5 }}>
-            <Typography variant="body2"><Typography component="span" variant="body2" color="text.secondary">Name:</Typography> {selectedLead.full_name}</Typography>
-            <Typography variant="body2"><Typography component="span" variant="body2" color="text.secondary">Phone:</Typography> {selectedLead.phone}</Typography>
-            <Typography variant="body2"><Typography component="span" variant="body2" color="text.secondary">Email:</Typography> {selectedLead.email || "N/A"}</Typography>
-            <Typography variant="body2"><Typography component="span" variant="body2" color="text.secondary">Company:</Typography> {selectedLead.company || "N/A"}</Typography>
-            <Typography variant="body2"><Typography component="span" variant="body2" color="text.secondary">Owner:</Typography> {selectedLead.owner_agent || "Unassigned"}</Typography>
-            <Typography variant="body2">
-              <Typography component="span" variant="body2" color="text.secondary">Follow-up:</Typography>{" "}
-              {selectedLead.next_follow_up_at ? new Date(selectedLead.next_follow_up_at).toLocaleString() : "None"}
-            </Typography>
-            <Typography variant="body2"><Typography component="span" variant="body2" color="text.secondary">Tags:</Typography> {selectedLead.tags.join(", ") || "None"}</Typography>
-            <Box sx={{ mt: 0.5 }}>
-              <Typography variant="caption" sx={{ mb: 0.5, display: "block", textTransform: "uppercase", color: "text.secondary", fontWeight: 700 }}>
-                Quick Status Update
-              </Typography>
-              <TextField
-                select
-                size="medium"
-                fullWidth
-                value={selectedLead.status}
-                onChange={(event) =>
-                  void updateLeadStatusInline(selectedLead, event.target.value as LeadStatus)
-                }
-              >
-                {leadStatuses.map((status) => (
-                  <MenuItem key={status} value={status}>
-                    {status}
-                  </MenuItem>
-                ))}
-              </TextField>
-            </Box>
-            <Paper
-              variant="outlined"
-              sx={{ p: 1.5, bgcolor: "action.hover", color: "text.secondary", whiteSpace: "pre-line" }}
-            >
-              <Typography variant="caption">{selectedLead.notes.join("\n") || "No notes"}</Typography>
+                              }}
+                              fullWidth
+                              SelectProps={{
+                                sx: {
+                                  fontSize: "0.8125rem",
+                                  py: "2px",
+                                  px: "4px",
+                                  bgcolor: "action.hover",
+                                  borderRadius: "4px",
+                                  "& .MuiOutlinedInput-notchedOutline": { borderColor: "transparent" },
+                                  "&:hover .MuiOutlinedInput-notchedOutline": { borderColor: "rgba(0, 0, 0, 0.08)" },
+                                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": { borderColor: "primary.main" },
+                                }
+                              }}
+                            >
+                              <MenuItem value="Unassigned">
+                                <Typography variant="body2" sx={{ color: "text.secondary", fontStyle: "italic" }}>
+                                  Unassigned
+                                </Typography>
+                              </MenuItem>
+                              {availableAgentNames.map((name) => (
+                                <MenuItem key={name} value={name}>
+                                  <Typography variant="body2">{name}</Typography>
+                                </MenuItem>
+                              ))}
+                            </TextField>
+                          </TableCell>
+                          <TableCell sx={{ verticalAlign: "middle" }}>
+                            {lead.tags.length > 0 ? (
+                              <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                                {lead.tags.map((tag) => (
+                                  <Chip
+                                    key={tag}
+                                    label={tag}
+                                    size="small"
+                                    sx={{
+                                      fontSize: "0.7rem",
+                                      height: 18,
+                                      bgcolor: "action.selected",
+                                      color: "text.secondary",
+                                      fontWeight: 500,
+                                    }}
+                                  />
+                                ))}
+                              </Stack>
+                            ) : (
+                              <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic" }}>
+                                None
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ verticalAlign: "middle" }}>
+                            {lead.next_follow_up_at ? (
+                              <Typography variant="body2" sx={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }}>
+                                {new Date(lead.next_follow_up_at).toLocaleString([], {
+                                  month: "short",
+                                  day: "2-digit",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </Typography>
+                            ) : (
+                              <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic" }}>
+                                None
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ verticalAlign: "middle" }}>
+                            {lead.notes.length > 0 ? (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{
+                                  display: "-webkit-box",
+                                  WebkitLineClamp: 2,
+                                  WebkitBoxOrient: "vertical",
+                                  overflow: "hidden",
+                                  textOverflow: "ellipsis",
+                                  whiteSpace: "normal",
+                                  lineHeight: 1.3,
+                                }}
+                                title={lead.notes.join("\n")}
+                              >
+                                {lead.notes[lead.notes.length - 1]}
+                              </Typography>
+                            ) : (
+                              <Typography variant="caption" color="text.secondary" sx={{ fontStyle: "italic" }}>
+                                No notes
+                              </Typography>
+                            )}
+                          </TableCell>
+                          <TableCell sx={{ verticalAlign: "middle" }}>
+                            <Stack direction="row" spacing={0.75} justifyContent="flex-start">
+                              <MuiButton
+                                type="button"
+                                size="small"
+                                variant="outlined"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  const parsedPhone = parsePhoneForForm(lead.phone, defaultLeadCountry);
+                                  setForm({
+                                    id: lead.id,
+                                    full_name: lead.full_name,
+                                    phone_country: parsedPhone.phone_country,
+                                    phone_local: parsedPhone.phone_local,
+                                    email: lead.email ?? "",
+                                    company: lead.company ?? "",
+                                    status: lead.status,
+                                    owner_agent: lead.owner_agent,
+                                    next_follow_up_at: lead.next_follow_up_at
+                                      ? new Date(lead.next_follow_up_at).toISOString().slice(0, 16)
+                                      : "",
+                                    tags: lead.tags.join(", "),
+                                    notes: lead.notes.join("\n"),
+                                  });
+
+                                  window.requestAnimationFrame(() => {
+                                    leadFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+                                  });
+                                }}
+                                sx={{ minWidth: 42, px: 1, py: 0.25, fontSize: "0.725rem" }}
+                              >
+                                Edit
+                              </MuiButton>
+                              <MuiButton
+                                type="button"
+                                size="small"
+                                variant="outlined"
+                                color="error"
+                                onClick={async (event) => {
+                                  event.stopPropagation();
+                                  if (window.confirm(`Are you sure you want to delete lead "${lead.full_name}"?`)) {
+                                    try {
+                                      await deleteLead(lead.id);
+                                      setMessage("Lead deleted successfully.");
+                                      setMessageTone("success");
+                                      if (selectedLeadId === lead.id) {
+                                        setSelectedLeadId("");
+                                      }
+                                      await load();
+                                    } catch (err) {
+                                      setMessage(err instanceof Error ? err.message : "Failed to delete lead.");
+                                      setMessageTone("error");
+                                    }
+                                  }
+                                }}
+                                sx={{ minWidth: 42, px: 1, py: 0.25, fontSize: "0.725rem" }}
+                              >
+                                Delete
+                              </MuiButton>
+                            </Stack>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {filtered.length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={8}>
+                            <Typography variant="body2" color="text.secondary">
+                              No leads found for current filters. Clear filters or create a new lead to continue.
+                            </Typography>
+                          </TableCell>
+                        </TableRow>
+                      ) : null}
+                    </TableBody>
+                  </Table>
+                </Paper>
+              )}
+            </SectionCard>
+            <Paper variant="outlined" sx={{ p: 2, position: { xl: "sticky" }, top: { xl: 80 } }}>
+              <Typography variant="subtitle2">Lead Detail Drawer</Typography>
+              {selectedLead ? (
+                <Stack spacing={1} sx={{ mt: 1.5 }}>
+                  <Typography variant="body2"><Typography component="span" variant="body2" color="text.secondary">Name:</Typography> {selectedLead.full_name}</Typography>
+                  <Typography variant="body2"><Typography component="span" variant="body2" color="text.secondary">Phone:</Typography> {selectedLead.phone}</Typography>
+                  <Typography variant="body2"><Typography component="span" variant="body2" color="text.secondary">Email:</Typography> {selectedLead.email || "N/A"}</Typography>
+                  <Typography variant="body2"><Typography component="span" variant="body2" color="text.secondary">Company:</Typography> {selectedLead.company || "N/A"}</Typography>
+                  <Typography variant="body2"><Typography component="span" variant="body2" color="text.secondary">Owner:</Typography> {selectedLead.owner_agent || "Unassigned"}</Typography>
+                  <Typography variant="body2">
+                    <Typography component="span" variant="body2" color="text.secondary">Follow-up:</Typography>{" "}
+                    {selectedLead.next_follow_up_at ? new Date(selectedLead.next_follow_up_at).toLocaleString() : "None"}
+                  </Typography>
+                  <Typography variant="body2"><Typography component="span" variant="body2" color="text.secondary">Tags:</Typography> {selectedLead.tags.join(", ") || "None"}</Typography>
+                  <Box sx={{ mt: 0.5 }}>
+                    <Typography variant="caption" sx={{ mb: 0.5, display: "block", textTransform: "uppercase", color: "text.secondary", fontWeight: 700 }}>
+                      Quick Status Update
+                    </Typography>
+                    <TextField
+                      select
+                      size="medium"
+                      fullWidth
+                      value={selectedLead.status}
+                      onChange={(event) =>
+                        void updateLeadStatusInline(selectedLead, event.target.value as LeadStatus)
+                      }
+                    >
+                      {leadStatuses.map((status) => (
+                        <MenuItem key={status} value={status}>
+                          {status}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </Box>
+                  <Paper
+                    variant="outlined"
+                    sx={{ p: 1.5, bgcolor: "action.hover", color: "text.secondary", whiteSpace: "pre-line" }}
+                  >
+                    <Typography variant="caption">{selectedLead.notes.join("\n") || "No notes"}</Typography>
+                  </Paper>
+                </Stack>
+              ) : (
+                <EmptyPanel
+                  title="No lead selected"
+                  description="Select a row from the lead table to open details and quickly update lifecycle status."
+                />
+              )}
             </Paper>
-          </Stack>
-        ) : (
-          <EmptyPanel
-            title="No lead selected"
-            description="Select a row from the lead table to open details and quickly update lifecycle status."
-          />
-        )}
-      </Paper>
-      </Box>
-      </>
+          </Box>
+        </>
       ) : (
         /* ===== Lead Lists Tab ===== */
         <Box sx={{ display: "grid", gap: 2, gridTemplateColumns: { xs: "1fr", xl: "1fr 1.7fr" } }}>
@@ -1387,7 +1238,6 @@ export default function LeadsPage() {
               size="medium"
               value={selectedListId}
               onChange={(event) => setSelectedListId(event.target.value)}
-              SelectProps={{ displayEmpty: true }}
               sx={{ mt: 1.5, width: "100%" }}
             >
               <MenuItem value="">Select list</MenuItem>
@@ -1454,10 +1304,10 @@ export default function LeadsPage() {
                       {toAttach.length > 0 && toDetach.length > 0
                         ? `Save Changes (${toAttach.length} attach, ${toDetach.length} remove)`
                         : toAttach.length > 0
-                        ? `Attach ${toAttach.length} Lead${toAttach.length > 1 ? "s" : ""}`
-                        : toDetach.length > 0
-                        ? `Remove ${toDetach.length} Lead${toDetach.length > 1 ? "s" : ""}`
-                        : "Save Changes"}
+                          ? `Attach ${toAttach.length} Lead${toAttach.length > 1 ? "s" : ""}`
+                          : toDetach.length > 0
+                            ? `Remove ${toDetach.length} Lead${toDetach.length > 1 ? "s" : ""}`
+                            : "Save Changes"}
                     </MuiButton>
                     <MuiButton
                       variant="outlined"
@@ -1523,8 +1373,8 @@ export default function LeadsPage() {
                                     visibleListLeads.length > 0 && visibleListLeads.every((l) => selectedLeadIdsForList.includes(l.id))
                                       ? "primary.main"
                                       : selectedLeadIdsForList.length > 0
-                                      ? "primary.main"
-                                      : "divider",
+                                        ? "primary.main"
+                                        : "divider",
                                   bgcolor:
                                     visibleListLeads.length > 0 && visibleListLeads.every((l) => selectedLeadIdsForList.includes(l.id))
                                       ? "primary.main"
@@ -1541,8 +1391,8 @@ export default function LeadsPage() {
                                 {visibleListLeads.length > 0 && visibleListLeads.every((l) => selectedLeadIdsForList.includes(l.id))
                                   ? "✓"
                                   : selectedLeadIdsForList.length > 0
-                                  ? "−"
-                                  : ""}
+                                    ? "−"
+                                    : ""}
                               </Box>
                             </TableCell>
                             <TableCell>Name</TableCell>
@@ -1597,10 +1447,10 @@ export default function LeadsPage() {
                         {toAttach.length > 0 && toDetach.length > 0
                           ? `Save Changes (Attach ${toAttach.length}, Remove ${toDetach.length})`
                           : toAttach.length > 0
-                          ? `Attach ${toAttach.length} Lead${toAttach.length > 1 ? "s" : ""}`
-                          : toDetach.length > 0
-                          ? `Remove ${toDetach.length} Lead${toDetach.length > 1 ? "s" : ""}`
-                          : "Save Changes"}
+                            ? `Attach ${toAttach.length} Lead${toAttach.length > 1 ? "s" : ""}`
+                            : toDetach.length > 0
+                              ? `Remove ${toDetach.length} Lead${toDetach.length > 1 ? "s" : ""}`
+                              : "Save Changes"}
                       </MuiButton>
                       <MuiButton
                         variant="outlined"
@@ -1711,5 +1561,3 @@ export default function LeadsPage() {
     </AppShell>
   );
 }
-
-// End of Leads Management Page

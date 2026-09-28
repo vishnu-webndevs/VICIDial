@@ -21,6 +21,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -174,6 +176,23 @@ class AuthController extends Controller
             newValues: ['role' => 'company_owner'],
             request: $request
         );
+
+        try {
+            $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:3000'), '/');
+            $userEmail = (string) $result['user']->email;
+            $userName = (string) $result['user']->first_name;
+            $companyName = (string) $result['tenant']->name;
+
+            Mail::raw(
+                "Hello {$userName},\n\nWelcome to WND Dialer! Your company \"{$companyName}\" has been successfully created.\n\nYou can log in to your dashboard anytime at:\n{$frontendUrl}/login\n\nBest regards,\nWND Dialer Team",
+                function ($message) use ($userEmail, $companyName) {
+                    $message->to($userEmail)
+                        ->subject("Welcome to WND Dialer - {$companyName}");
+                }
+            );
+        } catch (\Throwable $e) {
+            Log::warning("Failed to send welcome email to {$result['user']->email}: " . $e->getMessage());
+        }
 
         return response()->json([
             'data' => [
