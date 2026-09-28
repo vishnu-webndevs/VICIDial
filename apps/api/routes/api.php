@@ -45,6 +45,7 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
         Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
         Route::post('/reset-password', [AuthController::class, 'resetPassword']);
     });
+    Route::get('/team/invitations/{token}', [TeamController::class, 'getInvitation']);
     Route::post('/team/invitations/{token}/accept', [TeamController::class, 'acceptInvitation']);
     Route::get('/plans', [PlanController::class, 'index']);
 

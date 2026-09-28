@@ -181,6 +181,34 @@ class TeamController extends Controller
         ], 201);
     }
 
+    public function getInvitation(string $token): JsonResponse
+    {
+        $membership = Membership::query()
+            ->with(['role', 'tenant', 'user'])
+            ->where('invitation_token', $token)
+            ->where('status', 'invited')
+            ->first();
+
+        if (! $membership || ($membership->invitation_expires_at && $membership->invitation_expires_at->isPast())) {
+            return response()->json([
+                'error' => [
+                    'code' => 'TEAM_INVITATION_EXPIRED',
+                    'message' => 'Invitation token is invalid or expired.',
+                ],
+            ], 410);
+        }
+
+        return response()->json([
+            'data' => [
+                'token' => $membership->invitation_token,
+                'email' => $membership->user?->email,
+                'company_name' => $membership->tenant?->name,
+                'role_name' => $membership->role?->name,
+                'expires_at' => $membership->invitation_expires_at?->toISOString(),
+            ],
+        ]);
+    }
+
     public function acceptInvitation(Request $request, string $token): JsonResponse
     {
         $membership = Membership::query()

@@ -1,20 +1,17 @@
 import { Suspense } from "react";
-import RegisterClient from "./RegisterClient";
+import RegisterClient from "../register/RegisterClient";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Register | WND Dialer",
-  description: "Create your account or accept your invitation on WND Dialer.",
+  title: "Accept Invitation | WND Dialer",
+  description: "Accept your team invitation and complete your profile.",
   robots: {
-    index: true,
-    follow: true,
-  },
-  alternates: {
-    canonical: "/register",
+    index: false,
+    follow: false,
   },
 };
 
-export default function Page() {
+export default function AcceptInvitePage() {
   return (
     <Suspense fallback={<div style={{ minHeight: "100vh", backgroundColor: "#f5f5f9" }} />}>
       <RegisterClient />

@@ -1,8 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { apiRequest } from "@/lib/api";
 import type { RegisterResponse } from "@/types/auth";
 import { resetOnboarding } from "@/lib/onboarding";
@@ -10,15 +10,64 @@ import { saveSession } from "@/lib/auth-session";
 import {
   Box,
   Button,
+  CircularProgress,
   FormTextField,
   Link as MuiLink,
   Typography,
 } from "@/ui";
 
+interface InvitationDetails {
+  token: string;
+  email?: string;
+  company_name?: string;
+  role_name?: string;
+  expires_at?: string;
+}
+
+interface AcceptInvitationResponse {
+  data: {
+    token: string;
+    tenant: {
+      id: string;
+      name: string;
+    };
+  };
+}
+
 export default function RegisterClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const invitationToken = searchParams.get("invitation_token") || searchParams.get("token");
+
+  const [invitation, setInvitation] = useState<InvitationDetails | null>(null);
+  const [fetchingInvite, setFetchingInvite] = useState<boolean>(Boolean(invitationToken));
+  const [inviteError, setInviteError] = useState<string>("");
+
+  const [email, setEmail] = useState<string>("");
   const [message, setMessage] = useState<string>("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!invitationToken) return;
+
+    setFetchingInvite(true);
+    setInviteError("");
+
+    apiRequest<{ data: InvitationDetails }>(`/team/invitations/${invitationToken}`)
+      .then((res) => {
+        setInvitation(res.data);
+        if (res.data.email) {
+          setEmail(res.data.email);
+        }
+      })
+      .catch((err) => {
+        const errorMsg = err instanceof Error ? err.message : "Invitation token is invalid or expired.";
+        setInviteError(errorMsg);
+      })
+      .finally(() => {
+        setFetchingInvite(false);
+      });
+  }, [invitationToken]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -26,23 +75,55 @@ export default function RegisterClient() {
     setMessage("");
 
     const formData = new FormData(event.currentTarget);
-    const payload = {
-      company_name: String(formData.get("company_name") ?? "").trim(),
-      first_name: String(formData.get("first_name") ?? "").trim(),
-      last_name: String(formData.get("last_name") ?? "").trim(),
-      email: String(formData.get("email") ?? "").trim(),
-      password: String(formData.get("password") ?? ""),
-      password_confirmation: String(
-        formData.get("password_confirmation") ?? ""
-      ),
-      timezone: "UTC",
-    };
+    const firstName = String(formData.get("first_name") ?? "").trim();
+    const lastName = String(formData.get("last_name") ?? "").trim();
+    const inputEmail = String(formData.get("email") ?? "").trim();
+    const password = String(formData.get("password") ?? "");
+    const passwordConfirmation = String(formData.get("password_confirmation") ?? "");
 
-    if (payload.password !== payload.password_confirmation) {
+    if (password !== passwordConfirmation) {
       setMessage("Passwords do not match.");
       setLoading(false);
       return;
     }
+
+    if (invitationToken) {
+      try {
+        const response = await apiRequest<AcceptInvitationResponse>(
+          `/team/invitations/${invitationToken}/accept`,
+          {
+            method: "POST",
+            body: {
+              first_name: firstName,
+              last_name: lastName,
+              email: inputEmail || email,
+              password,
+              password_confirmation: passwordConfirmation,
+            },
+          }
+        );
+        saveSession(response.data.token, response.data.tenant.id);
+        router.push("/crm/leads");
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Failed to accept invitation.";
+        setMessage(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    const companyName = String(formData.get("company_name") ?? "").trim();
+    const payload = {
+      company_name: companyName,
+      first_name: firstName,
+      last_name: lastName,
+      email: inputEmail,
+      password,
+      password_confirmation: passwordConfirmation,
+      timezone: "UTC",
+    };
 
     try {
       const response = await apiRequest<RegisterResponse>("/auth/register", {
@@ -126,187 +207,235 @@ export default function RegisterClient() {
             </Typography>
           </Box>
 
-          <Typography
-            variant="h4"
-            sx={{ mb: 0.5, fontWeight: 500, color: "#566a7f" }}
-          >
-            Adventure starts here 🚀
-          </Typography>
-          <Typography variant="body2" sx={{ mb: 4, color: "#697a8d" }}>
-            Create your owner account and workspace
-          </Typography>
-
-          <Box component="form" onSubmit={onSubmit}>
-            <Box sx={{ mb: 3 }}>
+          {fetchingInvite ? (
+            <Box sx={{ textAlign: "center", py: 4 }}>
+              <CircularProgress size={32} sx={{ color: "#696cff", mb: 2 }} />
+              <Typography variant="body2" sx={{ color: "#697a8d" }}>
+                Verifying invitation details...
+              </Typography>
+            </Box>
+          ) : inviteError ? (
+            <Box sx={{ textAlign: "center", py: 2 }}>
               <Typography
-                component="label"
-                htmlFor="company_name"
+                variant="h6"
+                sx={{ mb: 1, fontWeight: 600, color: "#ff3e1d" }}
+              >
+                Invalid Invitation
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 3, color: "#697a8d" }}>
+                {inviteError}
+              </Typography>
+              <Button
+                component={Link}
+                href="/login"
+                fullWidth
+              >
+                Go to Sign In
+              </Button>
+            </Box>
+          ) : (
+            <>
+              <Typography
+                variant="h4"
+                sx={{ mb: 0.5, fontWeight: 500, color: "#566a7f" }}
+              >
+                {invitationToken
+                  ? `Join ${invitation?.company_name || "Team"} 🚀`
+                  : "Adventure starts here 🚀"}
+              </Typography>
+              <Typography variant="body2" sx={{ mb: 4, color: "#697a8d" }}>
+                {invitationToken
+                  ? `Accept invitation as ${invitation?.role_name || "Team Member"}`
+                  : "Create your owner account and workspace"}
+              </Typography>
+
+              <Box component="form" onSubmit={onSubmit}>
+                {!invitationToken && (
+                  <Box sx={{ mb: 3 }}>
+                    <Typography
+                      component="label"
+                      htmlFor="company_name"
+                      sx={{
+                        display: "block",
+                        mb: 0.5,
+                        fontSize: "0.8125rem",
+                        color: "#566a7f",
+                      }}
+                    >
+                      Company Name
+                    </Typography>
+                    <FormTextField
+                      id="company_name"
+                      name="company_name"
+                      placeholder="Company Name"
+                      required
+                      inputProps={{ maxLength: 100 }}
+                    />
+                  </Box>
+                )}
+
+                <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography
+                      component="label"
+                      htmlFor="first_name"
+                      sx={{
+                        display: "block",
+                        mb: 0.5,
+                        fontSize: "0.8125rem",
+                        color: "#566a7f",
+                      }}
+                    >
+                      First Name
+                    </Typography>
+                    <FormTextField
+                      id="first_name"
+                      name="first_name"
+                      placeholder="First Name"
+                      required
+                      inputProps={{ maxLength: 50 }}
+                    />
+                  </Box>
+                  <Box sx={{ flex: 1 }}>
+                    <Typography
+                      component="label"
+                      htmlFor="last_name"
+                      sx={{
+                        display: "block",
+                        mb: 0.5,
+                        fontSize: "0.8125rem",
+                        color: "#566a7f",
+                      }}
+                    >
+                      Last Name
+                    </Typography>
+                    <FormTextField
+                      id="last_name"
+                      name="last_name"
+                      placeholder="Last Name"
+                      required
+                      inputProps={{ maxLength: 50 }}
+                    />
+                  </Box>
+                </Box>
+
+                <Box sx={{ mb: 3 }}>
+                  <Typography
+                    component="label"
+                    htmlFor="email"
+                    sx={{
+                      display: "block",
+                      mb: 0.5,
+                      fontSize: "0.8125rem",
+                      color: "#566a7f",
+                    }}
+                  >
+                    Email
+                  </Typography>
+                  <FormTextField
+                    id="email"
+                    type="email"
+                    name="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    required
+                    disabled={Boolean(invitationToken && invitation?.email)}
+                    inputProps={{ maxLength: 100 }}
+                  />
+                </Box>
+
+                <Box sx={{ mb: 3 }}>
+                  <Typography
+                    component="label"
+                    htmlFor="password"
+                    sx={{
+                      display: "block",
+                      mb: 0.5,
+                      fontSize: "0.8125rem",
+                      color: "#566a7f",
+                    }}
+                  >
+                    Password
+                  </Typography>
+                  <FormTextField
+                    id="password"
+                    type="password"
+                    name="password"
+                    placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
+                    required
+                    inputProps={{ maxLength: 64 }}
+                  />
+                </Box>
+
+                <Box sx={{ mb: 3 }}>
+                  <Typography
+                    component="label"
+                    htmlFor="password_confirmation"
+                    sx={{
+                      display: "block",
+                      mb: 0.5,
+                      fontSize: "0.8125rem",
+                      color: "#566a7f",
+                    }}
+                  >
+                    Confirm Password
+                  </Typography>
+                  <FormTextField
+                    id="password_confirmation"
+                    type="password"
+                    name="password_confirmation"
+                    placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
+                    required
+                    inputProps={{ maxLength: 64 }}
+                  />
+                </Box>
+
+                <Button type="submit" disabled={loading} fullWidth>
+                  {loading
+                    ? "Submitting..."
+                    : invitationToken
+                    ? "Accept Invitation & Join"
+                    : "Sign up"}
+                </Button>
+              </Box>
+
+              <Typography
+                variant="body2"
                 sx={{
-                  display: "block",
-                  mb: 0.5,
-                  fontSize: "0.8125rem",
-                  color: "#566a7f",
+                  textAlign: "center",
+                  mt: 3,
+                  color: "#697a8d",
                 }}
               >
-                Company Name
+                Already have an account?{" "}
+                <MuiLink
+                  component={Link}
+                  href="/login"
+                  underline="none"
+                  sx={{ color: "#696cff" }}
+                >
+                  Sign in instead
+                </MuiLink>
               </Typography>
-              <FormTextField
-                id="company_name"
-                name="company_name"
-                placeholder="Company Name"
-                required
-                inputProps={{ maxLength: 100 }}
-              />
-            </Box>
-            <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
-              <Box sx={{ flex: 1 }}>
+
+              {message ? (
                 <Typography
-                  component="label"
-                  htmlFor="first_name"
+                  variant="body2"
                   sx={{
-                    display: "block",
-                    mb: 0.5,
+                    mt: 2,
+                    p: 1.5,
+                    borderRadius: "0.375rem",
+                    bgcolor: "#ffe7e3",
+                    color: "#ff3e1d",
                     fontSize: "0.8125rem",
-                    color: "#566a7f",
                   }}
                 >
-                  First Name
+                  {message}
                 </Typography>
-                <FormTextField
-                  id="first_name"
-                  name="first_name"
-                  placeholder="First Name"
-                  required
-                  inputProps={{ maxLength: 50 }}
-                />
-              </Box>
-              <Box sx={{ flex: 1 }}>
-                <Typography
-                  component="label"
-                  htmlFor="last_name"
-                  sx={{
-                    display: "block",
-                    mb: 0.5,
-                    fontSize: "0.8125rem",
-                    color: "#566a7f",
-                  }}
-                >
-                  Last Name
-                </Typography>
-                <FormTextField
-                  id="last_name"
-                  name="last_name"
-                  placeholder="Last Name"
-                  required
-                  inputProps={{ maxLength: 50 }}
-                />
-              </Box>
-            </Box>
-            <Box sx={{ mb: 3 }}>
-              <Typography
-                component="label"
-                htmlFor="email"
-                sx={{
-                  display: "block",
-                  mb: 0.5,
-                  fontSize: "0.8125rem",
-                  color: "#566a7f",
-                }}
-              >
-                Email
-              </Typography>
-              <FormTextField
-                id="email"
-                type="email"
-                name="email"
-                placeholder="Enter your email"
-                required
-                inputProps={{ maxLength: 100 }}
-              />
-            </Box>
-            <Box sx={{ mb: 3 }}>
-              <Typography
-                component="label"
-                htmlFor="password"
-                sx={{
-                  display: "block",
-                  mb: 0.5,
-                  fontSize: "0.8125rem",
-                  color: "#566a7f",
-                }}
-              >
-                Password
-              </Typography>
-              <FormTextField
-                id="password"
-                type="password"
-                name="password"
-                placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
-                required
-                inputProps={{ maxLength: 64 }}
-              />
-            </Box>
-            <Box sx={{ mb: 3 }}>
-              <Typography
-                component="label"
-                htmlFor="password_confirmation"
-                sx={{
-                  display: "block",
-                  mb: 0.5,
-                  fontSize: "0.8125rem",
-                  color: "#566a7f",
-                }}
-              >
-                Confirm Password
-              </Typography>
-              <FormTextField
-                id="password_confirmation"
-                type="password"
-                name="password_confirmation"
-                placeholder="&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;&#xb7;"
-                required
-                inputProps={{ maxLength: 64 }}
-              />
-            </Box>
-            <Button type="submit" disabled={loading} fullWidth>
-              {loading ? "Submitting..." : "Sign up"}
-            </Button>
-          </Box>
-
-          <Typography
-            variant="body2"
-            sx={{
-              textAlign: "center",
-              mt: 3,
-              color: "#697a8d",
-            }}
-          >
-            Already have an account?{" "}
-            <MuiLink
-              component={Link}
-              href="/login"
-              underline="none"
-              sx={{ color: "#696cff" }}
-            >
-              Sign in instead
-            </MuiLink>
-          </Typography>
-
-          {message ? (
-            <Typography
-              variant="body2"
-              sx={{
-                mt: 2,
-                p: 1.5,
-                borderRadius: "0.375rem",
-                bgcolor: "#ffe7e3",
-                color: "#ff3e1d",
-                fontSize: "0.8125rem",
-              }}
-            >
-              {message}
-            </Typography>
-          ) : null}
+              ) : null}
+            </>
+          )}
         </Box>
       </Box>
     </Box>
