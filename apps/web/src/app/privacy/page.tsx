@@ -1,4 +1,5 @@
 import Metadata from "next";
+import Link from "next/link";
 
 export const metadata = {
   title: "Privacy Policy | WND Dialer",
@@ -10,12 +11,12 @@ export default function PrivacyPolicyPage() {
     <div style={{ backgroundColor: "#f8fafc", minHeight: "100vh", fontFamily: "system-ui, -apple-system, sans-serif" }}>
       <header style={{ backgroundColor: "#ffffff", borderBottom: "1px solid #e2e8f0", padding: "1.25rem 2rem" }}>
         <div style={{ maxWidth: "1000px", margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <a href="/" style={{ fontSize: "1.25rem", fontWeight: "700", color: "#4f46e5", textDecoration: "none" }}>
+          <Link href="/" style={{ fontSize: "1.25rem", fontWeight: "700", color: "#4f46e5", textDecoration: "none" }}>
             WND Dialer
-          </a>
-          <a href="/login" style={{ color: "#475569", textDecoration: "none", fontSize: "0.9rem", fontWeight: "500" }}>
+          </Link>
+          <Link href="/login" style={{ color: "#475569", textDecoration: "none", fontSize: "0.9rem", fontWeight: "500" }}>
             Back to Application
-          </a>
+          </Link>
         </div>
       </header>
 

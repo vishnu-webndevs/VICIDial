@@ -244,6 +244,8 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             ->middleware('permission:call.initiate');
         Route::delete('/leads/{id}', [LeadController::class, 'destroy'])
             ->middleware('permission:call.initiate');
+        Route::post('/leads/bulk-delete', [LeadController::class, 'bulkDestroy'])
+            ->middleware('permission:call.initiate');
         Route::post('/leads/import', [LeadController::class, 'import'])
             ->middleware('permission:call.initiate');
         Route::get('/leads/import-jobs/{id}', [LeadController::class, 'importStatus'])

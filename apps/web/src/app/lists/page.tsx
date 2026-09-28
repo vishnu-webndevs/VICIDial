@@ -193,6 +193,7 @@ export default function ListsPage() {
             size="medium"
             value={selectedListId}
             onChange={(event) => setSelectedListId(event.target.value)}
+            SelectProps={{ displayEmpty: true }}
             sx={{ mt: 1.5, width: "100%" }}
           >
             <MenuItem value="">Select list</MenuItem>

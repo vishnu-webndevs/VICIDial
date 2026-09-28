@@ -206,6 +206,25 @@ class LeadController extends Controller
         return response()->json(['success' => true]);
     }
 
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $tenant = $request->attributes->get('tenant');
+        $validated = $request->validate([
+            'lead_ids' => ['required', 'array', 'min:1'],
+            'lead_ids.*' => ['uuid'],
+        ]);
+
+        $deletedCount = Lead::query()
+            ->where('tenant_id', $tenant->id)
+            ->whereIn('id', $validated['lead_ids'])
+            ->delete();
+
+        return response()->json([
+            'success' => true,
+            'deleted_count' => $deletedCount,
+        ]);
+    }
+
     public function import(Request $request): JsonResponse
     {
         $tenant = $request->attributes->get('tenant');

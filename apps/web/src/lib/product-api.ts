@@ -1034,6 +1034,27 @@ export async function deleteLead(leadId: string): Promise<void> {
   writeTenantStore("leads", nextLeads);
 }
 
+export async function deleteBulkLeads(leadIds: string[]): Promise<void> {
+  if (leadIds.length === 0) return;
+  const { token, tenantId } = getTenantContext();
+  try {
+    await apiRequest<void>("/leads/bulk-delete", {
+      method: "POST",
+      token,
+      tenantId,
+      body: { lead_ids: leadIds },
+    });
+  } catch (error) {
+    if (!isNotFoundError(error)) {
+      throw error;
+    }
+  }
+
+  const leads = readTenantStore<Lead[]>("leads", []);
+  const nextLeads = leads.filter((lead) => !leadIds.includes(lead.id));
+  writeTenantStore("leads", nextLeads);
+}
+
 export async function importLeads(rows: Array<{ full_name: string; phone: string; email?: string }>): Promise<Lead[]> {
   const csv = rows
     .map((row) => [row.full_name, row.phone, row.email ?? ""].join(","))

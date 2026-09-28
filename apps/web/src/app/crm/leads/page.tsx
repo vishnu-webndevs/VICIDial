@@ -23,6 +23,7 @@ import { EmptyPanel, KpiCard, SkeletonLines, ToastMessage } from "@/components/u
 import { apiRequest } from "@/lib/api";
 import {
   deleteLead,
+  deleteBulkLeads,
   getLeadImportJob,
   importLeadsFromFile,
   listLeads,
@@ -154,6 +155,31 @@ export default function LeadsPage() {
   const [importResultModalOpen, setImportResultModalOpen] = useState(false);
   const [importReportJob, setImportReportJob] = useState<LeadImportStatus | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string>("");
+  const [selectedMainLeadIds, setSelectedMainLeadIds] = useState<string[]>([]);
+
+  async function onBulkDeleteLeads() {
+    if (selectedMainLeadIds.length === 0) return;
+    const count = selectedMainLeadIds.length;
+    if (!window.confirm(`Are you sure you want to permanently delete ${count} selected lead(s)?`)) {
+      return;
+    }
+    try {
+      setLoading(true);
+      await deleteBulkLeads(selectedMainLeadIds);
+      setMessage(`${count} lead(s) deleted successfully.`);
+      setMessageTone("success");
+      setSelectedMainLeadIds([]);
+      if (selectedMainLeadIds.includes(selectedLeadId)) {
+        setSelectedLeadId("");
+      }
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to delete selected leads.");
+      setMessageTone("error");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // Lead Lists state
   const [lists, setLists] = useState<LeadList[]>([]);
@@ -740,6 +766,7 @@ export default function LeadsPage() {
               name="target_list_id"
               label="Assign to Existing Lead List (Optional)"
               defaultValue=""
+              SelectProps={{ displayEmpty: true }}
             >
               <MenuItem value="">-- None (Do not assign to list) --</MenuItem>
               {lists.map((l) => (
@@ -807,11 +834,13 @@ export default function LeadsPage() {
               size="medium"
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
+              SelectProps={{ displayEmpty: true }}
+              fullWidth
             >
-              <MenuItem value="">All statuses</MenuItem>
+              <MenuItem value="">All Statuses</MenuItem>
               {leadStatuses.map((status) => (
                 <MenuItem key={status} value={status}>
-                  {status}
+                  {status.replace("_", " ").toUpperCase()}
                 </MenuItem>
               ))}
             </TextField>
@@ -833,35 +862,152 @@ export default function LeadsPage() {
         {loading ? (
           <SkeletonLines rows={8} />
         ) : (
-          <Paper variant="outlined" sx={{ overflowX: "auto" }}>
-            <Table size="small" sx={{ width: "100%", minWidth: 980, tableLayout: "fixed" }}>
-              <TableHead>
-                <TableRow sx={{ bgcolor: "action.hover" }}>
-                  <TableCell sx={{ width: "16%", py: 1.5 }}>Name</TableCell>
-                  <TableCell sx={{ width: "12%", py: 1.5 }}>Phone</TableCell>
-                  <TableCell sx={{ width: "16%", py: 1.5 }}>Status</TableCell>
-                  <TableCell sx={{ width: "16%", py: 1.5 }}>Agent</TableCell>
-                  <TableCell sx={{ width: "8%", py: 1.5 }}>Tags</TableCell>
-                  <TableCell sx={{ width: "10%", py: 1.5 }}>Follow-Up</TableCell>
-                  <TableCell sx={{ width: "12%", py: 1.5 }}>Notes</TableCell>
-                  <TableCell sx={{ width: "10%", py: 1.5 }}>Action</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {filtered.map((lead) => (
-                  <TableRow
-                    key={lead.id}
-                    hover
-                    onClick={() => setSelectedLeadId(lead.id)}
-                    sx={{
-                      cursor: "pointer",
-                      bgcolor: selectedLeadId === lead.id ? "action.selected" : "inherit",
-                      "&:hover": {
-                        bgcolor: "action.hover",
-                      },
+          <>
+            <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap sx={{ mb: 1.5, gap: 1 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
+                {selectedMainLeadIds.length > 0
+                  ? `Selected: ${selectedMainLeadIds.length} of ${filtered.length} lead(s)`
+                  : `Visible leads: ${filtered.length}`}
+              </Typography>
+
+              <Stack direction="row" spacing={1} alignItems="center">
+                {filtered.length > 0 ? (
+                  <MuiButton
+                    size="small"
+                    variant="outlined"
+                    onClick={() => {
+                      const allSel = filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id));
+                      if (allSel) {
+                        setSelectedMainLeadIds([]);
+                      } else {
+                        setSelectedMainLeadIds(filtered.map((l) => l.id));
+                      }
                     }}
                   >
-                    <TableCell sx={{ verticalAlign: "middle", overflow: "hidden", py: 1 }}>
+                    {filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id))
+                      ? "Deselect All"
+                      : `Select All (${filtered.length})`}
+                  </MuiButton>
+                ) : null}
+
+                {selectedMainLeadIds.length > 0 ? (
+                  <MuiButton
+                    size="small"
+                    variant="contained"
+                    color="error"
+                    onClick={() => void onBulkDeleteLeads()}
+                  >
+                    🗑️ Delete Selected ({selectedMainLeadIds.length})
+                  </MuiButton>
+                ) : null}
+              </Stack>
+            </Stack>
+
+            <Paper variant="outlined" sx={{ overflowX: "auto" }}>
+              <Table size="small" sx={{ width: "100%", minWidth: 1020, tableLayout: "fixed" }}>
+                <TableHead>
+                  <TableRow sx={{ bgcolor: "action.hover" }}>
+                    <TableCell sx={{ width: 40, py: 1.5 }}>
+                      <Box
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const allSel = filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id));
+                          if (allSel) {
+                            setSelectedMainLeadIds([]);
+                          } else {
+                            setSelectedMainLeadIds(filtered.map((l) => l.id));
+                          }
+                        }}
+                        title={
+                          filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id))
+                            ? "Deselect All Leads"
+                            : "Select All Leads"
+                        }
+                        sx={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: 0.5,
+                          border: 2,
+                          borderColor:
+                            filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id))
+                              ? "primary.main"
+                              : selectedMainLeadIds.length > 0
+                              ? "primary.main"
+                              : "divider",
+                          bgcolor:
+                            filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id))
+                              ? "primary.main"
+                              : "transparent",
+                          display: "grid",
+                          placeItems: "center",
+                          color: "#fff",
+                          fontSize: "0.7rem",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          userSelect: "none",
+                        }}
+                      >
+                        {filtered.length > 0 && filtered.every((l) => selectedMainLeadIds.includes(l.id))
+                          ? "✓"
+                          : selectedMainLeadIds.length > 0
+                          ? "−"
+                          : ""}
+                      </Box>
+                    </TableCell>
+                    <TableCell sx={{ width: "16%", py: 1.5 }}>Name</TableCell>
+                    <TableCell sx={{ width: "12%", py: 1.5 }}>Phone</TableCell>
+                    <TableCell sx={{ width: "15%", py: 1.5 }}>Status</TableCell>
+                    <TableCell sx={{ width: "15%", py: 1.5 }}>Agent</TableCell>
+                    <TableCell sx={{ width: "8%", py: 1.5 }}>Tags</TableCell>
+                    <TableCell sx={{ width: "10%", py: 1.5 }}>Follow-Up</TableCell>
+                    <TableCell sx={{ width: "12%", py: 1.5 }}>Notes</TableCell>
+                    <TableCell sx={{ width: "10%", py: 1.5 }}>Action</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {filtered.map((lead) => {
+                    const isChecked = selectedMainLeadIds.includes(lead.id);
+                    return (
+                      <TableRow
+                        key={lead.id}
+                        hover
+                        onClick={() => setSelectedLeadId(lead.id)}
+                        sx={{
+                          cursor: "pointer",
+                          bgcolor: isChecked ? "action.selected" : selectedLeadId === lead.id ? "action.hover" : "inherit",
+                          "&:hover": {
+                            bgcolor: "action.hover",
+                          },
+                        }}
+                      >
+                        <TableCell
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedMainLeadIds((prev) =>
+                              prev.includes(lead.id) ? prev.filter((id) => id !== lead.id) : [...prev, lead.id]
+                            );
+                          }}
+                        >
+                          <Box
+                            sx={{
+                              width: 18,
+                              height: 18,
+                              borderRadius: 0.5,
+                              border: 2,
+                              borderColor: isChecked ? "primary.main" : "divider",
+                              bgcolor: isChecked ? "primary.main" : "transparent",
+                              display: "grid",
+                              placeItems: "center",
+                              color: "#fff",
+                              fontSize: "0.7rem",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                            }}
+                          >
+                            {isChecked ? "✓" : ""}
+                          </Box>
+                        </TableCell>
+                        <TableCell sx={{ verticalAlign: "middle", overflow: "hidden", py: 1 }}>
                       <Stack direction="row" spacing={1.25} alignItems="center">
                         <Box
                           sx={{
@@ -1147,10 +1293,11 @@ export default function LeadsPage() {
                       </Stack>
                     </TableCell>
                   </TableRow>
-                ))}
+                );
+              })}
                 {filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={8}>
+                    <TableCell colSpan={9}>
                       <Typography variant="body2" color="text.secondary">
                         No leads found for current filters. Clear filters or create a new lead to continue.
                       </Typography>
@@ -1160,6 +1307,7 @@ export default function LeadsPage() {
               </TableBody>
             </Table>
           </Paper>
+          </>
         )}
       </SectionCard>
       <Paper variant="outlined" sx={{ p: 2, position: { xl: "sticky" }, top: { xl: 80 } }}>
@@ -1238,6 +1386,7 @@ export default function LeadsPage() {
               size="medium"
               value={selectedListId}
               onChange={(event) => setSelectedListId(event.target.value)}
+              SelectProps={{ displayEmpty: true }}
               sx={{ mt: 1.5, width: "100%" }}
             >
               <MenuItem value="">Select list</MenuItem>
@@ -1561,3 +1710,5 @@ export default function LeadsPage() {
     </AppShell>
   );
 }
+
+// End of Leads Management Page

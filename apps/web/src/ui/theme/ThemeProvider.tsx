@@ -9,11 +9,9 @@ import EmotionRegistry from "./EmotionRegistry";
 const MODE_KEY = "wnd_ui_mode";
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [mounted, setMounted] = useState(false);
   const [mode, setMode] = useState<"light" | "dark">("light");
 
   useEffect(() => {
-    setMounted(true);
     const readMode = () => {
       const stored = localStorage.getItem(MODE_KEY);
       setMode(stored === "dark" ? "dark" : "light");

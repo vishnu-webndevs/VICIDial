@@ -306,7 +306,7 @@ export default function AiBotsManagementPage() {
             />
           </Box>
           <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
-            Google Cloud Console se <strong>Service Account JSON Key</strong> aur apna <strong>Default Google Calendar ID</strong> enter karein. Isse AI Agent appointments direct Google Calendar me create karega. <em>(Calendar ko Service Account Email ke sath 'Make changes to events' permission de kar share zaroor karein)</em>.
+            Google Cloud Console se <strong>Service Account JSON Key</strong> aur apna <strong>Default Google Calendar ID</strong> enter karein. Isse AI Agent appointments direct Google Calendar me create karega. <em>(Calendar ko Service Account Email ke sath &apos;Make changes to events&apos; permission de kar share zaroor karein)</em>.
           </Typography>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, maxWidth: 750 }}>
@@ -439,7 +439,7 @@ export default function AiBotsManagementPage() {
                   </Box>
 
                   <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', bgcolor: '#f8fafc', p: 1.5, borderRadius: 2, border: '1px solid #f1f5f9' }}>
-                    <strong>Fallback Message:</strong> "{bot.fallback_message}"
+                    <strong>Fallback Message:</strong> &quot;{bot.fallback_message}&quot;
                   </Typography>
                 </CardContent>
               </Card>

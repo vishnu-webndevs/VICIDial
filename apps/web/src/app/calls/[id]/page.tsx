@@ -72,7 +72,7 @@ export default function CallDetailPage() {
                     🚫 Customer Line Busy
                   </p>
                   <p className="text-xs mt-1 text-rose-700">
-                    The call was rejected or could not connect because the customer's line was busy.
+                    The call was rejected or could not connect because the customer&apos;s line was busy.
                   </p>
                 </div>
               )}

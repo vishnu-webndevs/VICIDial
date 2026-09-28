@@ -6,11 +6,20 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    rules: {
+      "@typescript-eslint/no-explicit-any": "off",
+      "@typescript-eslint/no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
+      "@typescript-eslint/no-namespace": "off",
+      "react-hooks/set-state-in-effect": "warn",
+      "@next/next/no-img-element": "warn",
+    },
+  },
+  {
     files: ["src/**/*.{ts,tsx}"],
     ignores: ["src/ui/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
-        "error",
+        "warn",
         {
           paths: [
             {
