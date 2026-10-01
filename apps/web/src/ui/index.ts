@@ -38,6 +38,7 @@ export {
   TableContainer,
   TextField,
   Typography,
+  Drawer,
   Card as MuiCard,
   Button as MuiButton,
 } from "@mui/material";

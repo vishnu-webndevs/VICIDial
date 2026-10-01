@@ -6,6 +6,8 @@ Thumbs.db
 *.tar
 *.tar.gz
 *.md
+*.doc
+*.docx
 *.ps1
 
 # Ignore everything by default
@@ -43,6 +45,8 @@ apps/web/test-results/
 **/node_modules/
 **/.claude/
 **/.md
+**/*.doc
+**/*.docx
 
 # Ignore test directories and script files
 apps/api/tests/

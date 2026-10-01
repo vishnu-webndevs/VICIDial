@@ -20,6 +20,7 @@ import {
 } from "@/ui";
 import { AppShell, SectionCard, StatusBadge } from "@/components/app-shell";
 import { EmptyPanel, KpiCard, SkeletonLines, ToastMessage } from "@/components/ui-primitives";
+import { LeadActivityDrawer } from "@/components/LeadActivityDrawer";
 import { apiRequest } from "@/lib/api";
 import {
   deleteLead,
@@ -154,6 +155,8 @@ export default function LeadsPage() {
   const [importResultModalOpen, setImportResultModalOpen] = useState(false);
   const [importReportJob, setImportReportJob] = useState<LeadImportStatus | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string>("");
+  const [drawerLead, setDrawerLead] = useState<Lead | null>(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   // Lead Lists state
   const [lists, setLists] = useState<LeadList[]>([]);
@@ -1090,6 +1093,19 @@ export default function LeadsPage() {
                               <MuiButton
                                 type="button"
                                 size="small"
+                                variant="contained"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setDrawerLead(lead);
+                                  setDrawerOpen(true);
+                                }}
+                                sx={{ minWidth: 42, px: 1, py: 0.25, fontSize: "0.725rem", bgcolor: "#696cff" }}
+                              >
+                                History 📋
+                              </MuiButton>
+                              <MuiButton
+                                type="button"
+                                size="small"
                                 variant="outlined"
                                 onClick={(event) => {
                                   event.stopPropagation();
@@ -1558,6 +1574,13 @@ export default function LeadsPage() {
           </Box>
         ) : null}
       </Modal>
+
+      <LeadActivityDrawer
+        open={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        lead={drawerLead}
+        onLeadUpdated={() => void load()}
+      />
     </AppShell>
   );
 }
