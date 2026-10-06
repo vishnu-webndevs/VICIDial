@@ -543,7 +543,8 @@ class CorePhaseOneController extends Controller
             ->where('channel', $channel)
             ->when(! $isAdmin && $user, function ($query) use ($user) {
                 $query->where(function ($q) use ($user) {
-                    $q->where('assigned_user_id', $user->id)
+                    $q->whereNull('assigned_user_id')
+                      ->orWhere('assigned_user_id', $user->id)
                       ->orWhereHas('lead', function ($lq) use ($user) {
                           $lq->where('owner_agent_id', $user->id)
                             ->orWhere('owner_agent', $user->id);

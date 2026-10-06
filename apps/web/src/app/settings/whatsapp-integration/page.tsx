@@ -106,41 +106,105 @@ export default function WhatsAppIntegrationSettingsPage() {
   // Official Meta Embedded Signup Coexistence handler
   const launchMetaEmbeddedSignup = useCallback(() => {
     setLaunchingSignup(true);
-    const configId = process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || form.meta_app_id || "";
+    const activeAppId = form.meta_app_id || process.env.NEXT_PUBLIC_META_APP_ID || "";
+    const rawConfigId = process.env.NEXT_PUBLIC_META_EMBEDDED_SIGNUP_CONFIG_ID || "";
+    // Ensure we do NOT accidentally pass App ID as config_id
+    const realConfigId = (rawConfigId && rawConfigId !== activeAppId) ? rawConfigId : "";
 
-    const doLaunch = () => {
+    // Meta FB SDK strictly requires HTTPS protocol for FB.login. On HTTP, use Popup Window directly.
+    const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+
+    const doLaunchPopupFallback = () => {
+      try {
+        if (!activeAppId) {
+          setAdvancedOpen(true);
+          setToast({ tone: "error", message: "Meta App ID is required. Advanced Settings has been opened below—please enter Meta App ID and click Save." });
+          setLaunchingSignup(false);
+          return;
+        }
+
+        const extras = encodeURIComponent(JSON.stringify({ setup: { featureType: "whatsapp_business_app_onboarding" } }));
+        const redirectUri = encodeURIComponent(window.location.href.split('#')[0].split('?')[0]);
+        
+        let oauthUrl = `https://www.facebook.com/v20.0/dialog/oauth?client_id=${encodeURIComponent(activeAppId)}&redirect_uri=${redirectUri}&response_type=code`;
+
+        if (realConfigId) {
+          oauthUrl += `&config_id=${encodeURIComponent(realConfigId)}&override_default_response_type=true&extras=${extras}`;
+        } else {
+          oauthUrl += `&scope=whatsapp_business_management,whatsapp_business_messaging`;
+        }
+
+        const width = 600;
+        const height = 750;
+        const left = window.screenX + (window.outerWidth - width) / 2;
+        const top = window.screenY + (window.outerHeight - height) / 2;
+
+        const popup = window.open(
+          oauthUrl,
+          "MetaEmbeddedSignup",
+          `width=${width},height=${height},left=${left},top=${top},scrollbars=yes,resizable=yes`
+        );
+
+        if (!popup) {
+          setToast({ tone: "error", message: "Popup blocked by browser. Please allow popups for this site." });
+          setLaunchingSignup(false);
+          return;
+        }
+
+        const timer = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(timer);
+            setLaunchingSignup(false);
+          }
+        }, 1000);
+      } catch (err: any) {
+        setToast({ tone: "error", message: err?.message || "Failed to launch Meta Embedded Signup popup." });
+        setLaunchingSignup(false);
+      }
+    };
+
+    if (!isHttps) {
+      // Over HTTP, Meta SDK FB.login is blocked by Meta security policy. Use Popup Window fallback directly.
+      doLaunchPopupFallback();
+      return;
+    }
+
+    const doLaunchFbLogin = () => {
       try {
         if (typeof window !== "undefined" && (window as any).FB) {
-          (window as any).FB.login(
-            (response: any) => {
-              if (response?.authResponse?.code) {
-                setToast({ tone: "success", message: "Meta authorization complete. Completing account setup..." });
-              } else {
-                setLaunchingSignup(false);
-              }
-            },
-            {
-              config_id: configId,
-              response_type: "code",
-              override_default_response_type: true,
-              extras: {
-                setup: {
-                  featureType: "whatsapp_business_app_onboarding",
-                },
+          const loginOptions: any = {
+            response_type: "code",
+          };
+
+          if (realConfigId) {
+            loginOptions.config_id = realConfigId;
+            loginOptions.override_default_response_type = true;
+            loginOptions.extras = {
+              setup: {
+                featureType: "whatsapp_business_app_onboarding",
               },
+            };
+          } else {
+            loginOptions.scope = "whatsapp_business_management,whatsapp_business_messaging";
+          }
+
+          (window as any).FB.login((response: any) => {
+            if (response?.authResponse?.code) {
+              setToast({ tone: "success", message: "Meta authorization complete. Completing account setup..." });
+            } else {
+              setLaunchingSignup(false);
             }
-          );
-          // Safety timeout to reset button if popup is closed or ignored
+          }, loginOptions);
+
           setTimeout(() => {
             setLaunchingSignup(false);
           }, 30000);
         } else {
-          setToast({ tone: "error", message: "Facebook SDK is initializing. Please verify Meta App ID under Advanced Settings." });
-          setLaunchingSignup(false);
+          doLaunchPopupFallback();
         }
       } catch (err: any) {
-        setToast({ tone: "error", message: err?.message || "Failed to launch Meta Embedded Signup." });
-        setLaunchingSignup(false);
+        console.warn("FB.login error, using popup fallback", err);
+        doLaunchPopupFallback();
       }
     };
 
@@ -151,28 +215,47 @@ export default function WhatsAppIntegrationSettingsPage() {
       script.defer = true;
       script.onload = () => {
         try {
-          if (form.meta_app_id && (window as any).FB) {
+          if (activeAppId && (window as any).FB) {
             (window as any).FB.init({
-              appId: form.meta_app_id,
+              appId: activeAppId,
               cookie: true,
               xfbml: true,
-              version: "v25.0",
+              version: "v20.0",
             });
           }
-          doLaunch();
+          doLaunchFbLogin();
         } catch {
-          setLaunchingSignup(false);
+          doLaunchPopupFallback();
         }
       };
       script.onerror = () => {
-        setToast({ tone: "error", message: "Failed to load Facebook SDK. Please refresh the page and try again." });
-        setLaunchingSignup(false);
+        doLaunchPopupFallback();
       };
       document.body.appendChild(script);
     } else {
-      doLaunch();
+      doLaunchFbLogin();
     }
   }, [form.meta_app_id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get("code");
+    if (code) {
+      const redirectUri = window.location.href.split('#')[0].split('?')[0];
+      window.history.replaceState({}, "", window.location.pathname);
+      setToast({ tone: "success", message: "Meta permission granted. Exchanging authorization code..." });
+      void (async () => {
+        try {
+          await exchangeMetaEmbeddedSignupCode({ code, redirect_uri: redirectUri });
+          setToast({ tone: "success", message: "Meta WhatsApp Connected Successfully!" });
+          await load();
+        } catch (err: any) {
+          setToast({ tone: "error", message: err?.message || "Failed to exchange Meta authorization code." });
+        }
+      })();
+    }
+  }, [load]);
 
   useEffect(() => {
     const handleMetaMessage = async (event: MessageEvent) => {

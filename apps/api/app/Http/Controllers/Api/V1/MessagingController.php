@@ -210,7 +210,7 @@ class MessagingController extends Controller
                 foreach ($changes as $change) {
                     $value = (array) data_get($change, 'value', []);
                     $phoneNumberId = (string) data_get($value, 'metadata.phone_number_id', '');
-                    $provider = $phoneNumberId !== '' ? $this->resolveMetaWhatsappProviderByPhoneNumberId($phoneNumberId) : null;
+                    $provider = $phoneNumberId !== '' ? $this->resolveMetaWhatsappProviderByPhoneNumberId($phoneNumberId, $tenantId) : null;
                     if (! $provider) {
                         continue;
                     }
@@ -1017,16 +1017,21 @@ class MessagingController extends Controller
         return null;
     }
 
-    private function resolveMetaWhatsappProviderByPhoneNumberId(string $phoneNumberId): ?ProviderAccount
+    private function resolveMetaWhatsappProviderByPhoneNumberId(string $phoneNumberId, ?string $tenantId = null): ?ProviderAccount
     {
         if ($phoneNumberId === '') {
             return null;
         }
 
-        $providers = ProviderAccount::query()
+        $query = ProviderAccount::query()
             ->where('provider_type', 'meta_whatsapp')
-            ->latest('created_at')
-            ->get();
+            ->where('status', 'active');
+
+        if ($tenantId !== null && $tenantId !== '') {
+            $query->where('tenant_id', $tenantId);
+        }
+
+        $providers = $query->latest('created_at')->get();
 
         foreach ($providers as $provider) {
             assert($provider instanceof ProviderAccount);
@@ -1034,6 +1039,10 @@ class MessagingController extends Controller
             if ((string) ($credentials['phone_number_id'] ?? '') === $phoneNumberId) {
                 return $provider;
             }
+        }
+
+        if ($tenantId !== null && $tenantId !== '') {
+            return $this->resolveMetaWhatsappProviderByPhoneNumberId($phoneNumberId, null);
         }
 
         return null;

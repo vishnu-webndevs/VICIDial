@@ -160,8 +160,9 @@ class WhatsAppIntegrationController extends Controller
         $tenant = $request->attributes->get('tenant');
         $validated = $request->validate([
             'code' => ['nullable', 'string'],
-            'whatsapp_business_account_id' => ['required', 'string'],
-            'phone_number_id' => ['required', 'string'],
+            'redirect_uri' => ['nullable', 'string'],
+            'whatsapp_business_account_id' => ['nullable', 'string'],
+            'phone_number_id' => ['nullable', 'string'],
             'meta_access_token' => ['nullable', 'string'],
         ]);
 
@@ -183,9 +184,12 @@ class WhatsAppIntegrationController extends Controller
         }
 
         $nextCredentials = $existingCredentials;
-        $nextCredentials['whatsapp_business_account_id'] = trim($validated['whatsapp_business_account_id']);
-        $nextCredentials['phone_number_id'] = trim($validated['phone_number_id']);
-
+        if (! empty($validated['whatsapp_business_account_id'])) {
+            $nextCredentials['whatsapp_business_account_id'] = trim($validated['whatsapp_business_account_id']);
+        }
+        if (! empty($validated['phone_number_id'])) {
+            $nextCredentials['phone_number_id'] = trim($validated['phone_number_id']);
+        }
         if (! empty($validated['meta_access_token'])) {
             $nextCredentials['meta_access_token'] = trim($validated['meta_access_token']);
         }
@@ -194,23 +198,116 @@ class WhatsAppIntegrationController extends Controller
         $appId = (string) ($nextCredentials['meta_app_id'] ?? config('services.meta.app_id', ''));
         $appSecret = (string) ($nextCredentials['meta_app_secret'] ?? config('services.meta.app_secret', ''));
 
-        // If authorization code and App credentials exist, perform OAuth code exchange with Meta Graph API
-        if ($code !== '' && $appId !== '' && $appSecret !== '') {
+        // If authorization code exist, perform OAuth code exchange with Meta Graph API
+        if ($code !== '') {
+            if ($appId === '' || $appSecret === '') {
+                return response()->json([
+                    'error' => [
+                        'code' => 'META_CREDENTIALS_MISSING',
+                        'message' => 'Meta App Secret is required to exchange authorization code. Please enter Meta App Secret under Advanced Settings and click Save.',
+                    ],
+                ], 422);
+            }
+
+            $redirectUri = (string) ($validated['redirect_uri'] ?? $request->header('referer') ?? '');
+            if ($redirectUri !== '') {
+                $redirectUri = strtok(strtok($redirectUri, '#'), '?');
+            }
+
+            $oauthParams = [
+                'client_id' => $appId,
+                'client_secret' => $appSecret,
+                'code' => $code,
+            ];
+            if ($redirectUri !== '') {
+                $oauthParams['redirect_uri'] = $redirectUri;
+            }
+
             try {
                 $exchangeResponse = Http::timeout(15)
                     ->acceptJson()
-                    ->get('https://graph.facebook.com/v25.0/oauth/access_token', [
-                        'client_id' => $appId,
-                        'client_secret' => $appSecret,
-                        'code' => $code,
-                    ]);
+                    ->get('https://graph.facebook.com/v20.0/oauth/access_token', $oauthParams);
 
                 if ($exchangeResponse->successful() && $exchangeResponse->json('access_token')) {
                     $nextCredentials['meta_access_token'] = $exchangeResponse->json('access_token');
+                } else {
+                    $metaErr = (string) ($exchangeResponse->json('error.message') ?? 'OAuth code exchange failed with Meta.');
+                    \Illuminate\Support\Facades\Log::warning('Meta token exchange error: ' . $metaErr);
+                    return response()->json([
+                        'error' => [
+                            'code' => 'META_TOKEN_EXCHANGE_FAILED',
+                            'message' => $metaErr,
+                        ],
+                    ], 422);
                 }
             } catch (\Throwable $e) {
-                // Log warning and retain passed token or code fallback
                 \Illuminate\Support\Facades\Log::warning('Meta Embedded Signup token exchange exception: ' . $e->getMessage());
+                return response()->json([
+                    'error' => [
+                        'code' => 'META_TOKEN_EXCHANGE_EXCEPTION',
+                        'message' => $e->getMessage(),
+                    ],
+                ], 500);
+            }
+        }
+
+        // Auto-discover WABA ID and Phone Number ID from Meta API if token is present
+        $token = (string) ($nextCredentials['meta_access_token'] ?? '');
+        if ($token !== '') {
+            try {
+                // Fetch debug_token metadata to extract WABA ID or Phone Number ID
+                $debugRes = Http::timeout(10)->get('https://graph.facebook.com/v20.0/debug_token', [
+                    'input_token' => $token,
+                    'access_token' => $token,
+                ]);
+
+                if ($debugRes->successful()) {
+                    $granularScopes = data_get($debugRes->json(), 'data.granular_scopes', []);
+                    foreach ($granularScopes as $scopeItem) {
+                        $targetIds = (array) ($scopeItem['target_ids'] ?? []);
+                        foreach ($targetIds as $tid) {
+                            $tidStr = (string) $tid;
+                            if (empty($nextCredentials['phone_number_id']) || empty($nextCredentials['whatsapp_business_account_id'])) {
+                                $inspectRes = Http::timeout(10)->withToken($token)->get("https://graph.facebook.com/v20.0/{$tidStr}");
+                                if ($inspectRes->successful()) {
+                                    if ($inspectRes->json('display_phone_number')) {
+                                        $nextCredentials['phone_number_id'] = $tidStr;
+                                    } elseif ($inspectRes->json('name') || $inspectRes->json('id')) {
+                                        if (empty($nextCredentials['whatsapp_business_account_id'])) {
+                                            $nextCredentials['whatsapp_business_account_id'] = $tidStr;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                $wabaId = (string) ($nextCredentials['whatsapp_business_account_id'] ?? '');
+
+                // If WABA ID is missing, try fetching from /me/client_whatsapp_business_accounts or /me/whatsapp_business_accounts
+                if ($wabaId === '') {
+                    $wabaRes = Http::timeout(10)->withToken($token)->get('https://graph.facebook.com/v20.0/me/client_whatsapp_business_accounts');
+                    if (! $wabaRes->successful() || empty($wabaRes->json('data.0.id'))) {
+                        $wabaRes = Http::timeout(10)->withToken($token)->get('https://graph.facebook.com/v20.0/me/whatsapp_business_accounts');
+                    }
+                    if ($wabaRes->successful() && ! empty($wabaRes->json('data.0.id'))) {
+                        $wabaId = (string) $wabaRes->json('data.0.id');
+                        $nextCredentials['whatsapp_business_account_id'] = $wabaId;
+                    }
+                }
+
+                // If Phone Number ID is missing, fetch registered phone numbers for the WABA ID
+                if (empty($nextCredentials['phone_number_id'])) {
+                    if ($wabaId !== '') {
+                        $phoneRes = Http::timeout(10)->withToken($token)->get("https://graph.facebook.com/v20.0/{$wabaId}/phone_numbers");
+                        if ($phoneRes->successful() && ! empty($phoneRes->json('data.0.id'))) {
+                            $nextCredentials['phone_number_id'] = (string) $phoneRes->json('data.0.id');
+                        }
+                    }
+                }
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Meta WABA/Phone auto-discovery exception: ' . $e->getMessage());
             }
         }
 

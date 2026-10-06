@@ -1508,8 +1508,9 @@ export async function testWhatsAppIntegration(): Promise<{ ok: boolean; provider
 
 export async function exchangeMetaEmbeddedSignupCode(payload: {
   code?: string;
-  whatsapp_business_account_id: string;
-  phone_number_id: string;
+  redirect_uri?: string;
+  whatsapp_business_account_id?: string;
+  phone_number_id?: string;
   meta_access_token?: string;
 }): Promise<{ ok: boolean; provider: WhatsAppIntegrationProvider; message?: string }> {
   const { token, tenantId } = getTenantContext();

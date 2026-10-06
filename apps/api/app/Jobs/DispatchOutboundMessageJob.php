@@ -410,6 +410,7 @@ class DispatchOutboundMessageJob implements ShouldQueue
         }
 
         $providerCredentials = null;
+        $provider = null;
         if ($this->providerAccountId) {
             $provider = ProviderAccount::query()
                 ->where('tenant_id', $tenantId)
@@ -422,9 +423,20 @@ class DispatchOutboundMessageJob implements ShouldQueue
                     'error' => 'Selected provider is missing or inactive.',
                     'status_code' => 422,
                 ];
-            } else {
-                $providerCredentials = (array) $provider->credentials_encrypted;
             }
+        } else {
+            $providerTypes = $channel === 'whatsapp' ? ['meta_whatsapp', 'twilio'] : ['twilio'];
+            $provider = ProviderAccount::query()
+                ->where('tenant_id', $tenantId)
+                ->whereIn('provider_type', $providerTypes)
+                ->where('status', 'active')
+                ->orderByRaw("CASE WHEN provider_type = 'meta_whatsapp' THEN 1 ELSE 2 END")
+                ->latest('created_at')
+                ->first();
+        }
+
+        if ($provider && ! isset($result)) {
+            $providerCredentials = (array) $provider->credentials_encrypted;
         }
 
         $statusCallbackUrl = rtrim((string) config('app.url'), '/') . '/api/v1/webhooks/twilio/message-status';
