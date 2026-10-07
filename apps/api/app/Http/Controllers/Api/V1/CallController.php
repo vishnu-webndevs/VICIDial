@@ -98,7 +98,13 @@ class CallController extends Controller
                 $providerQuery->where('id', $validated['provider_account_id']);
             }
 
-            $provider = $providerQuery->latest('created_at')->first();
+            $provider = (clone $providerQuery)
+                ->whereHas('phoneNumbers', function ($q) {
+                    $q->where('status', 'active')->where('is_validated', true);
+                })
+                ->first()
+                ?? (clone $providerQuery)->where('provider_type', 'twilio')->first()
+                ?? (clone $providerQuery)->latest('created_at')->first();
             if (! $provider) {
                 return response()->json([
                     'error' => [

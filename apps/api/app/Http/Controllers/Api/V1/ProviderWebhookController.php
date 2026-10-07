@@ -32,6 +32,11 @@ class ProviderWebhookController extends Controller
         return $this->handle($request, 'vonage');
     }
 
+    public function plivo(Request $request): JsonResponse
+    {
+        return $this->handle($request, 'plivo');
+    }
+
     private function handle(Request $request, string $providerType): JsonResponse
     {
         $payload = $request->all();
@@ -206,6 +211,13 @@ class ProviderWebhookController extends Controller
                 $providerType === 'vonage'
                 && isset($payload['api_key'])
                 && (string) ($credentials['api_key'] ?? '') === (string) $payload['api_key']
+            ) {
+                return $provider;
+            }
+            if (
+                $providerType === 'plivo'
+                && (isset($payload['AuthID']) || isset($payload['auth_id']))
+                && (string) ($credentials['auth_id'] ?? '') === (string) ($payload['AuthID'] ?? $payload['auth_id'] ?? '')
             ) {
                 return $provider;
             }

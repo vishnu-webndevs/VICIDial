@@ -34,7 +34,7 @@ class ProviderController extends Controller
     {
         $tenant = $request->attributes->get('tenant');
         $validated = $request->validate([
-            'provider_type' => ['required', 'in:twilio,vonage'],
+            'provider_type' => ['required', 'in:twilio,vonage,plivo'],
             'display_name' => ['required', 'string', 'max:100'],
             'credentials' => ['required', 'array'],
         ]);
@@ -135,8 +135,10 @@ class ProviderController extends Controller
             $provider->last_error_message = null;
         } else {
             $provider->status = 'error';
-            $provider->last_error_code = $result['code'];
-            $provider->last_error_message = $result['message'];
+            $errCode = $result['code'] ?? 'PROVIDER_TEST_FAILED';
+            $provider->last_error_code = is_string($errCode) ? $errCode : (string) json_encode($errCode);
+            $errMsg = $result['message'] ?? 'Provider connection test failed.';
+            $provider->last_error_message = is_string($errMsg) ? $errMsg : (string) json_encode($errMsg);
         }
         $provider->save();
 
@@ -266,7 +268,7 @@ class ProviderController extends Controller
         $credentials = (array) $provider->credentials_encrypted;
         $maskedCredentials = [];
         foreach ($credentials as $key => $value) {
-            if (in_array($key, ['auth_token', 'twilio_api_key_secret', 'api_secret'], true)) {
+            if (in_array($key, ['auth_token', 'twilio_api_key_secret', 'api_secret', 'endpoint_password'], true)) {
                 $maskedCredentials[$key] = '••••••••••••••••';
             } else {
                 $maskedCredentials[$key] = $value;

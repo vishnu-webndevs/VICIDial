@@ -340,7 +340,7 @@ class MessagingController extends Controller
         $message->save();
 
         // Sync to timeline so UI reflects the asynchronous failure/delivery
-        $timelineItems = \App\Models\LeadTimelineItem::query()
+        $timelineItems = LeadTimelineItem::query()
             ->where('tenant_id', $tenantId)
             ->where('related_id', $message->id)
             ->where('related_type', 'message')
@@ -529,7 +529,7 @@ class MessagingController extends Controller
         try {
             \App\Services\AiBotService::processInboundMessage($tenantId, $thread, $message);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('AI Bot Trigger Error: ' . $e->getMessage());
+            Log::error('AI Bot Trigger Error: ' . $e->getMessage());
         }
 
         return true;

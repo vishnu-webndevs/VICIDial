@@ -43,7 +43,7 @@ class AdminCommunicationSettingsController extends Controller
                 'last_error_message' => $provider->last_error_message,
                 'numbers' => $provider->phoneNumbers->map(fn(ProviderPhoneNumber $number) => $this->serializeNumber($number))->values(),
                 'credentials' => collect((array) $provider->credentials_encrypted)
-                    ->map(fn($val, $key) => in_array($key, ['auth_token', 'twilio_api_key_secret', 'api_secret'], true) ? '••••••••••••••••' : $val)
+                    ->map(fn($val, $key) => in_array($key, ['auth_token', 'twilio_api_key_secret', 'api_secret', 'endpoint_password'], true) ? '••••••••••••••••' : $val)
                     ->all(),
             ])
             ->values();
@@ -82,7 +82,7 @@ class AdminCommunicationSettingsController extends Controller
             'numbers.*.capabilities' => ['nullable', 'array'],
         ]);
 
-        $autoValidate = $provider->provider_type === 'twilio';
+        $autoValidate = in_array($provider->provider_type, ['twilio', 'plivo'], true);
         $status = $autoValidate ? 'active' : 'inactive';
         $isValidated = $autoValidate;
 
@@ -163,8 +163,10 @@ class AdminCommunicationSettingsController extends Controller
             $provider->last_error_message = null;
         } else {
             $provider->status = 'error';
-            $provider->last_error_code = (string) ($providerResult['code'] ?? 'PROVIDER_TEST_FAILED');
-            $provider->last_error_message = (string) ($providerResult['message'] ?? 'Provider connection test failed.');
+            $errCode = $providerResult['code'] ?? 'PROVIDER_TEST_FAILED';
+            $provider->last_error_code = is_string($errCode) ? $errCode : (string) json_encode($errCode);
+            $errMsg = $providerResult['message'] ?? 'Provider connection test failed.';
+            $provider->last_error_message = is_string($errMsg) ? $errMsg : (string) json_encode($errMsg);
         }
         $provider->save();
 
@@ -183,8 +185,10 @@ class AdminCommunicationSettingsController extends Controller
             $number->last_tested_at = now();
             $number->is_validated = (bool) ($numberResult['ok'] ?? false);
             $number->status = $number->is_validated ? 'active' : 'error';
-            $number->last_error_code = $number->is_validated ? null : (string) ($numberResult['code'] ?? 'NUMBER_TEST_FAILED');
-            $number->last_error_message = $number->is_validated ? null : (string) ($numberResult['message'] ?? 'Number validation failed.');
+            $numCode = $numberResult['code'] ?? 'NUMBER_TEST_FAILED';
+            $number->last_error_code = $number->is_validated ? null : (is_string($numCode) ? $numCode : (string) json_encode($numCode));
+            $numMsg = $numberResult['message'] ?? 'Number validation failed.';
+            $number->last_error_message = $number->is_validated ? null : (is_string($numMsg) ? $numMsg : (string) json_encode($numMsg));
             $number->save();
         }
 
