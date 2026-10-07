@@ -725,7 +725,7 @@ export default function ProvidersPage() {
 
         <SectionCard title="Number Provisioning" subtitle="1) Select provider, 2) fetch available numbers or enter a manual number, 3) sync selected numbers into tenant settings.">
           <Stack spacing={2}>
-            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems="center">
+            <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr auto auto" }, alignItems: "center" }}>
               <FormSelect
                 label="Provider"
                 value={selectedProviderForFetch}
@@ -741,9 +741,13 @@ export default function ProvidersPage() {
                 onChange={(event) => setManualPhoneNumber(event.target.value)}
                 placeholder="+919876543210"
               />
-              <Button type="button" onClick={() => void fetchAvailableProviderNumbers()}>Fetch Available Numbers</Button>
-              <Button type="button" onClick={() => void syncSelectedNumbers()}>Assign Selected / Manual Number</Button>
-            </Stack>
+              <Button type="button" onClick={() => void fetchAvailableProviderNumbers()} sx={{ whiteSpace: "nowrap", height: 48, my: 0.75 }}>
+                Fetch Numbers
+              </Button>
+              <Button type="button" onClick={() => void syncSelectedNumbers()} sx={{ whiteSpace: "nowrap", height: 48, my: 0.75 }}>
+                Assign / Sync Number
+              </Button>
+            </Box>
             <Paper variant="outlined" sx={{ p: 2 }}>
               {availableNumbers.length === 0 ? (
                 <Typography variant="body2" color="text.secondary">No fetched numbers yet. Enter a manual phone number above and click &quot;Assign Selected / Manual Number&quot;.</Typography>
@@ -773,7 +777,7 @@ export default function ProvidersPage() {
 
         <SectionCard title="Validation & Status" subtitle="Test provider credentials and verify specific number ownership.">
           <Stack spacing={2}>
-            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+            <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr auto" }, alignItems: "center" }}>
               <FormSelect
                 label="Provider"
                 value={testingProviderId}
@@ -794,10 +798,10 @@ export default function ProvidersPage() {
                     ?.numbers?.map((number) => ({ label: number.phone_number, value: number.id })) ?? [],
                 ]}
               />
-              <Button type="button" onClick={() => void testProvider(testingProviderId)} disabled={!testingProviderId}>
+              <Button type="button" onClick={() => void testProvider(testingProviderId)} disabled={!testingProviderId} sx={{ whiteSpace: "nowrap", height: 48, my: 0.75 }}>
                 Test Connection
               </Button>
-            </Stack>
+            </Box>
 
             <TableContainer component={Paper} variant="outlined">
               <Table size="medium">
@@ -830,7 +834,7 @@ export default function ProvidersPage() {
 
         <SectionCard title="Agent Number Assignment" subtitle="Assign one active, validated number per agent.">
           <Stack spacing={2}>
-            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+            <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr auto" }, alignItems: "center" }}>
               <FormSelect
                 label="Agent"
                 value={agentId}
@@ -855,10 +859,10 @@ export default function ProvidersPage() {
                   })),
                 ]}
               />
-              <Button type="button" onClick={() => void assignAgentNumber()}>
+              <Button type="button" onClick={() => void assignAgentNumber()} sx={{ whiteSpace: "nowrap", height: 48, my: 0.75, minWidth: 120 }}>
                 Assign
               </Button>
-            </Stack>
+            </Box>
 
             <TableContainer component={Paper} variant="outlined">
               <Table size="medium">
@@ -890,7 +894,7 @@ export default function ProvidersPage() {
         </SectionCard>
 
         <SectionCard title="Campaign-Agent Mapping" subtitle="Map campaign agents to numbers; dialer uses each agent's number as the From value.">
-          <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+          <Box sx={{ display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "1fr 1fr auto" }, alignItems: "center" }}>
             <FormSelect
               label="Campaign"
               value={campaignId}
@@ -912,8 +916,8 @@ export default function ProvidersPage() {
                 })),
               ]}
             />
-            <Button type="button" onClick={() => void mapCampaignAgent()}>Save Mapping</Button>
-          </Stack>
+            <Button type="button" onClick={() => void mapCampaignAgent()} sx={{ whiteSpace: "nowrap", height: 48, my: 0.75 }}>Save Mapping</Button>
+          </Box>
         </SectionCard>
       </Stack>
     </AppShell>
