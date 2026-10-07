@@ -56,18 +56,36 @@ export default function SystemLogsPage() {
         ) : (
           <Paper 
             sx={{ 
-              p: 2, 
-              bgcolor: "#1e1e1e", 
-              color: "#d4d4d4", 
-              fontFamily: "monospace", 
-              height: "calc(100vh - 250px)", 
+              p: 2.5, 
+              bgcolor: "#1b1d22", 
+              color: "#e2e8f0", 
+              fontFamily: "'Fira Code', 'Consolas', 'Courier New', monospace", 
+              minHeight: "75vh",
+              height: "calc(100vh - 180px)", 
               overflowY: "auto",
               whiteSpace: "pre-wrap",
-              fontSize: "0.875rem"
+              wordBreak: "break-word",
+              fontSize: "0.875rem",
+              lineHeight: 1.6,
+              borderRadius: 2,
+              border: "1px solid",
+              borderColor: "rgba(255, 255, 255, 0.1)",
+              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+              "&::-webkit-scrollbar": {
+                width: 10,
+              },
+              "&::-webkit-scrollbar-track": {
+                bgcolor: "#121316",
+              },
+              "&::-webkit-scrollbar-thumb": {
+                bgcolor: "#334155",
+                borderRadius: 4,
+                "&:hover": { bgcolor: "#475569" },
+              },
             }}
           >
             {loading && !logs ? (
-              <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
+              <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "60vh" }}>
                 <CircularProgress color="inherit" />
               </Box>
             ) : (
