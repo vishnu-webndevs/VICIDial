@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import {
   Alert,
   Box,
+  Checkbox,
   MenuItem,
   Modal,
   MuiButton,
@@ -24,6 +25,7 @@ import { LeadActivityDrawer } from "@/components/LeadActivityDrawer";
 import { apiRequest } from "@/lib/api";
 import {
   deleteLead,
+  deleteBulkLeads,
   getLeadImportJob,
   importLeadsFromFile,
   listLeads,
@@ -155,6 +157,7 @@ export default function LeadsPage() {
   const [importResultModalOpen, setImportResultModalOpen] = useState(false);
   const [importReportJob, setImportReportJob] = useState<LeadImportStatus | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string>("");
+  const [selectedLeadIdsForDelete, setSelectedLeadIdsForDelete] = useState<string[]>([]);
   const [drawerLead, setDrawerLead] = useState<Lead | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -184,16 +187,18 @@ export default function LeadsPage() {
     }
   }
 
-  const loadLists = useCallback(async () => {
+  const loadLists = useCallback(async (overrideMode?: "add" | "remove", overrideListId?: string) => {
     setListsLoading(true);
     try {
+      const targetMode = overrideMode ?? listMode;
+      const targetListId = overrideListId ?? selectedListId;
       const [listData, leadData] = await Promise.all([
         listLeadLists(),
-        listMode === "remove" && selectedListId ? listLeads({ listId: selectedListId }) : listLeads(),
+        targetMode === "remove" && targetListId ? listLeads({ listId: targetListId }) : listLeads(),
       ]);
       setLists(listData);
       setLeads(leadData);
-      if (!selectedListId && listData.length > 0) {
+      if (!targetListId && listData.length > 0) {
         setSelectedListId(listData[0].id);
       }
     } catch (err) {
@@ -231,14 +236,14 @@ export default function LeadsPage() {
     void load();
     void loadLeadDefaults();
     void loadLists();
-  }, [loadLists]);
+  }, []); // Run once on mount
 
   // Load lists when switching to lists tab
   useEffect(() => {
     if (activeTab === "lists") {
       void loadLists();
     }
-  }, [activeTab, loadLists]);
+  }, [activeTab]);
 
   // Sync selectedLeadIdsForList with leads currently in the selected list
   useEffect(() => {
@@ -492,6 +497,38 @@ export default function LeadsPage() {
       await load();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "Failed to update lead status.");
+      setMessageTone("error");
+    }
+  }
+
+  function toggleSelectAllLeads(checked: boolean) {
+    if (checked) {
+      setSelectedLeadIdsForDelete(filtered.map((l) => l.id));
+    } else {
+      setSelectedLeadIdsForDelete([]);
+    }
+  }
+
+  function toggleSelectLeadForDelete(leadId: string, checked: boolean) {
+    setSelectedLeadIdsForDelete((prev) =>
+      checked ? [...prev, leadId] : prev.filter((id) => id !== leadId)
+    );
+  }
+
+  async function onBulkDeleteLeads() {
+    if (selectedLeadIdsForDelete.length === 0) return;
+    const count = selectedLeadIdsForDelete.length;
+    const confirmed = window.confirm(`Are you sure you want to delete ${count} selected lead(s)? This action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      await deleteBulkLeads(selectedLeadIdsForDelete);
+      setSelectedLeadIdsForDelete([]);
+      setMessage(`${count} lead(s) deleted successfully.`);
+      setMessageTone("success");
+      await load();
+    } catch (err) {
+      setMessage(err instanceof Error ? err.message : "Failed to delete selected leads.");
       setMessageTone("error");
     }
   }
@@ -833,6 +870,21 @@ export default function LeadsPage() {
             }}
           >
             <SectionCard title="Lead Table" subtitle="Assignment and follow-up visibility with inline status and owner updates.">
+              {selectedLeadIdsForDelete.length > 0 ? (
+                <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2, p: 1.5, bgcolor: "error.lighter", border: "1px solid", borderColor: "error.light", borderRadius: 1 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: "error.dark" }}>
+                    {selectedLeadIdsForDelete.length} lead(s) selected
+                  </Typography>
+                  <MuiButton
+                    variant="contained"
+                    color="error"
+                    size="small"
+                    onClick={() => void onBulkDeleteLeads()}
+                  >
+                    Delete Selected ({selectedLeadIdsForDelete.length})
+                  </MuiButton>
+                </Stack>
+              ) : null}
               {loading ? (
                 <SkeletonLines rows={8} />
               ) : (
@@ -840,13 +892,21 @@ export default function LeadsPage() {
                   <Table size="small" sx={{ width: "100%", minWidth: 980, tableLayout: "fixed" }}>
                     <TableHead>
                       <TableRow sx={{ bgcolor: "action.hover" }}>
-                        <TableCell sx={{ width: "16%", py: 1.5 }}>Name</TableCell>
+                        <TableCell sx={{ width: "5%", py: 1.5, px: 1 }}>
+                          <Checkbox
+                            size="small"
+                            checked={selectedLeadIdsForDelete.length === filtered.length && filtered.length > 0}
+                            indeterminate={selectedLeadIdsForDelete.length > 0 && selectedLeadIdsForDelete.length < filtered.length}
+                            onChange={(event) => toggleSelectAllLeads(event.target.checked)}
+                          />
+                        </TableCell>
+                        <TableCell sx={{ width: "15%", py: 1.5 }}>Name</TableCell>
                         <TableCell sx={{ width: "12%", py: 1.5 }}>Phone</TableCell>
-                        <TableCell sx={{ width: "16%", py: 1.5 }}>Status</TableCell>
-                        <TableCell sx={{ width: "16%", py: 1.5 }}>Agent</TableCell>
+                        <TableCell sx={{ width: "15%", py: 1.5 }}>Status</TableCell>
+                        <TableCell sx={{ width: "15%", py: 1.5 }}>Agent</TableCell>
                         <TableCell sx={{ width: "8%", py: 1.5 }}>Tags</TableCell>
                         <TableCell sx={{ width: "10%", py: 1.5 }}>Follow-Up</TableCell>
-                        <TableCell sx={{ width: "12%", py: 1.5 }}>Notes</TableCell>
+                        <TableCell sx={{ width: "10%", py: 1.5 }}>Notes</TableCell>
                         <TableCell sx={{ width: "10%", py: 1.5 }}>Action</TableCell>
                       </TableRow>
                     </TableHead>
@@ -864,6 +924,13 @@ export default function LeadsPage() {
                             },
                           }}
                         >
+                          <TableCell sx={{ verticalAlign: "middle", py: 1, px: 1 }} onClick={(event) => event.stopPropagation()}>
+                            <Checkbox
+                              size="small"
+                              checked={selectedLeadIdsForDelete.includes(lead.id)}
+                              onChange={(event) => toggleSelectLeadForDelete(lead.id, event.target.checked)}
+                            />
+                          </TableCell>
                           <TableCell sx={{ verticalAlign: "middle", overflow: "hidden", py: 1 }}>
                             <Stack direction="row" spacing={1.25} alignItems="center">
                               <Box

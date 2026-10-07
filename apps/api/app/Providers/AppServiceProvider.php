@@ -6,6 +6,7 @@ use App\Services\Integrations\HttpPart3Adapter;
 use App\Services\Integrations\MockPart3Adapter;
 use App\Services\Integrations\Part3AdapterManager;
 use App\Services\Integrations\SandboxPart3Adapter;
+use App\Services\Providers\PlivoAdapter;
 use App\Services\Providers\ProviderAdapterManager;
 use App\Services\Providers\TwilioAdapter;
 use App\Services\Providers\VonageAdapter;
@@ -34,9 +35,11 @@ class AppServiceProvider extends ServiceProvider
 
         $this->app->singleton(TwilioAdapter::class, fn ($app) => new TwilioAdapter($app->make(IntegrationMode::class)));
         $this->app->singleton(VonageAdapter::class, fn ($app) => new VonageAdapter($app->make(IntegrationMode::class)));
+        $this->app->singleton(PlivoAdapter::class, fn ($app) => new PlivoAdapter($app->make(IntegrationMode::class)));
         $this->app->singleton(ProviderAdapterManager::class, fn ($app) => new ProviderAdapterManager(
             $app->make(TwilioAdapter::class),
             $app->make(VonageAdapter::class),
+            $app->make(PlivoAdapter::class),
         ));
     }
 

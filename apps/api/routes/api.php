@@ -32,6 +32,7 @@ use App\Http\Controllers\Api\V1\SubscriptionController;
 use App\Http\Controllers\Api\V1\SuperAdmin\PlanManagementController;
 use App\Http\Controllers\Api\V1\TeamController;
 use App\Http\Controllers\Api\V1\TenantController;
+use App\Http\Controllers\Api\V1\PlivoVoiceWebhookController;
 use App\Http\Controllers\Api\V1\TwilioVoiceWebhookController;
 use App\Http\Controllers\Api\V1\WebhookLogController;
 use App\Http\Controllers\Api\V1\GovernanceComplianceController;
@@ -56,6 +57,7 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
             Route::patch('/me', [AuthController::class, 'updateMe']);
             Route::post('/delete-account', [AuthController::class, 'requestAccountDeletion']);
             Route::get('/twilio-token', [AuthController::class, 'twilioToken']);
+            Route::get('/plivo-token', [AuthController::class, 'plivoToken']);
         });
 
         Route::get('/tenant', [TenantController::class, 'show'])
@@ -222,6 +224,8 @@ Route::prefix('v1')->middleware('api.version')->group(function () {
 
         Route::prefix('admin/settings')->middleware('tenant.admin')->group(function () {
             Route::get('/communication', [AdminCommunicationSettingsController::class, 'index']);
+            Route::get('/communication/providers/{providerId}/numbers', [AdminCommunicationSettingsController::class, 'fetchProviderNumbers'])
+                ->middleware('throttle:provider.twilio');
             Route::get('/communication/providers/{providerId}/twilio/numbers', [AdminCommunicationSettingsController::class, 'fetchProviderNumbers'])
                 ->middleware('throttle:provider.twilio');
             Route::post('/communication/providers/{providerId}/numbers/sync', [AdminCommunicationSettingsController::class, 'syncProviderNumbers']);
@@ -753,6 +757,10 @@ Route::match(['GET', 'POST'], '/webhooks/twilio/voice/outbound-client', [TwilioV
 Route::post('/webhooks/twilio/gather-result', [TwilioVoiceWebhookController::class, 'gatherResult']);
 Route::post('/webhooks/twilio', [ProviderWebhookController::class, 'twilio']);
 Route::post('/webhooks/vonage', [ProviderWebhookController::class, 'vonage']);
+Route::post('/webhooks/plivo', [ProviderWebhookController::class, 'plivo']);
+Route::match(['GET', 'POST'], '/webhooks/plivo/xml/outbound', [PlivoVoiceWebhookController::class, 'xmlOutbound']);
+Route::post('/webhooks/plivo/gather-result', [PlivoVoiceWebhookController::class, 'gatherResult']);
+Route::post('/webhooks/plivo/voice', [PlivoVoiceWebhookController::class, 'inbound']);
 Route::match(['GET', 'POST'], '/webhooks/teams/approvals/{id}/respond', [CorePhaseOneController::class, 'teamsApprovalWebhookRespond']);
 Route::post('/v1/webhooks/twilio/sms', [MessagingController::class, 'webhookSms']);
 Route::post('/v1/webhooks/twilio/whatsapp', [MessagingController::class, 'webhookWhatsapp']);

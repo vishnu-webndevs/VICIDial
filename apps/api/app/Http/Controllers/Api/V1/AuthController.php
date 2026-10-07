@@ -816,6 +816,76 @@ class AuthController extends Controller
         ]);
     }
 
+    public function plivoToken(Request $request): JsonResponse
+    {
+        $tenant = $request->attributes->get('tenant');
+        if (!$tenant) {
+            return response()->json(['error' => ['code' => 'TENANT_NOT_FOUND', 'message' => 'Tenant context required.']], 400);
+        }
+
+        $validated = $request->validate([
+            'agent_id' => ['required', 'uuid'],
+        ]);
+
+        $agent = \App\Models\Agent::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('id', $validated['agent_id'])
+            ->firstOrFail();
+
+        $provider = \App\Models\ProviderAccount::query()
+            ->where('tenant_id', $tenant->id)
+            ->where('provider_type', 'plivo')
+            ->where('status', 'active')
+            ->first();
+
+        if (!$provider) {
+            return response()->json(['error' => ['code' => 'PLIVO_NOT_CONFIGURED', 'message' => 'Plivo is not configured for this company.']], 400);
+        }
+
+        $credentials = (array) $provider->credentials_encrypted;
+        $authId = (string) ($credentials['auth_id'] ?? '');
+        $authToken = (string) ($credentials['auth_token'] ?? '');
+        $appId = (string) ($credentials['app_id'] ?? '');
+
+        if (!$authId || !$authToken) {
+            return response()->json(['error' => ['code' => 'PLIVO_CREDENTIALS_INVALID', 'message' => 'Plivo Auth ID or Auth Token is missing.']], 400);
+        }
+
+        $endpointUsername = (string) ($credentials['endpoint_username'] ?? ('agent_' . str_replace('-', '_', $agent->id)));
+        $endpointPassword = (string) ($credentials['endpoint_password'] ?? '');
+
+        $now = time();
+        $header = ['typ' => 'JWT', 'alg' => 'HS256'];
+        $payload = [
+            'iss' => $authId,
+            'sub' => $endpointUsername,
+            'nbf' => $now - 10,
+            'exp' => $now + 3600,
+            'grants' => [
+                'voice' => [
+                    'incoming_allow' => true,
+                    'outgoing_allow' => true,
+                ],
+            ],
+        ];
+
+        $base64Header = $this->base64UrlEncode(json_encode($header));
+        $base64Payload = $this->base64UrlEncode(json_encode($payload));
+        $signature = $this->base64UrlEncode(hash_hmac('sha256', $base64Header . '.' . $base64Payload, $authToken, true));
+        $token = $base64Header . '.' . $base64Payload . '.' . $signature;
+
+        return response()->json([
+            'data' => [
+                'token' => $token,
+                'endpoint_username' => $endpointUsername,
+                'endpoint_password' => $endpointPassword,
+                'auth_id' => $authId,
+                'app_id' => $appId,
+                'identity' => $endpointUsername,
+            ],
+        ]);
+    }
+
     private function base64UrlEncode(string $data): string
     {
         return str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($data));

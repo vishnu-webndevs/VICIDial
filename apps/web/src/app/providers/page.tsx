@@ -6,6 +6,7 @@ import { apiRequest } from "@/lib/api";
 import { getTenantContext } from "@/lib/tenant-context";
 import { listCampaigns } from "@/lib/product-api";
 import {
+  Alert,
   Box,
   Button,
   Checkbox,
@@ -77,12 +78,25 @@ export default function ProvidersPage() {
   const [providerType, setProviderType] = useState("twilio");
   const [accountSid, setAccountSid] = useState("");
   const [authToken, setAuthToken] = useState("");
+  const [authId, setAuthId] = useState("");
+  const [appId, setAppId] = useState("");
+  const [endpointUsername, setEndpointUsername] = useState("");
+  const [endpointPassword, setEndpointPassword] = useState("");
   const [fromNumber, setFromNumber] = useState("");
   const [whatsappFrom, setWhatsappFrom] = useState("");
   const [twimlAppSid, setTwimlAppSid] = useState("");
   const [apiKeySid, setApiKeySid] = useState("");
   const [apiKeySecret, setApiKeySecret] = useState("");
-  const [message, setMessage] = useState("");
+  const [messageState, setMessageState] = useState<{ text: string; severity: "error" | "info" | "success" } | null>(null);
+
+  const setMessage = useCallback((text: string, severity: "error" | "info" | "success" = "error") => {
+    if (!text) {
+      setMessageState(null);
+    } else {
+      setMessageState({ text, severity });
+    }
+  }, []);
+
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -90,6 +104,7 @@ export default function ProvidersPage() {
   const [selectedProviderForFetch, setSelectedProviderForFetch] = useState("");
   const [availableNumbers, setAvailableNumbers] = useState<AvailableNumber[]>([]);
   const [pickedNumbers, setPickedNumbers] = useState<string[]>([]);
+  const [manualPhoneNumber, setManualPhoneNumber] = useState("");
   const [testingProviderId, setTestingProviderId] = useState("");
   const [testingNumberId, setTestingNumberId] = useState("");
   const [agentId, setAgentId] = useState("");
@@ -117,7 +132,8 @@ export default function ProvidersPage() {
       ]);
       const nextProviders = providerResponse.data?.providers ?? [];
       setProviders(nextProviders);
-      setAgents((teamResponse.data ?? []).filter((agent) => agent.status === "active"));
+      const activeAgents = (teamResponse.data ?? []).filter((agent) => agent.status === "active");
+      setAgents(activeAgents);
       setAgentAssignments(assignmentsResponse.data ?? []);
       setCampaigns(campaignData);
       if (!selectedProviderForFetch && nextProviders.length > 0) {
@@ -125,6 +141,12 @@ export default function ProvidersPage() {
       }
       if (!testingProviderId && nextProviders.length > 0) {
         setTestingProviderId(nextProviders[0].id);
+      }
+      if (!agentId && activeAgents.length > 0) {
+        setAgentId(activeAgents[0].id);
+      }
+      if (!campaignAgentId && activeAgents.length > 0) {
+        setCampaignAgentId(activeAgents[0].id);
       }
       if (!campaignId && campaignData.length > 0) {
         setCampaignId(campaignData[0].id);
@@ -134,7 +156,7 @@ export default function ProvidersPage() {
     } finally {
       setLoading(false);
     }
-  }, [campaignId, selectedProviderForFetch, testingProviderId]);
+  }, [agentId, campaignAgentId, campaignId, selectedProviderForFetch, testingProviderId]);
 
   function resetProviderForm() {
     setEditingProviderId(null);
@@ -142,6 +164,10 @@ export default function ProvidersPage() {
     setProviderType("twilio");
     setAccountSid("");
     setAuthToken("");
+    setAuthId("");
+    setAppId("");
+    setEndpointUsername("");
+    setEndpointPassword("");
     setFromNumber("");
     setWhatsappFrom("");
     setTwimlAppSid("");
@@ -154,7 +180,21 @@ export default function ProvidersPage() {
     setMessage("");
     try {
       const { token, tenantId } = getTenantContext();
-      const credentialUpdateRequested = Boolean(accountSid || authToken || fromNumber || whatsappFrom || twimlAppSid || apiKeySid || apiKeySecret);
+      const credentialUpdateRequested = Boolean(accountSid || authToken || authId || appId || endpointUsername || endpointPassword || fromNumber || whatsappFrom || twimlAppSid || apiKeySid || apiKeySecret);
+      const credentialsPayload: Record<string, string> = {
+        account_sid: accountSid || authId,
+        auth_id: authId || accountSid,
+        auth_token: authToken,
+        from_number: fromNumber,
+        whatsapp_from: whatsappFrom,
+        twilio_twiml_app_sid: twimlAppSid,
+        twilio_api_key_sid: apiKeySid,
+        twilio_api_key_secret: apiKeySecret,
+        app_id: appId,
+        endpoint_username: endpointUsername,
+        endpoint_password: endpointPassword,
+      };
+
       if (editingProviderId) {
         await apiRequest(`/providers/${editingProviderId}`, {
           method: "PATCH",
@@ -163,21 +203,11 @@ export default function ProvidersPage() {
           body: {
             display_name: displayName,
             ...(credentialUpdateRequested
-              ? {
-                credentials: {
-                  account_sid: accountSid,
-                  auth_token: authToken,
-                  from_number: fromNumber,
-                  whatsapp_from: whatsappFrom,
-                  twilio_twiml_app_sid: twimlAppSid,
-                  twilio_api_key_sid: apiKeySid,
-                  twilio_api_key_secret: apiKeySecret,
-                },
-              }
+              ? { credentials: credentialsPayload }
               : {}),
           },
         });
-        setMessage("Provider updated.");
+        setMessage("Provider updated.", "success");
       } else {
         await apiRequest("/providers", {
           method: "POST",
@@ -186,23 +216,15 @@ export default function ProvidersPage() {
           body: {
             provider_type: providerType,
             display_name: displayName,
-            credentials: {
-              account_sid: accountSid,
-              auth_token: authToken,
-              from_number: fromNumber,
-              whatsapp_from: whatsappFrom,
-              twilio_twiml_app_sid: twimlAppSid,
-              twilio_api_key_sid: apiKeySid,
-              twilio_api_key_secret: apiKeySecret,
-            },
+            credentials: credentialsPayload,
           },
         });
-        setMessage("Provider created.");
+        setMessage("Provider created.", "success");
       }
       resetProviderForm();
       await loadProviders();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to save provider.");
+      setMessage(error instanceof Error ? error.message : "Failed to save provider.", "error");
     }
   }
 
@@ -210,14 +232,18 @@ export default function ProvidersPage() {
     setEditingProviderId(provider.id);
     setDisplayName(provider.display_name);
     setProviderType(provider.provider_type);
-    setAccountSid(provider.credentials?.account_sid ?? "");
+    setAccountSid(provider.credentials?.account_sid ?? provider.credentials?.auth_id ?? "");
+    setAuthId(provider.credentials?.auth_id ?? provider.credentials?.account_sid ?? "");
     setAuthToken(provider.credentials?.auth_token ?? "");
+    setAppId(provider.credentials?.app_id ?? "");
+    setEndpointUsername(provider.credentials?.endpoint_username ?? "");
+    setEndpointPassword(provider.credentials?.endpoint_password ?? "");
     setFromNumber(provider.credentials?.from_number ?? "");
     setWhatsappFrom(provider.credentials?.whatsapp_from ?? "");
     setTwimlAppSid(provider.credentials?.twilio_twiml_app_sid ?? "");
     setApiKeySid(provider.credentials?.twilio_api_key_sid ?? "");
     setApiKeySecret(provider.credentials?.twilio_api_key_secret ?? "");
-    setMessage("Editing provider.");
+    setMessage("Editing provider.", "info");
   }
 
   async function deleteProvider(providerId: string) {
@@ -228,7 +254,7 @@ export default function ProvidersPage() {
         `Type DELETE to confirm removing provider "${provider?.display_name ?? providerId}".`
       );
       if (confirmation !== "DELETE") {
-        setMessage("Delete cancelled. Type DELETE exactly to confirm.");
+        setMessage("Delete cancelled. Type DELETE exactly to confirm.", "info");
         return;
       }
 
@@ -241,10 +267,10 @@ export default function ProvidersPage() {
       if (editingProviderId === providerId) {
         resetProviderForm();
       }
-      setMessage("Provider deleted.");
+      setMessage("Provider deleted.", "success");
       await loadProviders();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to delete provider.");
+      setMessage(error instanceof Error ? error.message : "Failed to delete provider.", "error");
     }
   }
 
@@ -266,12 +292,13 @@ export default function ProvidersPage() {
       });
       const providerStatus = response.data?.provider?.status ?? "unknown";
       const mode = response.data?.provider_test_result?.mode ?? "live";
-      const ok = response.data?.provider_test_result?.ok === true ? "ok" : "failed";
+      const isOk = response.data?.provider_test_result?.ok === true;
+      const ok = isOk ? "ok" : "failed";
       const detail = response.data?.provider_test_result?.message ?? response.data?.provider?.last_error_message ?? "";
       await loadProviders();
-      setMessage(`Provider test: ${ok} (mode=${mode}, status=${providerStatus})${detail ? ` — ${detail}` : ""}`);
+      setMessage(`Provider test: ${ok} (mode=${mode}, status=${providerStatus})${detail ? ` — ${detail}` : ""}`, isOk ? "success" : "error");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Provider test failed.");
+      setMessage(error instanceof Error ? error.message : "Provider test failed.", "error");
     }
   }
 
@@ -291,72 +318,96 @@ export default function ProvidersPage() {
           })),
         },
       });
-      setMessage("Failover policy updated.");
+      setMessage("Failover policy updated.", "success");
       await loadProviders();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to update failover policy.");
+      setMessage(error instanceof Error ? error.message : "Failed to update failover policy.", "error");
     }
   }
 
-  async function fetchNumbersFromTwilio() {
+  async function fetchAvailableProviderNumbers() {
     if (!selectedProviderForFetch) {
-      setMessage("Select a provider first.");
+      setMessage("Select a provider first.", "error");
       return;
     }
     setMessage("");
     try {
       const { token, tenantId } = getTenantContext();
+      const selectedProvider = providers.find((p) => p.id === selectedProviderForFetch);
+      const providerName = selectedProvider ? selectedProvider.display_name : "provider";
       const response = await apiRequest<{ data: { numbers: AvailableNumber[] } }>(
-        `/admin/settings/communication/providers/${selectedProviderForFetch}/twilio/numbers`,
+        `/admin/settings/communication/providers/${selectedProviderForFetch}/numbers`,
         { token, tenantId }
       );
-      setAvailableNumbers(response.data?.numbers ?? []);
+      const fetched = response.data?.numbers ?? [];
+      setAvailableNumbers(fetched);
       setPickedNumbers([]);
-      setMessage("Numbers fetched from Twilio.");
+      if (fetched.length === 0) {
+        setMessage(`No rented numbers found on ${providerName} account.`, "info");
+      } else {
+        setMessage(`Numbers fetched from ${providerName}.`, "success");
+      }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to fetch numbers.");
+      setMessage(error instanceof Error ? error.message : "Failed to fetch numbers.", "error");
     }
   }
 
   async function syncSelectedNumbers() {
-    if (!selectedProviderForFetch || pickedNumbers.length === 0) {
-      setMessage("Select at least one fetched number.");
+    if (!selectedProviderForFetch) {
+      setMessage("Select a provider first.", "error");
       return;
     }
+    const trimmedManual = manualPhoneNumber.trim();
+    const selectedItems = availableNumbers.filter((item) => pickedNumbers.includes(item.phone_number));
+
+    if (selectedItems.length === 0 && !trimmedManual) {
+      setMessage("Select at least one fetched number or enter a manual phone number.", "error");
+      return;
+    }
+
     setMessage("");
     try {
       const { token, tenantId } = getTenantContext();
-      const payload = availableNumbers
-        .filter((item) => pickedNumbers.includes(item.phone_number))
-        .map((item) => ({
-          sid: item.sid ?? null,
-          phone_number: item.phone_number,
-          friendly_name: item.friendly_name ?? null,
-          capabilities: item.capabilities ?? {},
-        }));
+      const payload = selectedItems.map((item) => ({
+        sid: item.sid ?? null,
+        phone_number: item.phone_number,
+        friendly_name: item.friendly_name ?? null,
+        capabilities: item.capabilities ?? {},
+      }));
+
+      if (trimmedManual) {
+        payload.push({
+          sid: null,
+          phone_number: trimmedManual.startsWith("+") ? trimmedManual : `+${trimmedManual}`,
+          friendly_name: "Manual Test Number",
+          capabilities: { voice: true, sms: true },
+        });
+      }
+
       await apiRequest(`/admin/settings/communication/providers/${selectedProviderForFetch}/numbers/sync`, {
         method: "POST",
         token,
         tenantId,
         body: { numbers: payload },
       });
-      setMessage("Selected numbers synced.");
+      setManualPhoneNumber("");
+      setMessage("Selected / Manual numbers synced.", "success");
       await loadProviders();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Number sync failed.");
+      setMessage(error instanceof Error ? error.message : "Number sync failed.", "error");
     }
   }
 
   async function assignAgentNumber() {
     if (!agentId || !agentNumberId) {
-      setMessage("Choose both an agent and a validated number.");
+      setMessage("Choose both an agent and a validated number.", "error");
       return;
     }
     try {
       const { token, tenantId } = getTenantContext();
       const selectedNumber = validatedNumbers.find((entry) => entry.id === agentNumberId);
       if (!selectedNumber?.provider_account_id) {
-        setMessage("Selected number is missing provider mapping. Re-sync numbers from Twilio.");
+        setMessage("Selected number is missing provider mapping. Re-sync provider numbers.", "error");
         return;
       }
       await apiRequest("/admin/settings/communication/agents/number-assignments", {
@@ -370,10 +421,10 @@ export default function ProvidersPage() {
           status: "active",
         },
       });
-      setMessage("Agent number assigned.");
+      setMessage("Agent number assigned.", "success");
       await loadProviders();
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Failed to assign number.");
+      setMessage(error instanceof Error ? error.message : "Failed to assign number.", "error");
     }
   }
 
@@ -425,38 +476,40 @@ export default function ProvidersPage() {
               options={[
                 { label: "Twilio", value: "twilio" },
                 { label: "Vonage", value: "vonage" },
+                { label: "Plivo", value: "plivo" },
               ]}
             />
             <Button type="submit" sx={{ minHeight: 40 }}>
               {editingProviderId ? "Save Provider" : "Add Provider"}
             </Button>
-            <FormTextField
-              value={accountSid}
-              onChange={(event) => setAccountSid(event.target.value)}
-              label="Twilio Account SID"
-              placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-            />
-            <FormTextField
-              value={authToken}
-              onChange={(event) => setAuthToken(event.target.value)}
-              label="Twilio Auth Token"
-              type="password"
-              placeholder="Twilio auth token"
-            />
-            <FormTextField
-              value={fromNumber}
-              onChange={(event) => setFromNumber(event.target.value)}
-              label="Default From Number"
-              placeholder="+15551234567"
-            />
-            <FormTextField
-              value={whatsappFrom}
-              onChange={(event) => setWhatsappFrom(event.target.value)}
-              label="WhatsApp From"
-              placeholder="whatsapp:+14155238886"
-            />
+
             {providerType === "twilio" && (
               <>
+                <FormTextField
+                  value={accountSid}
+                  onChange={(event) => setAccountSid(event.target.value)}
+                  label="Twilio Account SID"
+                  placeholder="ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                />
+                <FormTextField
+                  value={authToken}
+                  onChange={(event) => setAuthToken(event.target.value)}
+                  label="Twilio Auth Token"
+                  type="password"
+                  placeholder="Twilio auth token"
+                />
+                <FormTextField
+                  value={fromNumber}
+                  onChange={(event) => setFromNumber(event.target.value)}
+                  label="Default From Number"
+                  placeholder="+15551234567"
+                />
+                <FormTextField
+                  value={whatsappFrom}
+                  onChange={(event) => setWhatsappFrom(event.target.value)}
+                  label="WhatsApp From"
+                  placeholder="whatsapp:+14155238886"
+                />
                 <FormTextField
                   value={twimlAppSid}
                   onChange={(event) => setTwimlAppSid(event.target.value)}
@@ -475,6 +528,73 @@ export default function ProvidersPage() {
                   label="Twilio API Key Secret"
                   type="password"
                   placeholder="Twilio API key secret"
+                />
+              </>
+            )}
+
+            {providerType === "plivo" && (
+              <>
+                <FormTextField
+                  value={authId}
+                  onChange={(event) => setAuthId(event.target.value)}
+                  label="Plivo Auth ID"
+                  placeholder="MAMUY0XXXXXXXXXXXXXXXX"
+                />
+                <FormTextField
+                  value={authToken}
+                  onChange={(event) => setAuthToken(event.target.value)}
+                  label="Plivo Auth Token"
+                  type="password"
+                  placeholder="Plivo auth token"
+                />
+                <FormTextField
+                  value={fromNumber}
+                  onChange={(event) => setFromNumber(event.target.value)}
+                  label="Default From Number"
+                  placeholder="+15551234567"
+                />
+                <FormTextField
+                  value={appId}
+                  onChange={(event) => setAppId(event.target.value)}
+                  label="Plivo Application ID (Optional)"
+                  placeholder="App ID for XML voice routing"
+                />
+                <FormTextField
+                  value={endpointUsername}
+                  onChange={(event) => setEndpointUsername(event.target.value)}
+                  label="Plivo WebRTC Endpoint Username"
+                  placeholder="agent_endpoint_username"
+                />
+                <FormTextField
+                  value={endpointPassword}
+                  onChange={(event) => setEndpointPassword(event.target.value)}
+                  label="Plivo WebRTC Endpoint Password"
+                  type="password"
+                  placeholder="Endpoint password"
+                />
+              </>
+            )}
+
+            {providerType === "vonage" && (
+              <>
+                <FormTextField
+                  value={accountSid}
+                  onChange={(event) => setAccountSid(event.target.value)}
+                  label="Vonage API Key"
+                  placeholder="API key"
+                />
+                <FormTextField
+                  value={authToken}
+                  onChange={(event) => setAuthToken(event.target.value)}
+                  label="Vonage API Secret"
+                  type="password"
+                  placeholder="API secret"
+                />
+                <FormTextField
+                  value={fromNumber}
+                  onChange={(event) => setFromNumber(event.target.value)}
+                  label="Default From Number"
+                  placeholder="+15551234567"
                 />
               </>
             )}
@@ -600,24 +720,33 @@ export default function ProvidersPage() {
               {loading ? "Loading..." : "Refresh"}
             </MuiButton>
           </Stack>
-          {message ? <Box sx={{ mt: 2 }}><ErrorState message={message} /></Box> : null}
+          {messageState ? <Box sx={{ mt: 2 }}><Alert severity={messageState.severity}>{messageState.text}</Alert></Box> : null}
         </SectionCard>
 
-        <SectionCard title="Number Provisioning" subtitle="1) Select provider, 2) fetch Twilio numbers, 3) sync selected numbers into tenant settings.">
+        <SectionCard title="Number Provisioning" subtitle="1) Select provider, 2) fetch available numbers or enter a manual number, 3) sync selected numbers into tenant settings.">
           <Stack spacing={2}>
-            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5}>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={1.5} alignItems="center">
               <FormSelect
                 label="Provider"
                 value={selectedProviderForFetch}
                 onChange={(event) => setSelectedProviderForFetch(event.target.value)}
-                options={providers.map((provider) => ({ label: provider.display_name, value: provider.id }))}
+                options={[
+                  { value: "", label: "-- Select Provider --" },
+                  ...providers.map((provider) => ({ label: provider.display_name, value: provider.id })),
+                ]}
               />
-              <Button type="button" onClick={() => void fetchNumbersFromTwilio()}>Fetch Available Numbers</Button>
-              <Button type="button" onClick={() => void syncSelectedNumbers()}>Assign Selected Numbers</Button>
+              <FormTextField
+                label="Manual Phone Number (e.g. +919876543210)"
+                value={manualPhoneNumber}
+                onChange={(event) => setManualPhoneNumber(event.target.value)}
+                placeholder="+919876543210"
+              />
+              <Button type="button" onClick={() => void fetchAvailableProviderNumbers()}>Fetch Available Numbers</Button>
+              <Button type="button" onClick={() => void syncSelectedNumbers()}>Assign Selected / Manual Number</Button>
             </Stack>
             <Paper variant="outlined" sx={{ p: 2 }}>
               {availableNumbers.length === 0 ? (
-                <Typography variant="body2" color="text.secondary">No fetched numbers yet.</Typography>
+                <Typography variant="body2" color="text.secondary">No fetched numbers yet. Enter a manual phone number above and click &quot;Assign Selected / Manual Number&quot;.</Typography>
               ) : (
                 <Stack spacing={1}>
                   {availableNumbers.map((number) => (
@@ -649,7 +778,10 @@ export default function ProvidersPage() {
                 label="Provider"
                 value={testingProviderId}
                 onChange={(event) => setTestingProviderId(event.target.value)}
-                options={providers.map((provider) => ({ label: provider.display_name, value: provider.id }))}
+                options={[
+                  { value: "", label: "-- Select Provider --" },
+                  ...providers.map((provider) => ({ label: provider.display_name, value: provider.id })),
+                ]}
               />
               <FormSelect
                 label="Provider Number (optional)"
@@ -703,19 +835,25 @@ export default function ProvidersPage() {
                 label="Agent"
                 value={agentId}
                 onChange={(event) => setAgentId(event.target.value)}
-                options={agents.map((member) => ({
-                  value: member.id,
-                  label: member.company_number,
-                }))}
+                options={[
+                  { value: "", label: "-- Select Agent --" },
+                  ...agents.map((member) => ({
+                    value: member.id,
+                    label: member.company_number,
+                  })),
+                ]}
               />
               <FormSelect
                 label="Validated Number"
                 value={agentNumberId}
                 onChange={(event) => setAgentNumberId(event.target.value)}
-                options={validatedNumbers.map((number) => ({
-                  value: number.id,
-                  label: `${number.phone_number} (${number.status})`,
-                }))}
+                options={[
+                  { value: "", label: "-- Select Validated Number --" },
+                  ...validatedNumbers.map((number) => ({
+                    value: number.id,
+                    label: `${number.phone_number} (${number.status})`,
+                  })),
+                ]}
               />
               <Button type="button" onClick={() => void assignAgentNumber()}>
                 Assign
@@ -757,16 +895,22 @@ export default function ProvidersPage() {
               label="Campaign"
               value={campaignId}
               onChange={(event) => setCampaignId(event.target.value)}
-              options={campaigns.map((campaign) => ({ value: campaign.id, label: campaign.name }))}
+              options={[
+                { value: "", label: "-- Select Campaign --" },
+                ...campaigns.map((campaign) => ({ value: campaign.id, label: campaign.name })),
+              ]}
             />
             <FormSelect
               label="Agent"
               value={campaignAgentId}
               onChange={(event) => setCampaignAgentId(event.target.value)}
-              options={agents.map((member) => ({
-                value: member.id,
-                label: member.company_number,
-              }))}
+              options={[
+                { value: "", label: "-- Select Agent --" },
+                ...agents.map((member) => ({
+                  value: member.id,
+                  label: member.company_number,
+                })),
+              ]}
             />
             <Button type="button" onClick={() => void mapCampaignAgent()}>Save Mapping</Button>
           </Stack>
