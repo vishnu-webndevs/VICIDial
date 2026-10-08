@@ -136,27 +136,23 @@ export default function ProvidersPage() {
       setAgents(activeAgents);
       setAgentAssignments(assignmentsResponse.data ?? []);
       setCampaigns(campaignData);
-      if (!selectedProviderForFetch && nextProviders.length > 0) {
-        setSelectedProviderForFetch(nextProviders[0].id);
+      if (nextProviders.length > 0) {
+        setSelectedProviderForFetch((prev) => prev || nextProviders[0].id);
+        setTestingProviderId((prev) => prev || nextProviders[0].id);
       }
-      if (!testingProviderId && nextProviders.length > 0) {
-        setTestingProviderId(nextProviders[0].id);
+      if (activeAgents.length > 0) {
+        setAgentId((prev) => prev || activeAgents[0].id);
+        setCampaignAgentId((prev) => prev || activeAgents[0].id);
       }
-      if (!agentId && activeAgents.length > 0) {
-        setAgentId(activeAgents[0].id);
-      }
-      if (!campaignAgentId && activeAgents.length > 0) {
-        setCampaignAgentId(activeAgents[0].id);
-      }
-      if (!campaignId && campaignData.length > 0) {
-        setCampaignId(campaignData[0].id);
+      if (campaignData.length > 0) {
+        setCampaignId((prev) => prev || campaignData[0].id);
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Failed to load providers.");
     } finally {
       setLoading(false);
     }
-  }, [agentId, campaignAgentId, campaignId, selectedProviderForFetch, testingProviderId]);
+  }, [setMessage]);
 
   function resetProviderForm() {
     setEditingProviderId(null);
@@ -304,8 +300,7 @@ export default function ProvidersPage() {
 
   async function saveFailover() {
     try {
-      const token = localStorage.getItem("wnd_token");
-      const tenantId = localStorage.getItem("wnd_tenant_id");
+      const { token, tenantId } = getTenantContext();
       await apiRequest("/providers/failover-policy", {
         method: "PATCH",
         token,

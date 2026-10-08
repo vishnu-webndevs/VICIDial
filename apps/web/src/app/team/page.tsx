@@ -18,6 +18,7 @@ import {
 } from "@/ui";
 import { AppShell, EmptyState, ErrorState, LoadingState, SectionCard } from "@/components/app-shell";
 import { apiRequest } from "@/lib/api";
+import { getTenantContext } from "@/lib/tenant-context";
 
 type TeamListResponse = {
   data: Array<{
@@ -62,8 +63,7 @@ export default function TeamPage() {
     setMessage("");
 
     try {
-      const token = localStorage.getItem("wnd_token");
-      const tenantId = localStorage.getItem("wnd_tenant_id");
+      const { token, tenantId } = getTenantContext();
       const response = await apiRequest<TeamListResponse>(`/team/members?page=${page}`, {
         token,
         tenantId,
@@ -89,8 +89,7 @@ export default function TeamPage() {
     setSubmitting(true);
     setMessage("");
     try {
-      const token = localStorage.getItem("wnd_token");
-      const tenantId = localStorage.getItem("wnd_tenant_id");
+      const { token, tenantId } = getTenantContext();
       const body: Record<string, string> = { email, role };
       if (addMode === "direct") {
         body.first_name = firstName;
@@ -118,8 +117,7 @@ export default function TeamPage() {
 
   async function updateMember(memberId: string) {
     try {
-      const token = localStorage.getItem("wnd_token");
-      const tenantId = localStorage.getItem("wnd_tenant_id");
+      const { token, tenantId } = getTenantContext();
       await apiRequest(`/team/members/${memberId}`, {
         method: "PATCH",
         token,
@@ -135,8 +133,7 @@ export default function TeamPage() {
 
   async function removeMember(memberId: string) {
     try {
-      const token = localStorage.getItem("wnd_token");
-      const tenantId = localStorage.getItem("wnd_tenant_id");
+      const { token, tenantId } = getTenantContext();
       await apiRequest(`/team/members/${memberId}`, {
         method: "DELETE",
         token,
