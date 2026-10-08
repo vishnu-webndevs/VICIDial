@@ -448,6 +448,9 @@ export default function LeadsPage() {
     }
   }
 
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+
   const filtered = useMemo(
     () =>
       leads.filter((lead) => {
@@ -462,6 +465,19 @@ export default function LeadsPage() {
       }),
     [leads, search, statusFilter]
   );
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter]);
+
+  const totalPages = useMemo(() => Math.ceil(filtered.length / pageSize) || 1, [filtered.length, pageSize]);
+
+  const paginatedLeads = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page, pageSize]);
+
   const selectedLead = filtered.find((lead) => lead.id === selectedLeadId) ?? null;
   const availableAgentNames = useMemo(() => {
     const names = new Set(agents.map((a) => a.company_number));
@@ -503,7 +519,7 @@ export default function LeadsPage() {
 
   function toggleSelectAllLeads(checked: boolean) {
     if (checked) {
-      setSelectedLeadIdsForDelete(filtered.map((l) => l.id));
+      setSelectedLeadIdsForDelete(paginatedLeads.map((l) => l.id));
     } else {
       setSelectedLeadIdsForDelete([]);
     }
@@ -895,8 +911,8 @@ export default function LeadsPage() {
                         <TableCell sx={{ width: "5%", py: 1.5, px: 1 }}>
                           <Checkbox
                             size="small"
-                            checked={selectedLeadIdsForDelete.length === filtered.length && filtered.length > 0}
-                            indeterminate={selectedLeadIdsForDelete.length > 0 && selectedLeadIdsForDelete.length < filtered.length}
+                            checked={selectedLeadIdsForDelete.length === paginatedLeads.length && paginatedLeads.length > 0}
+                            indeterminate={selectedLeadIdsForDelete.length > 0 && selectedLeadIdsForDelete.length < paginatedLeads.length}
                             onChange={(event) => toggleSelectAllLeads(event.target.checked)}
                           />
                         </TableCell>
@@ -911,7 +927,7 @@ export default function LeadsPage() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {filtered.map((lead) => (
+                      {paginatedLeads.map((lead) => (
                         <TableRow
                           key={lead.id}
                           hover
@@ -1242,6 +1258,62 @@ export default function LeadsPage() {
                       ) : null}
                     </TableBody>
                   </Table>
+                  {filtered.length > 0 ? (
+                    <Stack
+                      direction={{ xs: "column", sm: "row" }}
+                      justifyContent="space-between"
+                      alignItems="center"
+                      spacing={2}
+                      sx={{ p: 2, borderTop: "1px solid", borderColor: "divider" }}
+                    >
+                      <Stack direction="row" alignItems="center" spacing={1.5}>
+                        <Typography variant="body2" color="text.secondary">
+                          Rows per page:
+                        </Typography>
+                        <TextField
+                          select
+                          size="small"
+                          value={pageSize}
+                          onChange={(e) => {
+                            setPageSize(Number(e.target.value));
+                            setPage(1);
+                          }}
+                          sx={{ width: 85 }}
+                        >
+                          {[10, 25, 50, 100, 250].map((size) => (
+                            <MenuItem key={size} value={size}>
+                              {size}
+                            </MenuItem>
+                          ))}
+                        </TextField>
+                        <Typography variant="body2" color="text.secondary">
+                          Showing {Math.min((page - 1) * pageSize + 1, filtered.length)}–{Math.min(page * pageSize, filtered.length)} of {filtered.length} leads
+                        </Typography>
+                      </Stack>
+
+                      <Stack direction="row" alignItems="center" spacing={1}>
+                        <MuiButton
+                          size="small"
+                          variant="outlined"
+                          disabled={page <= 1}
+                          onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        >
+                          Previous
+                        </MuiButton>
+                        <Typography variant="body2" sx={{ fontWeight: 600, px: 1 }}>
+                          Page {page} of {totalPages}
+                        </Typography>
+                        <MuiButton
+                          size="small"
+                          variant="outlined"
+                          disabled={page >= totalPages}
+                          onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                        >
+                          Next
+                        </MuiButton>
+                      </Stack>
+                    </Stack>
+                  ) : null}
                 </Paper>
               )}
             </SectionCard>
