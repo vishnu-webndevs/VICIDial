@@ -166,8 +166,12 @@ export default function AnalyticsPage() {
             value={campaignId}
             onChange={(event) => setCampaignId(event.target.value)}
             size="medium"
+            SelectProps={{ displayEmpty: true }}
+            disabled={campaigns.length === 0}
           >
-            <MenuItem value="">All campaigns</MenuItem>
+            <MenuItem value="">
+              {campaigns.length === 0 ? "No campaigns available" : "All campaigns"}
+            </MenuItem>
             {campaigns.map((campaign) => (
               <MenuItem key={campaign.id} value={campaign.id}>
                 {campaign.name}

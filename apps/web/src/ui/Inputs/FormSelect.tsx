@@ -27,6 +27,7 @@ export function FormSelect({
       fullWidth
       size="medium"
       {...props}
+      SelectProps={{ displayEmpty: true, ...(props.SelectProps as object || {}) }}
       InputLabelProps={resolvedInputLabelProps}
       sx={{ ...(spacingSx ?? {}), ...((props.sx as object) || {}) }}
     >

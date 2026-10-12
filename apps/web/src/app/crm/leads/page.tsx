@@ -863,6 +863,7 @@ export default function LeadsPage() {
                   size="medium"
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value)}
+                  SelectProps={{ displayEmpty: true }}
                 >
                   <MenuItem value="">All statuses</MenuItem>
                   {leadStatuses.map((status) => (
@@ -1393,9 +1394,13 @@ export default function LeadsPage() {
               size="medium"
               value={selectedListId}
               onChange={(event) => setSelectedListId(event.target.value)}
+              SelectProps={{ displayEmpty: true }}
+              disabled={lists.length === 0}
               sx={{ mt: 1.5, width: "100%" }}
             >
-              <MenuItem value="">Select list</MenuItem>
+              <MenuItem value="">
+                {lists.length === 0 ? "No lead lists available" : "Select list"}
+              </MenuItem>
               {lists.map((item) => (
                 <MenuItem key={item.id} value={item.id}>
                   {item.name} ({item.leads_count ?? 0})

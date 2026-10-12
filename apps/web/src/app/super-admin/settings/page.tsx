@@ -321,7 +321,7 @@ export default function SuperAdminSettingsPage() {
             <TextField size="medium" value={logoUrl} onChange={(event) => setLogoUrl(event.target.value)} placeholder="Branding logo URL" />
             <TextField size="medium" value={webhookUrl} onChange={(event) => setWebhookUrl(event.target.value)} placeholder="Default webhook URL" />
             <TextField size="medium" value={defaultCallerId} onChange={(event) => setDefaultCallerId(event.target.value)} placeholder="Default caller ID (+15551234567)" />
-            <TextField select size="medium" value={defaultLeadCountry} onChange={(event) => setDefaultLeadCountry(event.target.value)}>
+            <TextField select size="medium" label="Default Lead Country" value={defaultLeadCountry} onChange={(event) => setDefaultLeadCountry(event.target.value)}>
               {leadCountryOptions.map((option) => (
                 <MenuItem key={option.code} value={option.code}>{option.label}</MenuItem>
               ))}

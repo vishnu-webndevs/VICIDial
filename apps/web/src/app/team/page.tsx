@@ -231,6 +231,7 @@ export default function TeamPage() {
             <TextField
               select
               size="medium"
+              label="Team Role"
               value={role}
               onChange={(event) => setRole(event.target.value)}
             >

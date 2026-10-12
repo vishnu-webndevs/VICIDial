@@ -86,8 +86,9 @@ export default function MessageReportsPage() {
             value={selectedCampaignId}
             onChange={(e) => setSelectedCampaignId(e.target.value)}
             sx={{ minWidth: { xs: "100%", md: 380 } }}
-            disabled={loadingCampaigns}
+            disabled={loadingCampaigns || messageCampaigns.length === 0}
             SelectProps={{
+              displayEmpty: true,
               id: "campaign-select",
               name: "campaign_id",
               labelId: "campaign-select-label",

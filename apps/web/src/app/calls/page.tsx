@@ -218,6 +218,7 @@ export default function CallDashboardPage() {
                 setFilters((prev) => ({ ...prev, status: event.target.value }))
               }
               size="medium"
+              SelectProps={{ displayEmpty: true }}
             >
               <MenuItem value="">All Statuses</MenuItem>
               <MenuItem value="queued">Queued</MenuItem>

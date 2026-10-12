@@ -244,6 +244,7 @@ export default function TenantPage() {
             <TextField
               select
               size="medium"
+              label="Default Lead Country"
               value={defaultLeadCountry}
               onChange={(event) => setDefaultLeadCountry(event.target.value)}
             >
