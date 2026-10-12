@@ -327,8 +327,12 @@ export default function SuperAdminCompaniesPage() {
                             size="small"
                             defaultValue={company.plan?.id ?? ""}
                             onChange={(event) => void onChangePlan(company.id, event.target.value)}
+                            SelectProps={{ displayEmpty: true }}
                             sx={{ minWidth: 150, bgcolor: "#fff" }}
                           >
+                            <MenuItem value="">
+                              <em>No Plan</em>
+                            </MenuItem>
                             {plans.map((plan) => (
                               <MenuItem key={plan.id} value={plan.id}>
                                 {plan.name}

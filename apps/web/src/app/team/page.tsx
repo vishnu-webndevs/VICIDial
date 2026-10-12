@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import {
   Box,
+  Chip,
   CircularProgress,
   MenuItem,
   MuiButton,
@@ -51,6 +52,7 @@ export default function TeamPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState("support_analyst");
+  const [roleByMember, setRoleByMember] = useState<Record<string, string>>({});
   const [statusByMember, setStatusByMember] = useState<Record<string, "active" | "disabled">>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
@@ -72,10 +74,13 @@ export default function TeamPage() {
       setCurrentPage(response.meta?.pagination?.current_page ?? 1);
       setLastPage(response.meta?.pagination?.last_page ?? 1);
       const nextStatus: Record<string, "active" | "disabled"> = {};
+      const nextRole: Record<string, string> = {};
       response.data.forEach((member) => {
         nextStatus[member.id] = member.status === "disabled" ? "disabled" : "active";
+        nextRole[member.id] = member.role.slug;
       });
       setStatusByMember(nextStatus);
+      setRoleByMember(nextRole);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Failed to fetch team.";
       setMessage(errorMessage);
@@ -122,7 +127,10 @@ export default function TeamPage() {
         method: "PATCH",
         token,
         tenantId,
-        body: { status: statusByMember[memberId] },
+        body: {
+          status: statusByMember[memberId],
+          role: roleByMember[memberId],
+        },
       });
       setMessage("Member updated.");
       await loadTeam(currentPage);
@@ -234,6 +242,7 @@ export default function TeamPage() {
               label="Team Role"
               value={role}
               onChange={(event) => setRole(event.target.value)}
+              sx={addMode === "direct" ? { gridColumn: { md: "span 2" } } : {}}
             >
               <MenuItem value="company_admin">Company Admin</MenuItem>
               <MenuItem value="billing_manager">Billing Manager</MenuItem>
@@ -281,24 +290,51 @@ export default function TeamPage() {
                     <TableCell>
                       {member.user ? `${member.user.first_name} ${member.user.last_name}`.trim() : "Invited user"}
                     </TableCell>
-                    <TableCell>{member.user?.email ?? "-"}</TableCell>
-                    <TableCell>{member.role.name}</TableCell>
+                    <TableCell>{member.user?.email ?? "(Pending Invite)"}</TableCell>
                     <TableCell>
-                      <TextField
-                        select
-                        size="medium"
-                        value={statusByMember[member.id] ?? "active"}
-                        onChange={(event) =>
-                          setStatusByMember((prev) => ({
-                            ...prev,
-                            [member.id]: event.target.value as "active" | "disabled",
-                          }))
-                        }
-                        sx={{ minWidth: 120 }}
-                      >
-                        <MenuItem value="active">Active</MenuItem>
-                        <MenuItem value="disabled">Disabled</MenuItem>
-                      </TextField>
+                      {member.role.slug === "company_owner" ? (
+                        <Chip label={member.role.name} color="primary" size="small" variant="outlined" />
+                      ) : (
+                        <TextField
+                          select
+                          size="small"
+                          value={roleByMember[member.id] ?? member.role.slug}
+                          onChange={(event) =>
+                            setRoleByMember((prev) => ({
+                              ...prev,
+                              [member.id]: event.target.value,
+                            }))
+                          }
+                          sx={{ minWidth: 155 }}
+                        >
+                          <MenuItem value="company_admin">Company Admin</MenuItem>
+                          <MenuItem value="billing_manager">Billing Manager</MenuItem>
+                          <MenuItem value="developer_manager">Developer Manager</MenuItem>
+                          <MenuItem value="operations_manager">Operations Manager</MenuItem>
+                          <MenuItem value="support_analyst">Support Analyst / Agent</MenuItem>
+                        </TextField>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {member.status === "invited" ? (
+                        <Chip label="Pending Invite" color="warning" size="small" variant="outlined" />
+                      ) : (
+                        <TextField
+                          select
+                          size="small"
+                          value={statusByMember[member.id] ?? "active"}
+                          onChange={(event) =>
+                            setStatusByMember((prev) => ({
+                              ...prev,
+                              [member.id]: event.target.value as "active" | "disabled",
+                            }))
+                          }
+                          sx={{ minWidth: 110 }}
+                        >
+                          <MenuItem value="active">Active</MenuItem>
+                          <MenuItem value="disabled">Disabled</MenuItem>
+                        </TextField>
+                      )}
                     </TableCell>
                     <TableCell>
                       <Stack direction="row" spacing={1}>
