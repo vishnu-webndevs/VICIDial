@@ -1249,7 +1249,7 @@ export default function LeadsPage() {
                       ))}
                       {filtered.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={8}>
+                          <TableCell colSpan={9}>
                             <Typography variant="body2" color="text.secondary">
                               No leads found for current filters. Clear filters or create a new lead to continue.
                             </Typography>
